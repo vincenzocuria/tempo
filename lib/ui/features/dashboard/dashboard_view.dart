@@ -11,10 +11,14 @@ import 'widgets/today_summary_row.dart';
 
 class DashboardView extends StatelessWidget {
   final VoidCallback onNavigateToHistory;
+  final VoidCallback onThemeToggle;
+  final bool isDarkMode;
 
   const DashboardView({
     super.key,
     required this.onNavigateToHistory,
+    required this.onThemeToggle,
+    required this.isDarkMode,
   });
 
   void _showQuickCheckInSheet(BuildContext context, TrackingEngine engine) async {
@@ -143,6 +147,14 @@ class DashboardView extends StatelessWidget {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: isDarkMode ? 'Passa al Tema Chiaro' : 'Passa al Tema Scuro',
+            icon: Icon(
+              isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+              color: isDarkMode ? AppColors.warning : AppColors.primary,
+            ),
+            onPressed: onThemeToggle,
+          ),
           Container(
             margin: const EdgeInsets.only(right: 16),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),

@@ -48,12 +48,17 @@ class LocationService {
 
       if (permission == LocationPermission.deniedForever) return null;
 
-      return await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 10),
-        ),
-      );
+      try {
+        final pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            timeLimit: Duration(seconds: 5),
+          ),
+        );
+        return pos;
+      } catch (_) {
+        return await Geolocator.getLastKnownPosition();
+      }
     } catch (e) {
       debugPrint('Error getting current position: $e');
       return null;

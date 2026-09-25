@@ -13,6 +13,7 @@ import 'ui/features/analytics/analytics_view_model.dart';
 import 'ui/features/dashboard/dashboard_view.dart';
 import 'ui/features/dashboard/dashboard_view_model.dart';
 import 'ui/features/history/history_view.dart';
+import 'ui/features/map/map_view.dart';
 import 'ui/features/places/places_view.dart';
 import 'ui/features/places/places_view_model.dart';
 import 'ui/features/settings/settings_view.dart';
@@ -37,9 +38,9 @@ void main() async {
   );
   await trackingEngine.initialize();
 
-  // Read theme preference
+  // Read theme preference - DEFAULT TO LIGHT MODE!
   final prefs = await SharedPreferences.getInstance();
-  final isDark = prefs.getBool('is_dark_mode') ?? true;
+  final isDark = prefs.getBool('is_dark_mode') ?? false;
 
   runApp(
     TempoApp(
@@ -143,16 +144,26 @@ class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
 
   void _navigateToHistory() {
-    setState(() => _currentIndex = 3);
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const HistoryView()),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final pages = [
-      DashboardView(onNavigateToHistory: _navigateToHistory),
+      DashboardView(
+        onNavigateToHistory: _navigateToHistory,
+        onThemeToggle: widget.onThemeToggle,
+        isDarkMode: widget.isDarkMode,
+      ),
+      MapView(
+        onThemeToggle: widget.onThemeToggle,
+        isDarkMode: widget.isDarkMode,
+      ),
       const PlacesView(),
       const AnalyticsView(),
-      const HistoryView(),
       SettingsView(
         isDarkMode: widget.isDarkMode,
         onThemeToggle: widget.onThemeToggle,
@@ -190,6 +201,11 @@ class _MainShellState extends State<MainShell> {
             label: 'Oggi',
           ),
           NavigationDestination(
+            icon: Icon(Icons.map_outlined),
+            selectedIcon: Icon(Icons.map_rounded),
+            label: 'Mappa',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.place_outlined),
             selectedIcon: Icon(Icons.place_rounded),
             label: 'Luoghi',
@@ -198,11 +214,6 @@ class _MainShellState extends State<MainShell> {
             icon: Icon(Icons.pie_chart_outline_rounded),
             selectedIcon: Icon(Icons.pie_chart_rounded),
             label: 'Statistiche',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.history_rounded),
-            selectedIcon: Icon(Icons.history_rounded),
-            label: 'Cronologia',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),

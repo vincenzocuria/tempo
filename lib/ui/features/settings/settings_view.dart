@@ -9,6 +9,7 @@ import '../../../data/services/location_service.dart';
 import '../../../data/services/notification_service.dart';
 import '../../../data/services/tracking_engine.dart';
 import '../../core/app_colors.dart';
+import '../history/history_view.dart';
 
 class SettingsView extends StatefulWidget {
   final VoidCallback onThemeToggle;
@@ -364,6 +365,19 @@ class _SettingsViewState extends State<SettingsView> {
             ),
             child: Column(
               children: [
+                ListTile(
+                  leading: const Icon(Icons.history_rounded, color: AppColors.primary),
+                  title: const Text('Cronologia Completa Visite', style: TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: const Text('Visualizza e cerca tutte le sessioni passate'),
+                  trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const HistoryView()),
+                    );
+                  },
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
                 ListTile(
                   leading: const Icon(Icons.table_chart_rounded, color: AppColors.primaryLight),
                   title: const Text('Esporta Visite in CSV', style: TextStyle(fontWeight: FontWeight.w600)),
