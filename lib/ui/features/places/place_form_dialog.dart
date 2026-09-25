@@ -93,9 +93,9 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
     } else {
       // Default to Rome coordinates as safe fallback
       _selectedPoint = const LatLng(41.9028, 12.4964);
-      // Auto-fetch GPS
+      // Auto-fetch GPS silently
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _getCurrentGps();
+        _getCurrentGps(showFeedback: false);
       });
     }
   }
@@ -106,7 +106,7 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
     super.dispose();
   }
 
-  Future<void> _getCurrentGps() async {
+  Future<void> _getCurrentGps({bool showFeedback = true}) async {
     setState(() => _isFetchingGps = true);
     try {
       final pos = await LocationService.instance.getCurrentPosition();
@@ -115,12 +115,14 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
           _selectedPoint = LatLng(pos.latitude, pos.longitude);
         });
         _mapController.move(_selectedPoint, 16.0);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('📍 Posizione GPS agganciata!'),
-            duration: Duration(seconds: 2),
-          ),
-        );
+        if (showFeedback && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('📍 Posizione GPS agganciata!'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
       }
     } finally {
       if (mounted) {
@@ -466,8 +468,50 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
                                   Icon(Icons.touch_app_rounded, color: Colors.white, size: 14),
                                   SizedBox(width: 4),
                                   Text(
-                                    'Tocca la mappa per spostare il pin',
+                                    'Tocca per spostare il pin',
                                     style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            bottom: 8,
+                            right: 8,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: isDark ? AppColors.darkSurface : Colors.white,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: borderColor),
+                                boxShadow: const [
+                                  BoxShadow(color: Colors.black26, blurRadius: 4),
+                                ],
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  InkWell(
+                                    onTap: () {
+                                      HapticFeedback.selectionClick();
+                                      _mapController.move(_selectedPoint, _mapController.camera.zoom + 1);
+                                    },
+                                    borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(6),
+                                      child: Icon(Icons.add, size: 18, color: textPrimary),
+                                    ),
+                                  ),
+                                  Divider(height: 1, thickness: 1, color: borderColor),
+                                  InkWell(
+                                    onTap: () {
+                                      HapticFeedback.selectionClick();
+                                      _mapController.move(_selectedPoint, _mapController.camera.zoom - 1);
+                                    },
+                                    borderRadius: const BorderRadius.vertical(bottom: Radius.circular(10)),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(6),
+                                      child: Icon(Icons.remove, size: 18, color: textPrimary),
+                                    ),
                                   ),
                                 ],
                               ),

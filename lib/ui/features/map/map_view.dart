@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -9,6 +10,34 @@ import '../../../data/services/tracking_engine.dart';
 import '../../core/app_colors.dart';
 import '../places/place_form_dialog.dart';
 import '../places/places_view_model.dart';
+
+enum MapLayerType {
+  osm,
+  cartoVoyager,
+  cartoDark;
+
+  String get displayName {
+    switch (this) {
+      case MapLayerType.osm:
+        return 'Stradale Dettagliata (OSM)';
+      case MapLayerType.cartoVoyager:
+        return 'Moderna Chiara (CartoDB)';
+      case MapLayerType.cartoDark:
+        return 'Notturna OLED (CartoDB Dark)';
+    }
+  }
+
+  String get tileUrl {
+    switch (this) {
+      case MapLayerType.osm:
+        return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+      case MapLayerType.cartoVoyager:
+        return 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png';
+      case MapLayerType.cartoDark:
+        return 'https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png';
+    }
+  }
+}
 
 class MapView extends StatefulWidget {
   final VoidCallback onThemeToggle;
@@ -24,16 +53,41 @@ class MapView extends StatefulWidget {
   State<MapView> createState() => _MapViewState();
 }
 
-class _MapViewState extends State<MapView> {
+class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
   final MapController _mapController = MapController();
   Place? _selectedPlace;
   LatLng _currentLocation = const LatLng(41.9028, 12.4964); // Default Italy (Rome)
   bool _hasLocatedUser = false;
+  MapLayerType? _customLayerType;
+
+  late AnimationController _beaconController;
+  late Animation<double> _beaconRadiusAnim;
+  late Animation<double> _beaconOpacityAnim;
 
   @override
   void initState() {
     super.initState();
     _fetchUserLocation();
+
+    // Radar pulse animation for GPS beacon
+    _beaconController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    )..repeat();
+
+    _beaconRadiusAnim = Tween<double>(begin: 1.0, end: 2.5).animate(
+      CurvedAnimation(parent: _beaconController, curve: Curves.easeOutCubic),
+    );
+
+    _beaconOpacityAnim = Tween<double>(begin: 0.5, end: 0.0).animate(
+      CurvedAnimation(parent: _beaconController, curve: Curves.easeOutCubic),
+    );
+  }
+
+  @override
+  void dispose() {
+    _beaconController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchUserLocation() async {
@@ -43,7 +97,9 @@ class _MapViewState extends State<MapView> {
         _currentLocation = LatLng(pos.latitude, pos.longitude);
         _hasLocatedUser = true;
       });
-      _mapController.move(_currentLocation, 15.5);
+      try {
+        _mapController.move(_currentLocation, 15.5);
+      } catch (_) {}
     }
   }
 
@@ -52,16 +108,147 @@ class _MapViewState extends State<MapView> {
     await _fetchUserLocation();
   }
 
+  void _fitAllPlaces(List<Place> places) {
+    HapticFeedback.lightImpact();
+    if (places.isEmpty) return;
+
+    if (places.length == 1) {
+      _mapController.move(
+        LatLng(places.first.latitude, places.first.longitude),
+        16.0,
+      );
+      return;
+    }
+
+    double minLat = places.first.latitude;
+    double maxLat = places.first.latitude;
+    double minLng = places.first.longitude;
+    double maxLng = places.first.longitude;
+
+    for (final p in places) {
+      minLat = min(minLat, p.latitude);
+      maxLat = max(maxLat, p.latitude);
+      minLng = min(minLng, p.longitude);
+      maxLng = max(maxLng, p.longitude);
+    }
+
+    final center = LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
+    _mapController.move(center, 13.0);
+  }
+
+  void _showLayerSelector(BuildContext context, bool isDark) {
+    final currentType = _customLayerType ?? (isDark ? MapLayerType.cartoDark : MapLayerType.osm);
+    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
+              blurRadius: 28,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  width: 44,
+                  height: 4.5,
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Scegli Stile Mappa',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: textPrimary,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ...MapLayerType.values.map((layer) {
+                final isSelected = currentType == layer;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppColors.primary.withValues(alpha: isDark ? 0.2 : 0.1)
+                        : (isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isSelected ? AppColors.primary : borderColor,
+                      width: isSelected ? 1.8 : 1.0,
+                    ),
+                  ),
+                  child: ListTile(
+                    leading: Icon(
+                      layer == MapLayerType.osm
+                          ? Icons.map_rounded
+                          : (layer == MapLayerType.cartoVoyager ? Icons.wb_sunny_rounded : Icons.dark_mode_rounded),
+                      color: isSelected ? AppColors.primary : textMuted,
+                    ),
+                    title: Text(
+                      layer.displayName,
+                      style: TextStyle(
+                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                        color: isSelected ? AppColors.primary : textPrimary,
+                      ),
+                    ),
+                    trailing: isSelected
+                        ? const Icon(Icons.check_circle_rounded, color: AppColors.primary)
+                        : null,
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      setState(() => _customLayerType = layer);
+                      Navigator.pop(ctx);
+                    },
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final trackingEngine = Provider.of<TrackingEngine>(context);
     final placesVm = Provider.of<PlacesViewModel>(context);
     final isDark = widget.isDarkMode;
 
-    // CartoDB tiles: voyager for bright modern light, dark_all for sleek dark
-    final tileUrl = isDark
-        ? 'https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png'
-        : 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png';
+    final activeLayer = _customLayerType ?? (isDark ? MapLayerType.cartoDark : MapLayerType.osm);
+    final tileUrl = activeLayer.tileUrl;
+
+    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
 
     // Build geofence circles for each place
     final circles = placesVm.places.map((place) {
@@ -81,7 +268,7 @@ class _MapViewState extends State<MapView> {
     // Build markers for places
     final markers = <Marker>[];
 
-    // User's live GPS marker
+    // User's live GPS marker with animated pulsing beacon
     if (_hasLocatedUser || trackingEngine.lastKnownPosition != null) {
       final userLat = trackingEngine.lastKnownPosition?.latitude ?? _currentLocation.latitude;
       final userLng = trackingEngine.lastKnownPosition?.longitude ?? _currentLocation.longitude;
@@ -89,24 +276,46 @@ class _MapViewState extends State<MapView> {
       markers.add(
         Marker(
           point: LatLng(userLat, userLng),
-          width: 32,
-          height: 32,
-          child: Container(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.primary,
-              border: Border.all(color: Colors.white, width: 3),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.5),
-                  blurRadius: 10,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: const Center(
-              child: Icon(Icons.navigation_rounded, color: Colors.white, size: 14),
-            ),
+          width: 64,
+          height: 64,
+          child: AnimatedBuilder(
+            animation: _beaconController,
+            builder: (context, _) {
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Outer expanding radar pulse
+                  Container(
+                    width: 26 * _beaconRadiusAnim.value,
+                    height: 26 * _beaconRadiusAnim.value,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.primary.withValues(alpha: _beaconOpacityAnim.value),
+                    ),
+                  ),
+                  // Central GPS core dot
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.primary,
+                      border: Border.all(color: Colors.white, width: 3),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(alpha: 0.5),
+                          blurRadius: 10,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: const Center(
+                      child: Icon(Icons.navigation_rounded, color: Colors.white, size: 12),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
       );
@@ -120,8 +329,8 @@ class _MapViewState extends State<MapView> {
       markers.add(
         Marker(
           point: LatLng(place.latitude, place.longitude),
-          width: 52,
-          height: 52,
+          width: 54,
+          height: 54,
           alignment: Alignment.topCenter,
           child: GestureDetector(
             onTap: () {
@@ -193,7 +402,7 @@ class _MapViewState extends State<MapView> {
     return Scaffold(
       body: Stack(
         children: [
-          // OpenStreetMap with flutter_map
+          // Genuine interactive Map Layer (OpenStreetMap / CartoDB)
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
@@ -203,6 +412,10 @@ class _MapViewState extends State<MapView> {
                 if (_selectedPlace != null) {
                   setState(() => _selectedPlace = null);
                 }
+              },
+              onLongPress: (_, point) {
+                HapticFeedback.mediumImpact();
+                PlaceFormDialog.show(context, initialLocation: point);
               },
             ),
             children: [
@@ -225,7 +438,7 @@ class _MapViewState extends State<MapView> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
-                      color: isDark ? AppColors.darkSurface.withValues(alpha: 0.9) : Colors.white.withValues(alpha: 0.95),
+                      color: isDark ? AppColors.darkSurface.withValues(alpha: 0.92) : Colors.white.withValues(alpha: 0.95),
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: const [
                         BoxShadow(color: Colors.black12, blurRadius: 8),
@@ -240,7 +453,7 @@ class _MapViewState extends State<MapView> {
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w800,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            color: textPrimary,
                           ),
                         ),
                       ],
@@ -248,22 +461,30 @@ class _MapViewState extends State<MapView> {
                   ),
                   Row(
                     children: [
-                      // Quick Theme Toggle Button
+                      // Map Layer Selector (OSM / CartoDB)
                       FloatingActionButton.small(
-                        heroTag: 'map_theme_toggle',
+                        heroTag: 'map_layer_selector',
                         backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
-                        foregroundColor: isDark ? AppColors.warning : AppColors.primary,
+                        foregroundColor: AppColors.primary,
                         elevation: 3,
-                        tooltip: isDark ? 'Passa al Tema Chiaro' : 'Passa al Tema Scuro',
-                        onPressed: () {
-                          HapticFeedback.selectionClick();
-                          widget.onThemeToggle();
-                        },
-                        child: Icon(
-                          isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-                        ),
+                        tooltip: 'Stile Mappa (Stradale / Scura)',
+                        onPressed: () => _showLayerSelector(context, isDark),
+                        child: const Icon(Icons.layers_rounded),
                       ),
                       const SizedBox(width: 8),
+                      // Fit all places
+                      if (placesVm.places.isNotEmpty) ...[
+                        FloatingActionButton.small(
+                          heroTag: 'map_fit_places',
+                          backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
+                          foregroundColor: textPrimary,
+                          elevation: 3,
+                          tooltip: 'Inquadra tutti i luoghi',
+                          onPressed: () => _fitAllPlaces(placesVm.places),
+                          child: const Icon(Icons.crop_free_rounded),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
                       // Recenter on GPS
                       FloatingActionButton.small(
                         heroTag: 'map_recenter_user',
@@ -275,6 +496,56 @@ class _MapViewState extends State<MapView> {
                         child: const Icon(Icons.my_location_rounded),
                       ),
                     ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Zoom in / Zoom out floating controls on right side
+          Positioned(
+            right: 16,
+            bottom: _selectedPlace != null ? 220 : 96,
+            child: Container(
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkSurface : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                ),
+                boxShadow: const [
+                  BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 2)),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.add, size: 20),
+                    tooltip: 'Zoom avanti',
+                    onPressed: () {
+                      HapticFeedback.selectionClick();
+                      _mapController.move(
+                        _mapController.camera.center,
+                        _mapController.camera.zoom + 1,
+                      );
+                    },
+                  ),
+                  Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.remove, size: 20),
+                    tooltip: 'Zoom indietro',
+                    onPressed: () {
+                      HapticFeedback.selectionClick();
+                      _mapController.move(
+                        _mapController.camera.center,
+                        _mapController.camera.zoom - 1,
+                      );
+                    },
                   ),
                 ],
               ),

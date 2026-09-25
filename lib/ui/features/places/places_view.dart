@@ -195,14 +195,16 @@ class PlacesView extends StatelessWidget {
                     ),
                   ),
                 )
-              : ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  itemCount: viewModel.places.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 14),
-                  itemBuilder: (context, index) {
-                    final place = viewModel.places[index];
-                    final isCurrentPlace = trackingEngine.currentPlace?.id == place.id;
-                    final totalTimeStr = viewModel.formatPlaceDuration(place.name);
+              : RefreshIndicator(
+                  onRefresh: () => viewModel.loadPlaces(),
+                  child: ListView.separated(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    itemCount: viewModel.places.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 14),
+                    itemBuilder: (context, index) {
+                      final place = viewModel.places[index];
+                      final isCurrentPlace = trackingEngine.currentPlace?.id == place.id;
+                      final totalTimeStr = viewModel.formatPlaceDuration(place.name);
 
                     return Container(
                       padding: const EdgeInsets.all(18),
@@ -418,6 +420,7 @@ class PlacesView extends StatelessWidget {
                     );
                   },
                 ),
+              ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => PlaceFormDialog.show(context),
         icon: const Icon(Icons.add_location_alt_rounded),
