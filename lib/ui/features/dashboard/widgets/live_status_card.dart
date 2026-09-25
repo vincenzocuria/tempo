@@ -68,6 +68,10 @@ class _LiveStatusCardState extends State<LiveStatusCard>
     final isDark = theme.brightness == Brightness.dark;
     final accentColor = isInside ? currentPlace.color : AppColors.primary;
 
+    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final cardElevatedBg = isDark ? AppColors.darkSurfaceElevated : Colors.white;
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 500),
       curve: Curves.easeInOutCubic,
@@ -82,7 +86,7 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                   currentPlace.color.withValues(alpha: isDark ? 0.06 : 0.03),
                 ]
               : [
-                  isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                  isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
                   isDark ? const Color(0xFF0F172A) : Colors.white,
                 ],
         ),
@@ -170,9 +174,7 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1.2,
-                      color: isInside
-                          ? accentColor
-                          : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                      color: isInside ? accentColor : textMuted,
                     ),
                   ),
                 ],
@@ -231,10 +233,11 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                     children: [
                       Text(
                         currentPlace.name,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
                           letterSpacing: -0.4,
+                          color: textPrimary,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -271,7 +274,7 @@ class _LiveStatusCardState extends State<LiveStatusCard>
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 18),
               decoration: BoxDecoration(
-                color: isDark ? AppColors.darkSurfaceElevated : Colors.white,
+                color: cardElevatedBg,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
                   color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
@@ -295,7 +298,7 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                           Icon(
                             Icons.timer_outlined,
                             size: 13,
-                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                            color: textMuted,
                           ),
                           const SizedBox(width: 4),
                           Text(
@@ -304,7 +307,7 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 1.1,
-                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                              color: textMuted,
                             ),
                           ),
                         ],
@@ -365,7 +368,7 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                   ),
                   child: const Icon(
                     Icons.navigation_rounded,
-                    color: Color(0xFF94A3B8),
+                    color: Color(0xFF64748B),
                     size: 26,
                   ),
                 ),
@@ -374,11 +377,12 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'In movimento / Fuori zona',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
+                          color: textPrimary,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -387,7 +391,7 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                             'Nessun luogo registrato nelle vicinanze.',
                         style: TextStyle(
                           fontSize: 13,
-                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          color: textMuted,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -413,7 +417,10 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                       engine.checkCurrentLocation();
                     },
                     icon: const Icon(Icons.gps_fixed_rounded, size: 18),
-                    label: const Text('Rileva Ora', style: TextStyle(fontWeight: FontWeight.w700)),
+                    label: Text(
+                      'Rileva Ora',
+                      style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -430,7 +437,10 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                       widget.onQuickCheckInTap();
                     },
                     icon: const Icon(Icons.touch_app_rounded, size: 18),
-                    label: const Text('Check-in', style: TextStyle(fontWeight: FontWeight.w700)),
+                    label: Text(
+                      'Check-in',
+                      style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
+                    ),
                   ),
                 ),
               ],

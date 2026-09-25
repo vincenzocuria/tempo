@@ -26,7 +26,7 @@ class TodaySummaryRow extends StatelessWidget {
             value: formattedTotal,
             subtitle: '$visitCount sessioni',
             icon: Icons.hourglass_top_rounded,
-            iconColor: AppColors.primaryLight,
+            iconColor: isDark ? AppColors.primaryLight : AppColors.primary,
             isDark: isDark,
           ),
         ),
@@ -65,14 +65,24 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+        color: cardBg,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-        ),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -86,13 +96,13 @@ class _StatCard extends StatelessWidget {
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1.1,
-                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  color: textMuted,
                 ),
               ),
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.12),
+                  color: iconColor.withValues(alpha: 0.14),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(icon, color: iconColor, size: 16),
@@ -102,10 +112,11 @@ class _StatCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w800,
               letterSpacing: -0.5,
+              color: textPrimary,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -115,8 +126,8 @@ class _StatCard extends StatelessWidget {
             subtitle,
             style: TextStyle(
               fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+              fontWeight: FontWeight.w600,
+              color: textMuted,
             ),
           ),
         ],

@@ -36,82 +36,132 @@ class DashboardView extends StatelessWidget {
       return;
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Seleziona Luogo per Check-in',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
+        return Container(
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
+                blurRadius: 24,
+                offset: const Offset(0, -4),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      width: 44,
+                      height: 4.5,
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+                        borderRadius: BorderRadius.circular(4),
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded),
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Flexible(
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: places.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (c, idx) {
-                      final p = places[idx];
-                      final isCurrent = engine.currentPlace?.id == p.id;
-                      return ListTile(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          side: BorderSide(
-                            color: isCurrent
-                                ? p.color
-                                : Theme.of(context).dividerColor.withOpacity(0.1),
-                          ),
-                        ),
-                        tileColor: p.color.withOpacity(0.08),
-                        leading: CircleAvatar(
-                          backgroundColor: p.color.withOpacity(0.2),
-                          child: Icon(p.icon, color: p.color),
-                        ),
-                        title: Text(
-                          p.name,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        subtitle: Text(p.category.displayName),
-                        trailing: isCurrent
-                            ? const Chip(
-                                label: Text('Attuale'),
-                                backgroundColor: AppColors.primary,
-                                labelStyle: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                ),
-                              )
-                            : const Icon(Icons.arrow_forward_ios_rounded, size: 14),
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          engine.manualCheckIn(p);
-                        },
-                      );
-                    },
                   ),
-                ),
-              ],
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Check-in Manuale',
+                        style: TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w800,
+                          color: textPrimary,
+                        ),
+                      ),
+                      IconButton(
+                        style: IconButton.styleFrom(
+                          backgroundColor: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                          padding: const EdgeInsets.all(6),
+                        ),
+                        icon: Icon(Icons.close_rounded, size: 20, color: textPrimary),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: places.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (c, idx) {
+                        final p = places[idx];
+                        final isCurrent = engine.currentPlace?.id == p.id;
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: isCurrent
+                                ? p.color.withValues(alpha: isDark ? 0.2 : 0.1)
+                                : (isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: isCurrent ? p.color : borderColor,
+                              width: isCurrent ? 1.8 : 1.0,
+                            ),
+                          ),
+                          child: ListTile(
+                            leading: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: p.color.withValues(alpha: 0.2),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(p.icon, color: p.color, size: 20),
+                            ),
+                            title: Text(
+                              p.name,
+                              style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
+                            ),
+                            subtitle: Text(
+                              p.category.displayName,
+                              style: TextStyle(fontSize: 12, color: textMuted),
+                            ),
+                            trailing: isCurrent
+                                ? Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: p.color,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Text(
+                                      'Attuale',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  )
+                                : Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              engine.manualCheckIn(p);
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -215,12 +265,7 @@ class DashboardView extends StatelessWidget {
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    onPressed: () {
-                      showDialog(
-                        context: context,
-                        builder: (_) => const PlaceFormDialog(),
-                      );
-                    },
+                    onPressed: () => PlaceFormDialog.show(context),
                     icon: const Icon(Icons.add_location_alt_rounded, size: 20),
                     label: const Text(
                       'Nuovo Luogo',

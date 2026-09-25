@@ -19,6 +19,24 @@ class PlaceFormDialog extends StatefulWidget {
     this.initialLocation,
   });
 
+  /// Opens the form as an ultra-modern modal bottom sheet
+  static Future<void> show(
+    BuildContext context, {
+    Place? placeToEdit,
+    LatLng? initialLocation,
+  }) {
+    return showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => PlaceFormDialog(
+        placeToEdit: placeToEdit,
+        initialLocation: initialLocation,
+      ),
+    );
+  }
+
   @override
   State<PlaceFormDialog> createState() => _PlaceFormDialogState();
 }
@@ -38,6 +56,7 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
   bool _isFetchingGps = false;
 
   final List<Color> _colorOptions = const [
+    Color(0xFF6366F1), // Indigo
     Color(0xFF3B82F6), // Blue
     Color(0xFF10B981), // Emerald
     Color(0xFFF59E0B), // Amber
@@ -45,7 +64,6 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
     Color(0xFFEC4899), // Pink
     Color(0xFF06B6D4), // Cyan
     Color(0xFFF97316), // Orange
-    Color(0xFF64748B), // Slate
   ];
 
   final List<String> _quickSuggestions = [
@@ -162,424 +180,540 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
         ? 'https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png'
         : 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png';
 
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 500, maxHeight: 720),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(22),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
+            blurRadius: 28,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Drag handle
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(top: 12, bottom: 8),
+              width: 44,
+              height: 4.5,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
+
+          // Header
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: _selectedColor.withValues(alpha: 0.15),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(_selectedCategory.icon, color: _selectedColor, size: 22),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          isEditing ? 'Modifica Luogo' : 'Nuovo Luogo',
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-
-                // Name field
-                const Text(
-                  'NOME DEL LUOGO',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.0),
-                ),
-                const SizedBox(height: 6),
-                TextFormField(
-                  controller: _nameController,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: InputDecoration(
-                    hintText: 'Es. Ufficio, Palestra McFit, Casa...',
-                    prefixIcon: const Icon(Icons.edit_location_alt_rounded),
-                    suffixIcon: _nameController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear_rounded, size: 18),
-                            onPressed: () => setState(() => _nameController.clear()),
-                          )
-                        : null,
-                  ),
-                  validator: (val) {
-                    if (val == null || val.trim().isEmpty) {
-                      return 'Inserisci un nome per il luogo';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 8),
-
-                // Quick suggestions
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: _quickSuggestions.map((s) {
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: ActionChip(
-                          label: Text(s, style: const TextStyle(fontSize: 12)),
-                          onPressed: () {
-                            setState(() {
-                              _nameController.text = s;
-                              if (s == 'Ufficio' || s == 'Coworking') {
-                                _selectedCategory = PlaceCategory.lavoro;
-                              } else if (s == 'Palestra') {
-                                _selectedCategory = PlaceCategory.palestra;
-                              } else if (s == 'Casa') {
-                                _selectedCategory = PlaceCategory.casa;
-                              } else if (s == 'Studio') {
-                                _selectedCategory = PlaceCategory.studio;
-                              } else if (s == 'Bar preferito') {
-                                _selectedCategory = PlaceCategory.svago;
-                              }
-                              _selectedColor = _selectedCategory.defaultColor;
-                            });
-                          },
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // INTERACTIVE MAP PICKER
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'POSIZIONE SU MAPPA',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.0),
-                    ),
-                    TextButton.icon(
-                      onPressed: _isFetchingGps ? null : _getCurrentGps,
-                      icon: _isFetchingGps
-                          ? const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.my_location_rounded, size: 16),
-                      label: Text(_isFetchingGps ? 'Rilevo...' : 'Mia Posizione GPS'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-
-                // Map Container with visual pin and live geofence circle
-                Container(
-                  height: 190,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: _selectedColor.withValues(alpha: 0.4),
-                      width: 2,
-                    ),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Stack(
-                    children: [
-                      FlutterMap(
-                        mapController: _mapController,
-                        options: MapOptions(
-                          initialCenter: _selectedPoint,
-                          initialZoom: 15.5,
-                          onTap: (_, point) {
-                            HapticFeedback.selectionClick();
-                            setState(() => _selectedPoint = point);
-                          },
-                        ),
-                        children: [
-                          TileLayer(
-                            urlTemplate: tileUrl,
-                            userAgentPackageName: 'com.tempo.app.tempo',
-                          ),
-                          CircleLayer(
-                            circles: [
-                              CircleMarker(
-                                point: _selectedPoint,
-                                radius: _radiusInMeters,
-                                useRadiusInMeter: true,
-                                color: _selectedColor.withValues(alpha: 0.25),
-                                borderColor: _selectedColor,
-                                borderStrokeWidth: 2,
-                              ),
-                            ],
-                          ),
-                          MarkerLayer(
-                            markers: [
-                              Marker(
-                                point: _selectedPoint,
-                                width: 44,
-                                height: 44,
-                                alignment: Alignment.topCenter,
-                                child: Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: _selectedColor,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white, width: 2.5),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: _selectedColor.withValues(alpha: 0.5),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 3),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Icon(
-                                    _selectedCategory.icon,
-                                    color: Colors.white,
-                                    size: 20,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      Positioned(
-                        top: 8,
-                        left: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.black87,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.touch_app_rounded, color: Colors.white, size: 14),
-                              SizedBox(width: 4),
-                              Text(
-                                'Tocca la mappa per spostare il pin',
-                                style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Radius slider with live feedback
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'RAGGIO DI RILEVAMENTO',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.0),
-                    ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                      padding: const EdgeInsets.all(9),
                       decoration: BoxDecoration(
-                        color: _selectedColor.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: _selectedColor.withValues(alpha: 0.3)),
+                        color: _selectedColor.withValues(alpha: 0.16),
+                        shape: BoxShape.circle,
                       ),
-                      child: Text(
-                        '${_radiusInMeters.toInt()} metri',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: _selectedColor,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                Slider(
-                  value: _radiusInMeters,
-                  min: 50,
-                  max: 500,
-                  divisions: 9,
-                  activeColor: _selectedColor,
-                  onChanged: (val) {
-                    setState(() => _radiusInMeters = val);
-                  },
-                ),
-                const SizedBox(height: 12),
-
-                // Category selector
-                const Text(
-                  'CATEGORIA',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.0),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: PlaceCategory.values.map((cat) {
-                    final isSelected = _selectedCategory == cat;
-                    return ChoiceChip(
-                      selected: isSelected,
-                      label: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            cat.icon,
-                            size: 16,
-                            color: isSelected ? Colors.white : cat.defaultColor,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(cat.displayName),
-                        ],
-                      ),
-                      selectedColor: _selectedColor,
-                      labelStyle: TextStyle(
-                        color: isSelected ? Colors.white : null,
-                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
-                      ),
-                      onSelected: (selected) {
-                        if (selected) {
-                          setState(() {
-                            _selectedCategory = cat;
-                            _selectedColor = cat.defaultColor;
-                          });
-                        }
-                      },
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 16),
-
-                // Color picker
-                const Text(
-                  'COLORE IDENTIFICATIVO',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.0),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: _colorOptions.map((c) {
-                    final isPicked = _selectedColor.toARGB32() == c.toARGB32();
-                    return GestureDetector(
-                      onTap: () => setState(() => _selectedColor = c),
-                      child: Container(
-                        width: 34,
-                        height: 34,
-                        decoration: BoxDecoration(
-                          color: c,
-                          shape: BoxShape.circle,
-                          border: isPicked
-                              ? Border.all(color: Colors.white, width: 3)
-                              : null,
-                          boxShadow: isPicked
-                              ? [
-                                  BoxShadow(
-                                    color: c.withValues(alpha: 0.6),
-                                    blurRadius: 8,
-                                    spreadRadius: 1,
-                                  ),
-                                ]
-                              : null,
-                        ),
-                        child: isPicked
-                            ? const Icon(Icons.check, color: Colors.white, size: 18)
-                            : null,
-                      ),
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 16),
-
-                // Notifications toggles
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text(
-                    'Notifica all\'arrivo',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-                  ),
-                  subtitle: const Text(
-                    'Avvisa quando comincia il conteggio delle ore',
-                    style: TextStyle(fontSize: 12),
-                  ),
-                  value: _notifyOnEntry,
-                  activeColor: _selectedColor,
-                  onChanged: (v) => setState(() => _notifyOnEntry = v),
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text(
-                    'Notifica alla partenza',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-                  ),
-                  subtitle: const Text(
-                    'Invia il riepilogo del tempo totale trascorso',
-                    style: TextStyle(fontSize: 12),
-                  ),
-                  value: _notifyOnExit,
-                  activeColor: _selectedColor,
-                  onChanged: (v) => setState(() => _notifyOnExit = v),
-                ),
-                const SizedBox(height: 20),
-
-                // Action buttons
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Annulla'),
-                      ),
+                      child: Icon(_selectedCategory.icon, color: _selectedColor, size: 22),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _selectedColor,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          elevation: 3,
-                        ),
-                        onPressed: _savePlace,
-                        child: Text(
-                          isEditing ? 'Aggiorna' : 'Salva Luogo',
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
-                        ),
+                    Text(
+                      isEditing ? 'Modifica Luogo' : 'Nuovo Luogo',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: textPrimary,
+                        letterSpacing: -0.3,
                       ),
                     ),
                   ],
+                ),
+                IconButton(
+                  style: IconButton.styleFrom(
+                    backgroundColor: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                    padding: const EdgeInsets.all(6),
+                  ),
+                  icon: Icon(Icons.close_rounded, size: 20, color: textPrimary),
+                  onPressed: () => Navigator.pop(context),
                 ),
               ],
             ),
           ),
-        ),
+          const Divider(height: 1),
+
+          // Scrollable Form Body
+          Flexible(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                16,
+                20,
+                MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Section 1: Name Field
+                    Text(
+                      'NOME DEL LUOGO',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.1,
+                        color: textMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _nameController,
+                      textCapitalization: TextCapitalization.sentences,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: textPrimary,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'Es. Ufficio, Palestra McFit, Casa...',
+                        prefixIcon: const Icon(Icons.edit_location_alt_rounded),
+                        suffixIcon: _nameController.text.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear_rounded, size: 18),
+                                onPressed: () => setState(() => _nameController.clear()),
+                              )
+                            : null,
+                      ),
+                      validator: (val) {
+                        if (val == null || val.trim().isEmpty) {
+                          return 'Inserisci un nome per il luogo';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Quick suggestions
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: _quickSuggestions.map((s) {
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: ActionChip(
+                              backgroundColor: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                              side: BorderSide(color: borderColor),
+                              label: Text(
+                                s,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: textPrimary,
+                                ),
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _nameController.text = s;
+                                  if (s == 'Ufficio' || s == 'Coworking') {
+                                    _selectedCategory = PlaceCategory.lavoro;
+                                  } else if (s == 'Palestra') {
+                                    _selectedCategory = PlaceCategory.palestra;
+                                  } else if (s == 'Casa') {
+                                    _selectedCategory = PlaceCategory.casa;
+                                  } else if (s == 'Studio') {
+                                    _selectedCategory = PlaceCategory.studio;
+                                  } else if (s == 'Bar preferito') {
+                                    _selectedCategory = PlaceCategory.svago;
+                                  }
+                                  _selectedColor = _selectedCategory.defaultColor;
+                                });
+                              },
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Section 2: INTERACTIVE MAP PICKER
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'POSIZIONE SU MAPPA',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.1,
+                            color: textMuted,
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: _isFetchingGps ? null : _getCurrentGps,
+                          icon: _isFetchingGps
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.my_location_rounded, size: 16),
+                          label: Text(
+                            _isFetchingGps ? 'Rilevo...' : 'Mia Posizione GPS',
+                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+
+                    // Map Container with visual pin and live geofence circle
+                    Container(
+                      height: 190,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: _selectedColor.withValues(alpha: 0.4),
+                          width: 2,
+                        ),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Stack(
+                        children: [
+                          FlutterMap(
+                            mapController: _mapController,
+                            options: MapOptions(
+                              initialCenter: _selectedPoint,
+                              initialZoom: 15.5,
+                              onTap: (_, point) {
+                                HapticFeedback.selectionClick();
+                                setState(() => _selectedPoint = point);
+                              },
+                            ),
+                            children: [
+                              TileLayer(
+                                urlTemplate: tileUrl,
+                                userAgentPackageName: 'com.tempo.app.tempo',
+                              ),
+                              CircleLayer(
+                                circles: [
+                                  CircleMarker(
+                                    point: _selectedPoint,
+                                    radius: _radiusInMeters,
+                                    useRadiusInMeter: true,
+                                    color: _selectedColor.withValues(alpha: 0.25),
+                                    borderColor: _selectedColor,
+                                    borderStrokeWidth: 2,
+                                  ),
+                                ],
+                              ),
+                              MarkerLayer(
+                                markers: [
+                                  Marker(
+                                    point: _selectedPoint,
+                                    width: 44,
+                                    height: 44,
+                                    alignment: Alignment.topCenter,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: BoxDecoration(
+                                        color: _selectedColor,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: Colors.white, width: 2.5),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: _selectedColor.withValues(alpha: 0.5),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 3),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Icon(
+                                        _selectedCategory.icon,
+                                        color: Colors.white,
+                                        size: 20,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          Positioned(
+                            top: 8,
+                            left: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.black87,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.touch_app_rounded, color: Colors.white, size: 14),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Tocca la mappa per spostare il pin',
+                                    style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // Section 3: Radius slider with live feedback
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'RAGGIO DI RILEVAMENTO',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.1,
+                            color: textMuted,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: _selectedColor.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: _selectedColor.withValues(alpha: 0.3)),
+                          ),
+                          child: Text(
+                            '${_radiusInMeters.toInt()} metri',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: _selectedColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Slider(
+                      value: _radiusInMeters,
+                      min: 50,
+                      max: 500,
+                      divisions: 9,
+                      activeColor: _selectedColor,
+                      onChanged: (val) {
+                        setState(() => _radiusInMeters = val);
+                      },
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Section 4: Category selector
+                    Text(
+                      'CATEGORIA',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.1,
+                        color: textMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: PlaceCategory.values.map((cat) {
+                        final isSelected = _selectedCategory == cat;
+                        return ChoiceChip(
+                          selected: isSelected,
+                          selectedColor: _selectedColor.withValues(alpha: 0.18),
+                          backgroundColor: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                          side: BorderSide(
+                            color: isSelected ? _selectedColor : borderColor,
+                            width: isSelected ? 1.8 : 1.0,
+                          ),
+                          label: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                cat.icon,
+                                size: 16,
+                                color: isSelected ? _selectedColor : cat.defaultColor,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                cat.displayName,
+                                style: TextStyle(
+                                  color: isSelected ? _selectedColor : textPrimary,
+                                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                          onSelected: (selected) {
+                            if (selected) {
+                              setState(() {
+                                _selectedCategory = cat;
+                                _selectedColor = cat.defaultColor;
+                              });
+                            }
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // Section 5: Color picker
+                    Text(
+                      'COLORE IDENTIFICATIVO',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.1,
+                        color: textMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: _colorOptions.map((c) {
+                        final isPicked = _selectedColor.toARGB32() == c.toARGB32();
+                        return GestureDetector(
+                          onTap: () => setState(() => _selectedColor = c),
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: c,
+                              shape: BoxShape.circle,
+                              border: isPicked
+                                  ? Border.all(color: Colors.white, width: 3)
+                                  : null,
+                              boxShadow: isPicked
+                                  ? [
+                                      BoxShadow(
+                                        color: c.withValues(alpha: 0.6),
+                                        blurRadius: 8,
+                                        spreadRadius: 1,
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: isPicked
+                                ? const Icon(Icons.check, color: Colors.white, size: 18)
+                                : null,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // Section 6: Smart Notifications toggles (Card-grouped)
+                    Container(
+                      decoration: BoxDecoration(
+                        color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: borderColor),
+                      ),
+                      child: Column(
+                        children: [
+                          SwitchListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                            title: Text(
+                              'Notifica all\'arrivo',
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: textPrimary),
+                            ),
+                            subtitle: Text(
+                              'Avvisa quando comincia il conteggio delle ore',
+                              style: TextStyle(fontSize: 12, color: textMuted),
+                            ),
+                            value: _notifyOnEntry,
+                            activeColor: _selectedColor,
+                            onChanged: (v) => setState(() => _notifyOnEntry = v),
+                          ),
+                          Divider(height: 1, color: borderColor),
+                          SwitchListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                            title: Text(
+                              'Notifica alla partenza',
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: textPrimary),
+                            ),
+                            subtitle: Text(
+                              'Invia il riepilogo del tempo totale trascorso',
+                              style: TextStyle(fontSize: 12, color: textMuted),
+                            ),
+                            value: _notifyOnExit,
+                            activeColor: _selectedColor,
+                            onChanged: (v) => setState(() => _notifyOnExit = v),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Action buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 1,
+                          child: OutlinedButton(
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            onPressed: () => Navigator.pop(context),
+                            child: Text(
+                              'Annulla',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: textPrimary,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _selectedColor,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              elevation: 2,
+                            ),
+                            onPressed: _savePlace,
+                            child: Text(
+                              isEditing ? 'Aggiorna Luogo' : 'Salva Luogo',
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

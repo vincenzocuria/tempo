@@ -63,7 +63,6 @@ class _HistoryViewState extends State<HistoryView> {
         key = 'Ieri';
       } else {
         key = fullFormat.format(dateOnly);
-        // Capitalize first letter
         key = key[0].toUpperCase() + key.substring(1);
       }
 
@@ -77,6 +76,11 @@ class _HistoryViewState extends State<HistoryView> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+    final elevatedBg = isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated;
     final timeFormat = DateFormat('HH:mm');
     final grouped = _groupVisitsByDay(_visits);
 
@@ -87,12 +91,7 @@ class _HistoryViewState extends State<HistoryView> {
           IconButton(
             tooltip: 'Aggiungi visita manuale',
             icon: const Icon(Icons.add_circle_outline_rounded),
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (_) => ManualVisitDialog(onVisitAdded: _loadVisits),
-              );
-            },
+            onPressed: () => ManualVisitDialog.show(context, onVisitAdded: _loadVisits),
           ),
         ],
       ),
@@ -101,6 +100,7 @@ class _HistoryViewState extends State<HistoryView> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             child: TextField(
+              style: TextStyle(color: textPrimary, fontSize: 14, fontWeight: FontWeight.w500),
               decoration: InputDecoration(
                 hintText: 'Cerca per nome o categoria...',
                 prefixIcon: const Icon(Icons.search_rounded),
@@ -131,9 +131,13 @@ class _HistoryViewState extends State<HistoryView> {
                                 color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
                               ),
                               const SizedBox(height: 16),
-                              const Text(
+                              Text(
                                 'Nessuna visita trovata',
-                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: textPrimary,
+                                ),
                               ),
                               const SizedBox(height: 6),
                               Text(
@@ -141,9 +145,7 @@ class _HistoryViewState extends State<HistoryView> {
                                     ? 'Nessun risultato corrisponde alla ricerca.'
                                     : 'Le visite completate verranno archiviate qui in ordine cronologico.',
                                 textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                ),
+                                style: TextStyle(color: textMuted, fontSize: 13),
                               ),
                             ],
                           ),
@@ -166,10 +168,10 @@ class _HistoryViewState extends State<HistoryView> {
                                   child: Text(
                                     dayKey,
                                     style: TextStyle(
-                                      fontSize: 14,
+                                      fontSize: 13,
                                       fontWeight: FontWeight.w800,
-                                      letterSpacing: 0.5,
-                                      color: isDark ? AppColors.primaryLight : AppColors.primaryDark,
+                                      letterSpacing: 0.6,
+                                      color: isDark ? AppColors.primaryLight : AppColors.primary,
                                     ),
                                   ),
                                 ),
@@ -196,11 +198,16 @@ class _HistoryViewState extends State<HistoryView> {
                                       margin: const EdgeInsets.only(bottom: 10),
                                       padding: const EdgeInsets.all(16),
                                       decoration: BoxDecoration(
-                                        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                                        color: cardBg,
                                         borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(
-                                          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                                        ),
+                                        border: Border.all(color: borderColor),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 3),
+                                          ),
+                                        ],
                                       ),
                                       child: Row(
                                         children: [
@@ -208,7 +215,7 @@ class _HistoryViewState extends State<HistoryView> {
                                             width: 44,
                                             height: 44,
                                             decoration: BoxDecoration(
-                                              color: v.category.defaultColor.withOpacity(0.12),
+                                              color: v.category.defaultColor.withValues(alpha: 0.15),
                                               borderRadius: BorderRadius.circular(14),
                                             ),
                                             child: Icon(
@@ -227,9 +234,10 @@ class _HistoryViewState extends State<HistoryView> {
                                                     Flexible(
                                                       child: Text(
                                                         v.placeName,
-                                                        style: const TextStyle(
+                                                        style: TextStyle(
                                                           fontSize: 16,
                                                           fontWeight: FontWeight.w700,
+                                                          color: textPrimary,
                                                         ),
                                                         maxLines: 1,
                                                         overflow: TextOverflow.ellipsis,
@@ -238,14 +246,18 @@ class _HistoryViewState extends State<HistoryView> {
                                                     if (v.isManual) ...[
                                                       const SizedBox(width: 6),
                                                       Container(
-                                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                                         decoration: BoxDecoration(
-                                                          color: Colors.grey.withOpacity(0.2),
+                                                          color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.08),
                                                           borderRadius: BorderRadius.circular(6),
                                                         ),
-                                                        child: const Text(
+                                                        child: Text(
                                                           'Manuale',
-                                                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+                                                          style: TextStyle(
+                                                            fontSize: 10,
+                                                            fontWeight: FontWeight.w700,
+                                                            color: textMuted,
+                                                          ),
                                                         ),
                                                       ),
                                                     ],
@@ -256,7 +268,8 @@ class _HistoryViewState extends State<HistoryView> {
                                                   '$startStr - $endStr',
                                                   style: TextStyle(
                                                     fontSize: 12,
-                                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                                    fontWeight: FontWeight.w500,
+                                                    color: textMuted,
                                                   ),
                                                 ),
                                                 if (v.notes != null && v.notes!.isNotEmpty) ...[
@@ -266,7 +279,7 @@ class _HistoryViewState extends State<HistoryView> {
                                                     style: TextStyle(
                                                       fontSize: 12,
                                                       fontStyle: FontStyle.italic,
-                                                      color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                                                      color: isDark ? AppColors.textDarkSecondary : AppColors.textLightSecondary,
                                                     ),
                                                   ),
                                                 ],
@@ -277,8 +290,8 @@ class _HistoryViewState extends State<HistoryView> {
                                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                             decoration: BoxDecoration(
                                               color: v.isOngoing
-                                                  ? AppColors.primary.withOpacity(0.15)
-                                                  : (isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated),
+                                                  ? AppColors.primary.withValues(alpha: 0.15)
+                                                  : elevatedBg,
                                               borderRadius: BorderRadius.circular(12),
                                             ),
                                             child: Text(
@@ -286,7 +299,9 @@ class _HistoryViewState extends State<HistoryView> {
                                               style: TextStyle(
                                                 fontSize: 13,
                                                 fontWeight: FontWeight.w800,
-                                                color: v.isOngoing ? AppColors.primaryLight : null,
+                                                color: v.isOngoing
+                                                    ? (isDark ? AppColors.primaryLight : AppColors.primary)
+                                                    : textPrimary,
                                               ),
                                             ),
                                           ),

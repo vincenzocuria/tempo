@@ -14,6 +14,10 @@ class AnalyticsView extends StatelessWidget {
     final viewModel = Provider.of<AnalyticsViewModel>(context);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     return Scaffold(
       appBar: AppBar(
@@ -36,9 +40,13 @@ class AnalyticsView extends StatelessWidget {
                       selected: isSelected,
                       label: Text(f.displayName),
                       selectedColor: AppColors.primary,
+                      backgroundColor: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                      side: BorderSide(
+                        color: isSelected ? AppColors.primary : borderColor,
+                      ),
                       labelStyle: TextStyle(
-                        color: isSelected ? Colors.white : null,
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                        color: isSelected ? Colors.white : textPrimary,
+                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                       ),
                       onSelected: (_) => viewModel.setFilter(f),
                     ),
@@ -85,19 +93,24 @@ class AnalyticsView extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(32),
                 decoration: BoxDecoration(
-                  color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                  color: cardBg,
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                  ),
+                  border: Border.all(color: borderColor),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
+                      blurRadius: 14,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 child: Column(
                   children: [
                     const Icon(Icons.bar_chart_rounded, size: 48, color: Color(0xFF94A3B8)),
                     const SizedBox(height: 12),
-                    const Text(
+                    Text(
                       'Nessun dato per questo intervallo',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: textPrimary),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -105,7 +118,7 @@ class AnalyticsView extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 13,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                        color: textMuted,
                       ),
                     ),
                   ],
@@ -161,20 +174,23 @@ class _HeroMetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+        color: cardBg,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: accentColor.withOpacity(0.3),
-          width: 1.5,
+          color: borderColor,
         ),
         boxShadow: [
           BoxShadow(
-            color: accentColor.withOpacity(0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -190,13 +206,13 @@ class _HeroMetricCard extends StatelessWidget {
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1.1,
-                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  color: textMuted,
                 ),
               ),
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: accentColor.withOpacity(0.15),
+                  color: accentColor.withValues(alpha: 0.14),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(icon, color: accentColor, size: 16),
@@ -234,36 +250,42 @@ class _CategoryPieChartSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sections = <PieChartSectionData>[];
+    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+    final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
-    categoryDurations.forEach((cat, sec) {
-      if (sec > 0 && totalSeconds > 0) {
-        sections.add(
-          PieChartSectionData(
-            value: sec.toDouble(),
-            color: cat.defaultColor,
-            radius: 38,
-            showTitle: false,
-          ),
-        );
-      }
-    });
+    final sections = categoryDurations.entries.map((entry) {
+      final cat = entry.key;
+      final sec = entry.value;
+
+      return PieChartSectionData(
+        value: sec.toDouble(),
+        title: '',
+        color: cat.defaultColor,
+        radius: 20,
+      );
+    }).toList();
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+        color: cardBg,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-        ),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Distribuzione per Categoria',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: textPrimary),
           ),
           const SizedBox(height: 20),
           Row(
@@ -285,9 +307,10 @@ class _CategoryPieChartSection extends StatelessWidget {
                     ),
                     Text(
                       formatDuration(totalSeconds),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
+                        color: textPrimary,
                       ),
                     ),
                   ],
@@ -316,7 +339,7 @@ class _CategoryPieChartSection extends StatelessWidget {
                           Expanded(
                             child: Text(
                               cat.displayName,
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: textPrimary),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -356,15 +379,20 @@ class _DailyBarChartSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final dayFormat = DateFormat('E', 'it_IT');
+    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     final barGroups = <BarChartGroupData>[];
-    double maxHours = 8.0;
+    double maxHours = 4.0;
 
     for (int i = 6; i >= 0; i--) {
       final date = now.subtract(Duration(days: i));
-      final dateStr = DateFormat('yyyy-MM-dd').format(date);
-      final sec = dailyDurations[dateStr] ?? 0;
-      final hours = sec / 3600.0;
+      final dateKey = DateFormat('yyyy-MM-dd').format(date);
+      final seconds = dailyDurations[dateKey] ?? 0;
+      final hours = seconds / 3600.0;
+
       if (hours > maxHours) maxHours = hours;
 
       barGroups.add(
@@ -373,7 +401,7 @@ class _DailyBarChartSection extends StatelessWidget {
           barRods: [
             BarChartRodData(
               toY: hours,
-              color: i == 0 ? AppColors.primaryLight : AppColors.primary,
+              color: i == 0 ? AppColors.primary : (isDark ? AppColors.primaryLight.withValues(alpha: 0.6) : AppColors.primary.withValues(alpha: 0.4)),
               width: 16,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
             ),
@@ -385,18 +413,23 @@ class _DailyBarChartSection extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+        color: cardBg,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-        ),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Attività Ultimi 7 Giorni (Ore)',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: textPrimary),
           ),
           const SizedBox(height: 20),
           SizedBox(
@@ -414,7 +447,7 @@ class _DailyBarChartSection extends StatelessWidget {
                       reservedSize: 28,
                       getTitlesWidget: (val, meta) => Text(
                         '${val.toInt()}h',
-                        style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
+                        style: TextStyle(fontSize: 10, color: textMuted),
                       ),
                     ),
                   ),
@@ -427,7 +460,7 @@ class _DailyBarChartSection extends StatelessWidget {
                         final date = now.subtract(Duration(days: 6 - idx));
                         return Text(
                           dayFormat.format(date),
-                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: textMuted),
                         );
                       },
                     ),
@@ -462,22 +495,31 @@ class _PlacesRankingSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final entries = placesDuration.entries.toList();
+    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+    final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+    final elevatedBg = isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated;
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+        color: cardBg,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-        ),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Classifica Luoghi',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: textPrimary),
           ),
           const SizedBox(height: 14),
           ListView.separated(
@@ -497,11 +539,11 @@ class _PlacesRankingSection extends StatelessWidget {
                     children: [
                       Text(
                         '${idx + 1}. ${e.key}',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
+                        style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
                       ),
                       Text(
                         formatDuration(e.value),
-                        style: const TextStyle(fontWeight: FontWeight.w800),
+                        style: TextStyle(fontWeight: FontWeight.w800, color: textPrimary),
                       ),
                     ],
                   ),
@@ -511,9 +553,7 @@ class _PlacesRankingSection extends StatelessWidget {
                     child: LinearProgressIndicator(
                       value: pct,
                       minHeight: 6,
-                      backgroundColor: isDark
-                          ? AppColors.darkSurfaceElevated
-                          : AppColors.lightSurfaceElevated,
+                      backgroundColor: elevatedBg,
                       valueColor: AlwaysStoppedAnimation<Color>(
                         idx == 0 ? AppColors.primary : AppColors.primaryLight,
                       ),

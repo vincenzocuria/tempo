@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../data/models/place.dart';
@@ -11,6 +12,16 @@ class ManualVisitDialog extends StatefulWidget {
   final VoidCallback onVisitAdded;
 
   const ManualVisitDialog({super.key, required this.onVisitAdded});
+
+  static Future<void> show(BuildContext context, {required VoidCallback onVisitAdded}) {
+    return showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => ManualVisitDialog(onVisitAdded: onVisitAdded),
+    );
+  }
 
   @override
   State<ManualVisitDialog> createState() => _ManualVisitDialogState();
@@ -117,201 +128,330 @@ class _ManualVisitDialogState extends State<ManualVisitDialog> {
     );
 
     await repo.addManualVisit(visit);
+    HapticFeedback.mediumImpact();
     widget.onVisitAdded();
     if (mounted) Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
-    final dateFormat = DateFormat('dd/MM/yyyy');
+    final dateFormat = DateFormat('dd MMMM yyyy', 'it_IT');
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final elevatedBg = isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 460),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : _places.isEmpty
-                  ? Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          'Nessun Luogo Configurato',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Crea prima un luogo (es. Ufficio o Palestra) per poter aggiungere una visita manuale.',
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 20),
-                        ElevatedButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('Chiudi'),
-                        ),
-                      ],
-                    )
-                  : SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'Aggiungi Visita Manuale',
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.close_rounded),
-                                onPressed: () => Navigator.pop(context),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'LUOGO',
-                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(height: 6),
-                          DropdownButtonFormField<Place>(
-                            value: _selectedPlace,
-                            decoration: const InputDecoration(
-                              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            ),
-                            items: _places.map((p) {
-                              return DropdownMenuItem<Place>(
-                                value: p,
-                                child: Row(
-                                  children: [
-                                    Icon(p.icon, color: p.color, size: 20),
-                                    const SizedBox(width: 10),
-                                    Text(p.name),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (p) => setState(() => _selectedPlace = p),
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'DATA',
-                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(height: 6),
-                          ListTile(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              side: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.1)),
-                            ),
-                            leading: const Icon(Icons.calendar_today_rounded),
-                            title: Text(dateFormat.format(_date)),
-                            trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
-                            onTap: _selectDate,
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'ORA INIZIO',
-                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    ListTile(
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                        side: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.1)),
-                                      ),
-                                      title: Text(_startTime.format(context)),
-                                      onTap: _selectStartTime,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'ORA FINE',
-                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    ListTile(
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                        side: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.1)),
-                                      ),
-                                      title: Text(_endTime.format(context)),
-                                      onTap: _selectEndTime,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'NOTE (OPZIONALE)',
-                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(height: 6),
-                          TextField(
-                            controller: _notesController,
-                            decoration: const InputDecoration(
-                              hintText: 'Es. Sessione straordinari o allenamento gambe',
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                  ),
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text('Annulla'),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.primary,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                  ),
-                                  onPressed: _save,
-                                  child: const Text(
-                                    'Aggiungi',
-                                    style: TextStyle(fontWeight: FontWeight.w700),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+    return Container(
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
+            blurRadius: 28,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Drag handle
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(top: 12, bottom: 8),
+              width: 44,
+              height: 4.5,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
+
+          // Header
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(9),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.history_toggle_off_rounded, color: AppColors.primary, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Aggiungi Visita',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: textPrimary,
+                        letterSpacing: -0.3,
                       ),
                     ),
-        ),
+                  ],
+                ),
+                IconButton(
+                  style: IconButton.styleFrom(
+                    backgroundColor: elevatedBg,
+                    padding: const EdgeInsets.all(6),
+                  ),
+                  icon: Icon(Icons.close_rounded, size: 20, color: textPrimary),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+
+          // Content
+          Flexible(
+            child: _isLoading
+                ? const Padding(
+                    padding: EdgeInsets.all(40),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                : _places.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.location_off_rounded, size: 48, color: Color(0xFF94A3B8)),
+                            const SizedBox(height: 14),
+                            Text(
+                              'Nessun Luogo Configurato',
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: textPrimary),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Crea prima un luogo (es. Ufficio o Palestra) dalla scheda Luoghi per registrare una sessione passata.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: textMuted, fontSize: 13),
+                            ),
+                            const SizedBox(height: 20),
+                            ElevatedButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('Ho Capito'),
+                            ),
+                          ],
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        padding: EdgeInsets.fromLTRB(
+                          20,
+                          16,
+                          20,
+                          MediaQuery.of(context).viewInsets.bottom + 20,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Place Picker
+                            Text(
+                              'LUOGO DA REGISTRARE',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.1, color: textMuted),
+                            ),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<Place>(
+                              value: _selectedPlace,
+                              dropdownColor: cardBg,
+                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: textPrimary),
+                              decoration: InputDecoration(
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                fillColor: elevatedBg,
+                              ),
+                              items: _places.map((p) {
+                                return DropdownMenuItem<Place>(
+                                  value: p,
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: p.color.withValues(alpha: 0.16),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(p.icon, color: p.color, size: 18),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Text(p.name, style: TextStyle(color: textPrimary)),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (p) => setState(() => _selectedPlace = p),
+                            ),
+                            const SizedBox(height: 18),
+
+                            // Date Picker Card
+                            Text(
+                              'DATA DELLA VISITA',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.1, color: textMuted),
+                            ),
+                            const SizedBox(height: 8),
+                            InkWell(
+                              borderRadius: BorderRadius.circular(16),
+                              onTap: _selectDate,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                decoration: BoxDecoration(
+                                  color: elevatedBg,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: borderColor),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.calendar_today_rounded, color: AppColors.primary, size: 20),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      dateFormat.format(_date),
+                                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: textPrimary),
+                                    ),
+                                    const Spacer(),
+                                    Icon(Icons.edit_calendar_rounded, size: 18, color: textMuted),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+
+                            // Start & End Time
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'ORA INIZIO',
+                                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.1, color: textMuted),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      InkWell(
+                                        borderRadius: BorderRadius.circular(16),
+                                        onTap: _selectStartTime,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                                          decoration: BoxDecoration(
+                                            color: elevatedBg,
+                                            borderRadius: BorderRadius.circular(16),
+                                            border: Border.all(color: borderColor),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              const Icon(Icons.access_time_rounded, color: AppColors.info, size: 18),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                _startTime.format(context),
+                                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: textPrimary),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'ORA FINE',
+                                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.1, color: textMuted),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      InkWell(
+                                        borderRadius: BorderRadius.circular(16),
+                                        onTap: _selectEndTime,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                                          decoration: BoxDecoration(
+                                            color: elevatedBg,
+                                            borderRadius: BorderRadius.circular(16),
+                                            border: Border.all(color: borderColor),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              const Icon(Icons.timelapse_rounded, color: AppColors.success, size: 18),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                _endTime.format(context),
+                                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: textPrimary),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 18),
+
+                            // Notes
+                            Text(
+                              'NOTE (OPZIONALE)',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.1, color: textMuted),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _notesController,
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: textPrimary),
+                              decoration: const InputDecoration(
+                                hintText: 'Es. Sessione straordinari o allenamento gambe',
+                                prefixIcon: Icon(Icons.note_alt_outlined),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+
+                            // Action buttons
+                            Row(
+                              children: [
+                                Expanded(
+                                  flex: 1,
+                                  child: OutlinedButton(
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(vertical: 14),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                    ),
+                                    onPressed: () => Navigator.pop(context),
+                                    child: Text('Annulla', style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary)),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  flex: 2,
+                                  child: ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.primary,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 14),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                      elevation: 2,
+                                    ),
+                                    onPressed: _save,
+                                    child: const Text('Salva Sessione', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+          ),
+        ],
       ),
     );
   }

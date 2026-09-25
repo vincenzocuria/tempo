@@ -66,31 +66,58 @@ class _SettingsViewState extends State<SettingsView> {
   }
 
   void _showExportPreview(String title, String content) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+    final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final elevatedBg = isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        maxChildSize: 0.9,
+        initialChildSize: 0.75,
+        maxChildSize: 0.92,
         minChildSize: 0.5,
         expand: false,
         builder: (_, scrollCtrl) {
-          return Padding(
-            padding: const EdgeInsets.all(20),
+          return Container(
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
+                  blurRadius: 28,
+                  offset: const Offset(0, -4),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    width: 44,
+                    height: 4.5,
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
+                        color: textPrimary,
                       ),
                     ),
                     IconButton(
@@ -108,19 +135,21 @@ class _SettingsViewState extends State<SettingsView> {
                 const SizedBox(height: 12),
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface,
+                      color: elevatedBg,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Theme.of(context).dividerColor.withOpacity(0.1),
-                      ),
+                      border: Border.all(color: borderColor),
                     ),
                     child: SingleChildScrollView(
                       controller: scrollCtrl,
                       child: SelectableText(
                         content,
-                        style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 12,
+                          color: textPrimary,
+                        ),
                       ),
                     ),
                   ),
@@ -168,36 +197,104 @@ class _SettingsViewState extends State<SettingsView> {
   }
 
   void _confirmClearData() {
-    showDialog(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Cancella Tutti i Dati?'),
-        content: const Text(
-          'Questa azione eliminerà permanentemente tutti i luoghi e le visite salvate sul tuo dispositivo. Non può essere annullata.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Annulla'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.danger,
-              foregroundColor: Colors.white,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
+              blurRadius: 24,
+              offset: const Offset(0, -4),
             ),
-            onPressed: () async {
-              Navigator.pop(ctx);
-              final visitRepo = Provider.of<VisitRepository>(context, listen: false);
-              await visitRepo.clearAllData();
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Tutti i dati sono stati cancellati.')),
-                );
-              }
-            },
-            child: const Text('Cancella Tutto'),
+          ],
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 44,
+                height: 4.5,
+                margin: const EdgeInsets.only(bottom: 18),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.danger.withValues(alpha: 0.14),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.delete_forever_rounded, color: AppColors.danger, size: 34),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Cancellare Tutti i Dati?',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: textPrimary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Questa operazione eliminerà permanentemente tutti i luoghi e le visite salvate sul tuo telefono. Non può essere annullata.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: textMuted),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      onPressed: () => Navigator.pop(ctx),
+                      child: Text('Annulla', style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.danger,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        final visitRepo = Provider.of<VisitRepository>(context, listen: false);
+                        await visitRepo.clearAllData();
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Tutti i dati sono stati cancellati.')),
+                          );
+                        }
+                      },
+                      child: const Text('Cancella Tutto', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -207,6 +304,10 @@ class _SettingsViewState extends State<SettingsView> {
     final engine = Provider.of<TrackingEngine>(context);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     return Scaffold(
       appBar: AppBar(
@@ -221,13 +322,13 @@ class _SettingsViewState extends State<SettingsView> {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  AppColors.success.withOpacity(0.18),
-                  AppColors.success.withOpacity(0.04),
+                  AppColors.success.withValues(alpha: isDark ? 0.2 : 0.14),
+                  AppColors.success.withValues(alpha: isDark ? 0.05 : 0.02),
                 ],
               ),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                color: AppColors.success.withOpacity(0.3),
+                color: AppColors.success.withValues(alpha: 0.35),
                 width: 1.5,
               ),
             ),
@@ -266,23 +367,22 @@ class _SettingsViewState extends State<SettingsView> {
           _SectionHeader(title: 'MONITORAGGIO'),
           Container(
             decoration: BoxDecoration(
-              color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+              color: cardBg,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-              ),
+              border: Border.all(color: borderColor),
             ),
             child: Column(
               children: [
                 SwitchListTile(
-                  title: const Text(
+                  title: Text(
                     'Tracciamento Automatico',
-                    style: TextStyle(fontWeight: FontWeight.w700),
+                    style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
                   ),
                   subtitle: Text(
                     engine.isTrackingEnabled
                         ? 'Attivo • Controlla l\'ingresso/uscita dai luoghi'
                         : 'Sospeso • Nessun calcolo in background',
+                    style: TextStyle(color: textMuted, fontSize: 13),
                   ),
                   value: engine.isTrackingEnabled,
                   activeColor: AppColors.primary,
@@ -297,11 +397,9 @@ class _SettingsViewState extends State<SettingsView> {
           _SectionHeader(title: 'AUTORIZZAZIONI DI SISTEMA'),
           Container(
             decoration: BoxDecoration(
-              color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+              color: cardBg,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-              ),
+              border: Border.all(color: borderColor),
             ),
             child: Column(
               children: [
@@ -311,14 +409,14 @@ class _SettingsViewState extends State<SettingsView> {
                   isGranted: _locationStatus.isGranted,
                   onTap: _requestLocation,
                 ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
+                Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
                 _PermissionTile(
                   title: 'Posizione in Background (Sempre)',
                   subtitle: 'Consente di calcolare le ore a schermo spento',
                   isGranted: _bgLocationStatus.isGranted,
                   onTap: _requestBgLocation,
                 ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
+                Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
                 _PermissionTile(
                   title: 'Notifiche',
                   subtitle: 'Avvisi di ingresso e riepilogo uscita',
@@ -334,18 +432,16 @@ class _SettingsViewState extends State<SettingsView> {
           _SectionHeader(title: 'ASPETTO'),
           Container(
             decoration: BoxDecoration(
-              color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+              color: cardBg,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-              ),
+              border: Border.all(color: borderColor),
             ),
             child: SwitchListTile(
-              title: const Text(
+              title: Text(
                 'Tema Scuro',
-                style: TextStyle(fontWeight: FontWeight.w700),
+                style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
               ),
-              subtitle: Text(widget.isDarkMode ? 'Attivo' : 'Tema Chiaro'),
+              subtitle: Text(widget.isDarkMode ? 'Attivo' : 'Disattivato (Tema Chiaro)', style: TextStyle(color: textMuted, fontSize: 13)),
               value: widget.isDarkMode,
               activeColor: AppColors.primary,
               onChanged: (_) => widget.onThemeToggle(),
@@ -357,19 +453,17 @@ class _SettingsViewState extends State<SettingsView> {
           _SectionHeader(title: 'I TUOI DATI'),
           Container(
             decoration: BoxDecoration(
-              color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+              color: cardBg,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-              ),
+              border: Border.all(color: borderColor),
             ),
             child: Column(
               children: [
                 ListTile(
                   leading: const Icon(Icons.history_rounded, color: AppColors.primary),
-                  title: const Text('Cronologia Completa Visite', style: TextStyle(fontWeight: FontWeight.w700)),
-                  subtitle: const Text('Visualizza e cerca tutte le sessioni passate'),
-                  trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                  title: Text('Cronologia Completa Visite', style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary)),
+                  subtitle: Text('Visualizza e cerca tutte le sessioni passate', style: TextStyle(color: textMuted, fontSize: 13)),
+                  trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -377,28 +471,28 @@ class _SettingsViewState extends State<SettingsView> {
                     );
                   },
                 ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
+                Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
                 ListTile(
-                  leading: const Icon(Icons.table_chart_rounded, color: AppColors.primaryLight),
-                  title: const Text('Esporta Visite in CSV', style: TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Compatibile con Excel e Google Fogli'),
-                  trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                  leading: const Icon(Icons.table_chart_rounded, color: AppColors.primary),
+                  title: Text('Esporta Visite in CSV', style: TextStyle(fontWeight: FontWeight.w600, color: textPrimary)),
+                  subtitle: Text('Compatibile con Excel e Google Fogli', style: TextStyle(color: textMuted, fontSize: 13)),
+                  trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
                   onTap: _exportCsv,
                 ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
+                Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
                 ListTile(
-                  leading: const Icon(Icons.code_rounded, color: AppColors.primaryLight),
-                  title: const Text('Esporta Tutto in JSON', style: TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Backup completo di luoghi e visite'),
-                  trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                  leading: const Icon(Icons.code_rounded, color: AppColors.info),
+                  title: Text('Esporta Tutto in JSON', style: TextStyle(fontWeight: FontWeight.w600, color: textPrimary)),
+                  subtitle: Text('Backup completo di luoghi e visite', style: TextStyle(color: textMuted, fontSize: 13)),
+                  trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
                   onTap: _exportJson,
                 ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
+                Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
                 ListTile(
                   leading: const Icon(Icons.auto_fix_high_rounded, color: AppColors.warning),
-                  title: const Text('Carica Dati Demo', style: TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Popola 5 giorni di test con Lavoro, Palestra e Casa'),
-                  trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                  title: Text('Carica Dati Demo', style: TextStyle(fontWeight: FontWeight.w600, color: textPrimary)),
+                  subtitle: Text('Popola 5 giorni di test con Lavoro, Palestra e Casa', style: TextStyle(color: textMuted, fontSize: 13)),
+                  trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
                   onTap: _seedDemo,
                 ),
               ],
@@ -410,10 +504,10 @@ class _SettingsViewState extends State<SettingsView> {
           _SectionHeader(title: 'ZONA PERICOLOSA'),
           Container(
             decoration: BoxDecoration(
-              color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+              color: cardBg,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: AppColors.danger.withOpacity(0.3),
+                color: AppColors.danger.withValues(alpha: 0.35),
               ),
             ),
             child: ListTile(
@@ -422,7 +516,7 @@ class _SettingsViewState extends State<SettingsView> {
                 'Cancella Tutti i Dati',
                 style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.danger),
               ),
-              subtitle: const Text('Elimina luoghi e cronologia dal dispositivo'),
+              subtitle: Text('Elimina luoghi e cronologia dal dispositivo', style: TextStyle(color: textMuted, fontSize: 13)),
               onTap: _confirmClearData,
             ),
           ),
@@ -433,11 +527,11 @@ class _SettingsViewState extends State<SettingsView> {
             child: Column(
               children: [
                 Text(
-                  'Tempo v1.0.0',
+                  'Tempo v1.0.2',
                   style: TextStyle(
                     fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                    fontWeight: FontWeight.w800,
+                    color: textMuted,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -445,7 +539,7 @@ class _SettingsViewState extends State<SettingsView> {
                   'Presenza & Tempo • Senza Cloud • 100% Privacy',
                   style: TextStyle(
                     fontSize: 11,
-                    color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+                    color: textMuted,
                   ),
                 ),
               ],
@@ -465,15 +559,18 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 8),
       child: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w800,
           letterSpacing: 1.1,
-          color: Color(0xFF94A3B8),
+          color: textMuted,
         ),
       ),
     );
@@ -495,18 +592,29 @@ class _PermissionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+
     return ListTile(
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
+      title: Text(title, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: textPrimary)),
+      subtitle: Text(subtitle, style: TextStyle(fontSize: 12, color: textMuted)),
       trailing: isGranted
-          ? const Chip(
-              label: Text('Concesso'),
-              backgroundColor: Color(0xFF10B981),
-              labelStyle: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
+          ? Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.success.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Text(
+                'Concesso',
+                style: TextStyle(color: AppColors.success, fontSize: 11, fontWeight: FontWeight.w800),
+              ),
             )
           : ElevatedButton(
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
               ),
               onPressed: onTap,

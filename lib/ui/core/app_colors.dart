@@ -23,4 +23,16 @@ class AppColors {
   static const Color lightSurface = Color(0xFFFFFFFF);
   static const Color lightSurfaceElevated = Color(0xFFF1F5F9);
   static const Color lightBorder = Color(0xFFE2E8F0);
+
+  // Neutral Text (Light Mode) - High Contrast & Crisp
+  static const Color textLightPrimary = Color(0xFF0F172A); // Slate 900
+  static const Color textLightSecondary = Color(0xFF334155); // Slate 700
+  static const Color textLightMuted = Color(0xFF64748B); // Slate 500
+  static const Color textLightDisabled = Color(0xFF94A3B8); // Slate 400
+
+  // Neutral Text (Dark Mode)
+  static const Color textDarkPrimary = Color(0xFFF8FAFC); // Slate 50
+  static const Color textDarkSecondary = Color(0xFFCBD5E1); // Slate 300
+  static const Color textDarkMuted = Color(0xFF94A3B8); // Slate 400
+  static const Color textDarkDisabled = Color(0xFF64748B); // Slate 500
 }

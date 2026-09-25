@@ -300,10 +300,7 @@ class _MapViewState extends State<MapView> {
                 onEdit: () {
                   final p = _selectedPlace!;
                   setState(() => _selectedPlace = null);
-                  showDialog(
-                    context: context,
-                    builder: (_) => PlaceFormDialog(placeToEdit: p),
-                  );
+                  PlaceFormDialog.show(context, placeToEdit: p);
                 },
                 onClose: () => setState(() => _selectedPlace = null),
               ),
@@ -315,11 +312,9 @@ class _MapViewState extends State<MapView> {
               heroTag: 'map_add_place_fab',
               onPressed: () {
                 HapticFeedback.lightImpact();
-                showDialog(
-                  context: context,
-                  builder: (_) => PlaceFormDialog(
-                    initialLocation: _hasLocatedUser ? _currentLocation : null,
-                  ),
+                PlaceFormDialog.show(
+                  context,
+                  initialLocation: _hasLocatedUser ? _currentLocation : null,
                 );
               },
               backgroundColor: AppColors.primary,
@@ -395,9 +390,10 @@ class _PlaceDetailCard extends StatelessWidget {
                         Flexible(
                           child: Text(
                             place.name,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w800,
+                              color: isDark ? Colors.white : AppColors.textLightPrimary,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -452,11 +448,15 @@ class _PlaceDetailCard extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.access_time_rounded, size: 16, color: AppColors.primaryLight),
+                      const Icon(Icons.access_time_rounded, size: 16, color: AppColors.primary),
                       const SizedBox(width: 6),
                       Text(
                         'Totale: $totalTimeStr',
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : AppColors.textLightPrimary,
+                        ),
                       ),
                     ],
                   ),
