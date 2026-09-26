@@ -117,6 +117,7 @@ class _TempoAppState extends State<TempoApp> {
         Provider<TripRepository>.value(value: widget.tripRepository),
         ChangeNotifierProvider<CategoryRepository>.value(value: widget.categoryRepository),
         ChangeNotifierProvider<TrackingEngine>.value(value: widget.trackingEngine),
+        ChangeNotifierProvider<NotificationService>.value(value: NotificationService.instance),
         ChangeNotifierProvider(
           create: (_) => DashboardViewModel(
             visitRepository: widget.visitRepository,

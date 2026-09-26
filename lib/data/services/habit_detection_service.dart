@@ -12,10 +12,17 @@ class HabitDetectionService extends ChangeNotifier {
   final LocationService _locationService;
   final NotificationService _notificationService;
 
+  static const int minVisitsForHabit = 3;
+  static const int minTotalMinutesForHabit = 45;
+  static const int minDwellMinutesForVisit = 15;
+  static const double clusterDistanceMeters = 110.0;
+  static const int minMinutesBetweenVisits = 45;
+
   double? _stayLat;
   double? _stayLng;
   DateTime? _stayStartTime;
   DateTime? _lastSampleTime;
+  bool _currentStayRecorded = false;
 
   List<HabitSuggestion> _pendingSuggestions = [];
   List<HabitSuggestion> get pendingSuggestions => _pendingSuggestions;
@@ -29,6 +36,8 @@ class HabitDetectionService extends ChangeNotifier {
         _notificationService = notificationService ?? NotificationService.instance;
 
   Future<void> initialize() async {
+    // Pulisce vecchi suggerimenti da singole soste occasionali (< 3 visite)
+    await _dbService.demoteNonHabitSuggestions();
     await refreshPendingSuggestions();
   }
 
@@ -46,6 +55,7 @@ class HabitDetectionService extends ChangeNotifier {
       _stayLng = lng;
       _stayStartTime = now;
       _lastSampleTime = now;
+      _currentStayRecorded = false;
       return;
     }
 
@@ -61,25 +71,26 @@ class HabitDetectionService extends ChangeNotifier {
       _lastSampleTime = now;
       final dwellMinutes = now.difference(_stayStartTime!).inMinutes;
 
-      // When user stays > 15 minutes at this unregistered spot, register or update habit candidate
-      if (dwellMinutes >= 15) {
+      // Checkpoint the stay once it reaches the minimum threshold of 15 min
+      if (dwellMinutes >= minDwellMinutesForVisit && !_currentStayRecorded) {
+        _currentStayRecorded = true;
         await _recordOrUpdateCandidate(
           lat: _stayLat!,
           lng: _stayLng!,
           minutes: dwellMinutes,
-          isLiveSession: true,
+          isNewVisitSession: true,
         );
       }
     } else {
-      // User moved away: finalize previous stay if it was significant (>= 10 minutes)
+      // User moved away: finalize previous stay if it was significant (>= 15 minutes)
       if (_stayStartTime != null && _lastSampleTime != null) {
         final totalDwell = _lastSampleTime!.difference(_stayStartTime!).inMinutes;
-        if (totalDwell >= 10) {
+        if (totalDwell >= minDwellMinutesForVisit && !_currentStayRecorded) {
           await _recordOrUpdateCandidate(
             lat: _stayLat!,
             lng: _stayLng!,
             minutes: totalDwell,
-            isLiveSession: false,
+            isNewVisitSession: true,
           );
         }
       }
@@ -89,6 +100,7 @@ class HabitDetectionService extends ChangeNotifier {
       _stayLng = lng;
       _stayStartTime = now;
       _lastSampleTime = now;
+      _currentStayRecorded = false;
     }
   }
 
@@ -96,12 +108,12 @@ class HabitDetectionService extends ChangeNotifier {
   Future<void> onEnteredKnownPlace() async {
     if (_stayStartTime != null && _lastSampleTime != null && _stayLat != null) {
       final totalDwell = _lastSampleTime!.difference(_stayStartTime!).inMinutes;
-      if (totalDwell >= 10) {
+      if (totalDwell >= minDwellMinutesForVisit && !_currentStayRecorded) {
         await _recordOrUpdateCandidate(
           lat: _stayLat!,
           lng: _stayLng!,
           minutes: totalDwell,
-          isLiveSession: false,
+          isNewVisitSession: true,
         );
       }
     }
@@ -109,27 +121,60 @@ class HabitDetectionService extends ChangeNotifier {
     _stayLng = null;
     _stayStartTime = null;
     _lastSampleTime = null;
+    _currentStayRecorded = false;
   }
 
   Future<void> _recordOrUpdateCandidate({
     required double lat,
     required double lng,
     required int minutes,
-    required bool isLiveSession,
+    required bool isNewVisitSession,
   }) async {
-    final existing = await _dbService.findNearbyHabitSuggestion(lat, lng, maxDistanceMeters: 130.0);
+    final existing = await _dbService.findNearbyHabitSuggestion(lat, lng, maxDistanceMeters: clusterDistanceMeters);
+    final now = DateTime.now();
 
     if (existing != null) {
-      // Update existing habit suggestion
+      // Non riproporre se già archiviato o salvato
+      if (existing.status == HabitStatus.dismissed || existing.status == HabitStatus.saved) {
+        return;
+      }
+
+      // Calcola se si tratta di una visita distinta e separata nel tempo
+      final minutesSinceLast = now.difference(existing.lastDetected).inMinutes;
+      final isDistinctVisit = isNewVisitSession &&
+          (minutesSinceLast >= minMinutesBetweenVisits || now.day != existing.lastDetected.day);
+
+      final updatedVisits = isDistinctVisit ? existing.visitCount + 1 : existing.visitCount;
+      final updatedMinutes = existing.totalMinutesSpent + minutes;
+
+      // CRITERI DI VERA ABITUDINE:
+      // 1. Almeno 3 visite distinte
+      // 2. Almeno 45 minuti totali accumulati
+      // 3. Distribuzione su giorni diversi o ad almeno 20 ore di distanza (non una sosta singola continuata)
+      final hoursSpan = now.difference(existing.firstDetected).inHours;
+      final qualifiesAsHabit = updatedVisits >= minVisitsForHabit &&
+          updatedMinutes >= minTotalMinutesForHabit &&
+          (hoursSpan >= 20 || updatedVisits >= 4);
+
+      final newStatus = qualifiesAsHabit ? HabitStatus.pending : HabitStatus.learning;
+
       final updated = existing.copyWith(
-        lastDetected: DateTime.now(),
-        totalMinutesSpent: isLiveSession ? (existing.totalMinutesSpent + 5) : (existing.totalMinutesSpent + minutes),
-        visitCount: isLiveSession ? existing.visitCount : (existing.visitCount + 1),
+        lastDetected: now,
+        totalMinutesSpent: updatedMinutes,
+        visitCount: updatedVisits,
+        status: newStatus,
       );
       await _dbService.updateHabitSuggestion(updated);
+
+      // NOTIFICA ESCLUSIVAMENTE quando viene raggiunta la qualifica di abitudine
+      if (qualifiesAsHabit && existing.status == HabitStatus.learning) {
+        await _notificationService.showLocalNotification(
+          title: '📍 Luogo abituale rilevato',
+          body: 'Sei stato qui $updatedVisits volte in giorni diversi (${updated.formattedDuration} totali). Vuoi salvarlo tra i tuoi luoghi?',
+        );
+      }
     } else {
-      // Create new habit candidate
-      final now = DateTime.now();
+      // Prima visita: crea candidato in modalità silenziosa LEARNING (nessuna notifica, nessuna proposta)
       final category = _inferCategoryByTime(now);
       final newCandidate = HabitSuggestion(
         latitude: lat,
@@ -140,15 +185,9 @@ class HabitDetectionService extends ChangeNotifier {
         totalMinutesSpent: minutes,
         suggestedName: _inferName(category),
         suggestedCategory: category,
-        status: HabitStatus.pending,
+        status: HabitStatus.learning,
       );
       await _dbService.insertHabitSuggestion(newCandidate);
-
-      // Trigger notification
-      await _notificationService.showLocalNotification(
-        title: '📍 Luogo abituale rilevato',
-        body: 'Hai trascorso $minutes min in questa zona. Vuoi salvarla tra i tuoi luoghi?',
-      );
     }
 
     await refreshPendingSuggestions();
@@ -183,7 +222,7 @@ class HabitDetectionService extends ChangeNotifier {
   Future<void> simulateHabitStay({
     double? lat,
     double? lng,
-    int minutes = 45,
+    int minutes = 90,
     int visits = 3,
   }) async {
     final simLat = lat ?? 45.4680;
@@ -192,9 +231,11 @@ class HabitDetectionService extends ChangeNotifier {
     final candidate = HabitSuggestion(
       latitude: simLat,
       longitude: simLng,
+      firstDetected: DateTime.now().subtract(const Duration(days: 3)),
+      lastDetected: DateTime.now(),
       visitCount: visits,
       totalMinutesSpent: minutes,
-      suggestedName: 'Luogo abituale rilevato',
+      suggestedName: 'Nuova Seconda Casa Rilevata',
       suggestedCategory: PlaceCategory.secondaCasa,
       status: HabitStatus.pending,
     );
@@ -203,8 +244,8 @@ class HabitDetectionService extends ChangeNotifier {
     await refreshPendingSuggestions();
 
     await _notificationService.showLocalNotification(
-      title: '📍 Luogo frequente rilevato!',
-      body: 'Hai trascorso ${candidate.formattedDuration} ($visits visite) qui. Vuoi salvarlo?',
+      title: '📍 Luogo abituale rilevato!',
+      body: 'Sei stato qui $visits volte in giorni diversi (${candidate.formattedDuration} totali). Vuoi salvarlo tra i tuoi luoghi?',
     );
   }
 

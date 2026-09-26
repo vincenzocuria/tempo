@@ -35,7 +35,7 @@ enum MapLayerType {
     switch (this) {
       case MapLayerType.osm:
       case MapLayerType.osmDark:
-        return 'https://tile.openstreetmap.de/{z}/{x}/{y}.png';
+        return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
       case MapLayerType.topo:
         return 'https://tile.opentopomap.org/{z}/{x}/{y}.png';
     }
@@ -70,6 +70,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
   LatLng _currentLocation = const LatLng(41.9028, 12.4964); // Default Italia (Roma)
   bool _hasLocatedUser = false;
   bool _isMapReady = false;
+  double _mapRotation = 0.0;
   MapLayerType? _customLayerType;
   List<Trip> _todayTrips = [];
   bool _showTripsOnMap = true;
@@ -312,9 +313,12 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
       final camera = _mapController.camera;
       if (camera.rotation == 0.0) return;
       _animatedMapMove(camera.center, camera.zoom, destRotation: 0.0);
-      if (_followMode == MapFollowMode.followAndRotate) {
-        setState(() => _followMode = MapFollowMode.follow);
-      }
+      setState(() {
+        _mapRotation = 0.0;
+        if (_followMode == MapFollowMode.followAndRotate) {
+          _followMode = MapFollowMode.follow;
+        }
+      });
     } catch (_) {}
   }
 
@@ -767,7 +771,12 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
               initialZoom: 15.5,
               onMapReady: () {
                 if (mounted) {
-                  setState(() => _isMapReady = true);
+                  setState(() {
+                    _isMapReady = true;
+                    try {
+                      _mapRotation = _mapController.camera.rotation;
+                    } catch (_) {}
+                  });
                   if (_hasLocatedUser) {
                     _animatedMapMove(_currentLocation, 16.0);
                   }
@@ -777,6 +786,9 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
                 // If user drags or pinches map, disengage auto-follow mode
                 if (hasGesture && _followMode != MapFollowMode.none) {
                   setState(() => _followMode = MapFollowMode.none);
+                }
+                if (camera.rotation != _mapRotation) {
+                  setState(() => _mapRotation = camera.rotation);
                 }
               },
               onTap: (_, __) {
@@ -914,8 +926,8 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 // Compass Needle button (visible when rotation != 0)
-                if (_mapController.camera.rotation.abs() > 1.0) ...[
-                  _buildCompassButton(isDark),
+                if (_isMapReady && _mapRotation.abs() > 1.0) ...[
+                  _buildCompassButton(isDark, _mapRotation),
                   const SizedBox(height: 12),
                 ],
 
@@ -975,8 +987,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildCompassButton(bool isDark) {
-    final rotation = _mapController.camera.rotation;
+  Widget _buildCompassButton(bool isDark, double rotation) {
     return Container(
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : Colors.white,
@@ -1022,11 +1033,14 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
             icon: const Icon(Icons.add, size: 20),
             tooltip: 'Zoom avanti',
             onPressed: () {
+              if (!_isMapReady) return;
               HapticFeedback.selectionClick();
-              _animatedMapMove(
-                _mapController.camera.center,
-                _mapController.camera.zoom + 1,
-              );
+              try {
+                _animatedMapMove(
+                  _mapController.camera.center,
+                  _mapController.camera.zoom + 1,
+                );
+              } catch (_) {}
             },
           ),
           Divider(
@@ -1038,11 +1052,14 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
             icon: const Icon(Icons.remove, size: 20),
             tooltip: 'Zoom indietro',
             onPressed: () {
+              if (!_isMapReady) return;
               HapticFeedback.selectionClick();
-              _animatedMapMove(
-                _mapController.camera.center,
-                _mapController.camera.zoom - 1,
-              );
+              try {
+                _animatedMapMove(
+                  _mapController.camera.center,
+                  _mapController.camera.zoom - 1,
+                );
+              } catch (_) {}
             },
           ),
         ],

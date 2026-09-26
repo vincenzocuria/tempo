@@ -7,6 +7,7 @@ import '../../../data/repositories/place_repository.dart';
 import '../../../data/repositories/visit_repository.dart';
 import '../../../data/services/export_service.dart';
 import '../../../data/services/habit_detection_service.dart';
+import '../../../data/services/notification_service.dart';
 import '../../../data/services/tracking_engine.dart';
 import '../../core/app_colors.dart';
 import '../analytics/analytics_view_model.dart';
@@ -14,6 +15,7 @@ import '../dashboard/dashboard_view_model.dart';
 import '../../../data/services/permission_manager.dart';
 import '../categories/categories_view.dart';
 import '../history/history_view.dart';
+import '../notifications/notification_log_sheet.dart';
 import '../onboarding/onboarding_view.dart';
 import '../places/places_view_model.dart';
 
@@ -622,6 +624,71 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
           ),
           const SizedBox(height: 24),
 
+          // Notifiche & Registro
+          _SectionHeader(title: 'NOTIFICHE & REGISTRO'),
+          Container(
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: borderColor),
+            ),
+            child: Consumer<NotificationService>(
+              builder: (context, notifService, _) {
+                final unread = notifService.unreadCount;
+                return ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: isDark ? 0.2 : 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      unread > 0 ? Icons.notifications_active_rounded : Icons.notifications_outlined,
+                      color: AppColors.primary,
+                      size: 20,
+                    ),
+                  ),
+                  title: Text(
+                    'Registro Notifiche',
+                    style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
+                  ),
+                  subtitle: Text(
+                    'Storico permanente di arrivi, partenze e abitudini',
+                    style: TextStyle(color: textMuted, fontSize: 13),
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (unread > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '$unread nuove',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
+                    ],
+                  ),
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    NotificationLogSheet.show(context, isDark: widget.isDarkMode);
+                  },
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 24),
+
           // Data ownership
           _SectionHeader(title: 'I TUOI DATI'),
           Container(
@@ -732,7 +799,7 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
             child: Column(
               children: [
                 Text(
-                  'Tempo v1.0.12',
+                  'Tempo v1.0.13',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,

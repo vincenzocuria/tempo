@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../data/repositories/place_repository.dart';
+import '../../../data/services/notification_service.dart';
 import '../../../data/services/tracking_engine.dart';
 import '../../core/app_colors.dart';
+import '../notifications/notification_log_sheet.dart';
 import '../onboarding/onboarding_view.dart';
 import '../places/place_form_dialog.dart';
 import 'dashboard_view_model.dart';
@@ -112,6 +114,48 @@ class DashboardView extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildNotificationBell(BuildContext context, bool isDark) {
+    final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+
+    return Consumer<NotificationService>(
+      builder: (context, notifService, _) {
+        final unread = notifService.unreadCount;
+        return IconButton(
+          tooltip: 'Registro Notifiche',
+          style: IconButton.styleFrom(
+            backgroundColor: cardBg,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: borderColor),
+            ),
+            padding: const EdgeInsets.all(8),
+            visualDensity: VisualDensity.compact,
+          ),
+          onPressed: () => NotificationLogSheet.show(context, isDark: isDark),
+          icon: Badge(
+            isLabelVisible: unread > 0,
+            backgroundColor: AppColors.primary,
+            label: Text(
+              unread > 99 ? '99+' : '$unread',
+              style: const TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+              ),
+            ),
+            child: Icon(
+              unread > 0 ? Icons.notifications_active_rounded : Icons.notifications_outlined,
+              size: 19,
+              color: unread > 0 ? AppColors.primary : textMuted,
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -361,9 +405,11 @@ class DashboardView extends StatelessWidget {
                     ],
                   ),
 
-                  // Actions: Help/Guide & Theme Toggle
+                  // Actions: Notification Bell with Badge, Help/Guide & Theme Toggle
                   Row(
                     children: [
+                      _buildNotificationBell(context, isDarkMode),
+                      const SizedBox(width: 8),
                       IconButton(
                         tooltip: 'Guida Rapida',
                         style: IconButton.styleFrom(

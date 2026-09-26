@@ -2,14 +2,22 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../models/app_notification.dart';
+import 'database_service.dart';
 
-class NotificationService {
+class NotificationService extends ChangeNotifier {
   static final NotificationService instance = NotificationService._init();
   final FlutterLocalNotificationsPlugin _notificationsPlugin =
       FlutterLocalNotificationsPlugin();
-  bool _isInitialized = false;
+  final DatabaseService _dbService;
 
-  NotificationService._init();
+  bool _isInitialized = false;
+  int _unreadCount = 0;
+
+  int get unreadCount => _unreadCount;
+
+  NotificationService._init({DatabaseService? dbService})
+      : _dbService = dbService ?? DatabaseService.instance;
 
   Future<void> initialize() async {
     if (_isInitialized) return;
@@ -34,6 +42,14 @@ class NotificationService {
     );
 
     _isInitialized = true;
+    await refreshUnreadCount();
+  }
+
+  Future<void> refreshUnreadCount() async {
+    try {
+      _unreadCount = await _dbService.getUnreadNotificationCount();
+      notifyListeners();
+    } catch (_) {}
   }
 
   Future<bool> requestPermission() async {
@@ -62,6 +78,20 @@ class NotificationService {
   }) async {
     if (!_isInitialized) await initialize();
 
+    final notif = AppNotification(
+      title: 'Sei arrivato a $placeName',
+      body: 'Monitoraggio del tempo avviato per $categoryName.',
+      type: NotificationType.entry,
+      payload: placeName,
+    );
+    try {
+      await _dbService.insertNotification(notif);
+      _unreadCount++;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error storing notification: $e');
+    }
+
     const androidDetails = AndroidNotificationDetails(
       'tempo_places_channel',
       'Presenza Luoghi',
@@ -85,8 +115,8 @@ class NotificationService {
     try {
       await _notificationsPlugin.show(
         id: 1001,
-        title: 'Sei arrivato a $placeName',
-        body: 'Monitoraggio del tempo avviato per $categoryName.',
+        title: notif.title,
+        body: notif.body,
         notificationDetails: details,
       );
     } catch (e) {
@@ -99,6 +129,20 @@ class NotificationService {
     required String formattedDuration,
   }) async {
     if (!_isInitialized) await initialize();
+
+    final notif = AppNotification(
+      title: 'Uscito da $placeName',
+      body: 'Hai trascorso $formattedDuration in questo luogo.',
+      type: NotificationType.exit,
+      payload: placeName,
+    );
+    try {
+      await _dbService.insertNotification(notif);
+      _unreadCount++;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error storing notification: $e');
+    }
 
     const androidDetails = AndroidNotificationDetails(
       'tempo_places_channel',
@@ -123,8 +167,8 @@ class NotificationService {
     try {
       await _notificationsPlugin.show(
         id: 1002,
-        title: 'Uscito da $placeName',
-        body: 'Hai trascorso $formattedDuration in questo luogo.',
+        title: notif.title,
+        body: notif.body,
         notificationDetails: details,
       );
     } catch (e) {
@@ -137,6 +181,24 @@ class NotificationService {
     String? formattedDuration,
   }) async {
     if (!_isInitialized) await initialize();
+
+    final bodyText = formattedDuration != null
+        ? 'Hai trascorso $formattedDuration qui. Tragitto avviato in background.'
+        : 'Sei uscito dall\'area. Registrazione spostamento avviata.';
+
+    final notif = AppNotification(
+      title: '🚶 Uscito da $placeName',
+      body: bodyText,
+      type: NotificationType.exit,
+      payload: placeName,
+    );
+    try {
+      await _dbService.insertNotification(notif);
+      _unreadCount++;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error storing notification: $e');
+    }
 
     const androidDetails = AndroidNotificationDetails(
       'tempo_places_channel',
@@ -159,13 +221,10 @@ class NotificationService {
     );
 
     try {
-      final bodyText = formattedDuration != null
-          ? 'Hai trascorso $formattedDuration qui. Tragitto avviato in background.'
-          : 'Sei uscito dall\'area. Registrazione spostamento avviata.';
       await _notificationsPlugin.show(
         id: 1002,
-        title: '🚶 Uscito da $placeName',
-        body: bodyText,
+        title: notif.title,
+        body: notif.body,
         notificationDetails: details,
       );
     } catch (e) {
@@ -181,6 +240,25 @@ class NotificationService {
   }) async {
     if (!_isInitialized) await initialize();
 
+    final title = '📍 Arrivato a $destinationName';
+    final body = originName != null
+        ? 'Tragitto da $originName: $formattedDistance in $formattedDuration.'
+        : 'Tragitto completato: $formattedDistance in $formattedDuration.';
+
+    final notif = AppNotification(
+      title: title,
+      body: body,
+      type: NotificationType.trip,
+      payload: destinationName,
+    );
+    try {
+      await _dbService.insertNotification(notif);
+      _unreadCount++;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error storing notification: $e');
+    }
+
     const androidDetails = AndroidNotificationDetails(
       'tempo_places_channel',
       'Presenza e Spostamenti',
@@ -202,14 +280,10 @@ class NotificationService {
     );
 
     try {
-      final title = '📍 Arrivato a $destinationName';
-      final body = originName != null
-          ? 'Tragitto da $originName: $formattedDistance in $formattedDuration.'
-          : 'Tragitto completato: $formattedDistance in $formattedDuration.';
       await _notificationsPlugin.show(
         id: 1001,
-        title: title,
-        body: body,
+        title: notif.title,
+        body: notif.body,
         notificationDetails: details,
       );
     } catch (e) {
@@ -221,8 +295,24 @@ class NotificationService {
     required String title,
     required String body,
     int id = 1003,
+    NotificationType type = NotificationType.habit,
+    String? payload,
   }) async {
     if (!_isInitialized) await initialize();
+
+    final notif = AppNotification(
+      title: title,
+      body: body,
+      type: type,
+      payload: payload,
+    );
+    try {
+      await _dbService.insertNotification(notif);
+      _unreadCount++;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error storing notification: $e');
+    }
 
     const androidDetails = AndroidNotificationDetails(
       'tempo_habits_channel',
@@ -254,5 +344,33 @@ class NotificationService {
     } catch (e) {
       debugPrint('Error showing local notification: $e');
     }
+  }
+
+  // --- REGISTRO NOTIFICHE (NOTIFICATION LOG API) ---
+
+  Future<List<AppNotification>> getNotificationLog({int limit = 100, int offset = 0}) async {
+    return await _dbService.getNotifications(limit: limit, offset: offset);
+  }
+
+  Future<void> markAsRead(String id) async {
+    await _dbService.markNotificationAsRead(id);
+    await refreshUnreadCount();
+  }
+
+  Future<void> markAllAsRead() async {
+    await _dbService.markAllNotificationsAsRead();
+    _unreadCount = 0;
+    notifyListeners();
+  }
+
+  Future<void> deleteNotification(String id) async {
+    await _dbService.deleteNotification(id);
+    await refreshUnreadCount();
+  }
+
+  Future<void> clearAll() async {
+    await _dbService.clearAllNotifications();
+    _unreadCount = 0;
+    notifyListeners();
   }
 }

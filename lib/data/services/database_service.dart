@@ -1,5 +1,6 @@
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
+import '../models/app_notification.dart';
 import '../models/habit_suggestion.dart';
 import '../models/place.dart';
 import '../models/place_category.dart';
@@ -24,7 +25,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: _createDB,
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -35,6 +36,9 @@ class DatabaseService {
         }
         if (oldVersion < 4) {
           await _createCategoriesTable(db);
+        }
+        if (oldVersion < 5) {
+          await _createNotificationsTable(db);
         }
       },
     );
@@ -93,6 +97,23 @@ class DatabaseService {
     ''');
   }
 
+  static Future<void> _createNotificationsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS app_notifications (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        type TEXT NOT NULL,
+        timestamp TEXT NOT NULL,
+        isRead INTEGER NOT NULL,
+        payload TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_notification_timestamp ON app_notifications(timestamp);
+    ''');
+  }
+
   Future<void> _createDB(Database db, int version) async {
     await db.execute('''
       CREATE TABLE places (
@@ -135,6 +156,7 @@ class DatabaseService {
     await _createHabitTable(db);
     await _createTripsTable(db);
     await _createCategoriesTable(db);
+    await _createNotificationsTable(db);
   }
 
   // --- PLACES CRUD ---
@@ -353,11 +375,22 @@ class DatabaseService {
     final db = await database;
     final maps = await db.query(
       'habit_suggestions',
-      where: 'status = ?',
+      where: 'status = ? AND visitCount >= 3',
       whereArgs: [HabitStatus.pending.name],
       orderBy: 'visitCount DESC, totalMinutesSpent DESC',
     );
     return maps.map((m) => HabitSuggestion.fromMap(m)).toList();
+  }
+
+  /// Pulisce eventuali vecchie proposte derivate da una singola sosta occasionale (< 3 visite)
+  Future<void> demoteNonHabitSuggestions() async {
+    final db = await database;
+    await db.update(
+      'habit_suggestions',
+      {'status': HabitStatus.learning.name},
+      where: 'status = ? AND visitCount < 3',
+      whereArgs: [HabitStatus.pending.name],
+    );
   }
 
   Future<int> dismissHabitSuggestion(String id) async {
@@ -671,5 +704,79 @@ class DatabaseService {
         durationSeconds: homeEnd.difference(homeStart).inSeconds,
       ));
     }
+  }
+
+  // --- APP NOTIFICATIONS CRUD ---
+
+  Future<int> insertNotification(AppNotification notification) async {
+    final db = await database;
+    // Assicura che la tabella esista anche se creata al volo
+    await _createNotificationsTable(db);
+    return await db.insert(
+      'app_notifications',
+      notification.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<AppNotification>> getNotifications({int limit = 100, int offset = 0}) async {
+    final db = await database;
+    await _createNotificationsTable(db);
+    final maps = await db.query(
+      'app_notifications',
+      orderBy: 'timestamp DESC',
+      limit: limit,
+      offset: offset,
+    );
+    return maps.map((m) => AppNotification.fromMap(m)).toList();
+  }
+
+  Future<int> getUnreadNotificationCount() async {
+    final db = await database;
+    await _createNotificationsTable(db);
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM app_notifications WHERE isRead = 0',
+    );
+    if (result.isNotEmpty) {
+      return (result.first['count'] as num?)?.toInt() ?? 0;
+    }
+    return 0;
+  }
+
+  Future<int> markNotificationAsRead(String id) async {
+    final db = await database;
+    await _createNotificationsTable(db);
+    return await db.update(
+      'app_notifications',
+      {'isRead': 1},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<int> markAllNotificationsAsRead() async {
+    final db = await database;
+    await _createNotificationsTable(db);
+    return await db.update(
+      'app_notifications',
+      {'isRead': 1},
+      where: 'isRead = 0',
+    );
+  }
+
+  Future<int> deleteNotification(String id) async {
+    final db = await database;
+    await _createNotificationsTable(db);
+    return await db.delete(
+      'app_notifications',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<int> clearAllNotifications() async {
+    final db = await database;
+    await _createNotificationsTable(db);
+    return await db.delete('app_notifications');
   }
 }

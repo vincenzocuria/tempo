@@ -85,7 +85,7 @@ class HabitSuggestionCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Sosta frequente (${suggestion.formattedDuration})',
+                      'Abitudine: ${suggestion.visitCount} visite (${suggestion.formattedDuration})',
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
@@ -108,7 +108,7 @@ class HabitSuggestionCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'Hai trascorso del tempo in questa posizione (${suggestion.visitCount} ${suggestion.visitCount == 1 ? "sosta" : "soste"}). Vuoi salvarla tra i tuoi luoghi (es. Seconda Casa, Ufficio, Studio)?',
+            'In base alle tue abitudini ricorrenti, hai visitato questa zona ${suggestion.visitCount} volte (${suggestion.formattedDuration} totali). Vuoi salvarla tra i tuoi luoghi?',
             style: TextStyle(
               fontSize: 12.5,
               height: 1.35,

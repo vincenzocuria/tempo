@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tempo/data/models/app_notification.dart';
 import 'package:tempo/data/models/habit_suggestion.dart';
 import 'package:tempo/data/models/place.dart';
 import 'package:tempo/data/models/place_category.dart';
@@ -173,7 +174,7 @@ void main() {
 
       final parsed = jsonDecode(jsonStr) as Map<String, dynamic>;
       expect(parsed['app'], 'Tempo');
-      expect(parsed['version'], '1.0.12');
+      expect(parsed['version'], '1.0.13');
       expect(parsed['places'], isA<List>());
       expect((parsed['places'] as List).length, 1);
       expect(parsed['visits'], isA<List>());
@@ -267,6 +268,70 @@ void main() {
       expect(fromMap.totalMinutesSpent, 135);
       expect(fromMap.suggestedCategory, PlaceCategory.secondaCasa);
       expect(fromMap.status, HabitStatus.pending);
+    });
+
+    test('HabitSuggestion distinguishes single pause from recurring habit', () {
+      // 1. Single 15-minute pause is NOT a habit (learning status, isHabit false)
+      final singlePause = HabitSuggestion(
+        latitude: 45.123,
+        longitude: 9.456,
+        visitCount: 1,
+        totalMinutesSpent: 15,
+        status: HabitStatus.learning,
+      );
+      expect(singlePause.isHabit, false);
+      expect(singlePause.status, HabitStatus.learning);
+
+      // 2. Two visits totaling 30 min is still learning
+      final twoVisits = HabitSuggestion(
+        latitude: 45.123,
+        longitude: 9.456,
+        visitCount: 2,
+        totalMinutesSpent: 30,
+        status: HabitStatus.learning,
+      );
+      expect(twoVisits.isHabit, false);
+
+      // 3. Three distinct visits totaling >= 45 min qualifies as a true habit
+      final trueHabit = HabitSuggestion(
+        latitude: 45.123,
+        longitude: 9.456,
+        visitCount: 3,
+        totalMinutesSpent: 65,
+        status: HabitStatus.pending,
+      );
+      expect(trueHabit.isHabit, true);
+      expect(trueHabit.status, HabitStatus.pending);
+      expect(trueHabit.formattedDuration, '1h 5m');
+    });
+
+    test('AppNotification creation, relative time, and serialization', () {
+      final notif = AppNotification(
+        title: 'Sei arrivato a Ufficio',
+        body: 'Monitoraggio del tempo avviato per Lavoro.',
+        type: NotificationType.entry,
+        isRead: false,
+        payload: 'Ufficio',
+      );
+
+      expect(notif.title, 'Sei arrivato a Ufficio');
+      expect(notif.type, NotificationType.entry);
+      expect(notif.type.displayName, 'Arrivo');
+      expect(notif.isRead, false);
+      expect(notif.timeAgo, 'Proprio ora');
+
+      final map = notif.toMap();
+      final fromMap = AppNotification.fromMap(map);
+
+      expect(fromMap.id, notif.id);
+      expect(fromMap.title, notif.title);
+      expect(fromMap.body, notif.body);
+      expect(fromMap.type, NotificationType.entry);
+      expect(fromMap.isRead, false);
+      expect(fromMap.payload, 'Ufficio');
+
+      final readNotif = notif.copyWith(isRead: true);
+      expect(readNotif.isRead, true);
     });
 
     test('Trip creation, distance, and duration formatting', () {

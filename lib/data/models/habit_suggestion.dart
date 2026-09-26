@@ -2,15 +2,16 @@ import 'package:uuid/uuid.dart';
 import 'place_category.dart';
 
 enum HabitStatus {
-  pending,
-  saved,
-  dismissed;
+  learning,  // In fase di apprendimento/osservazione silenziosa (non ancora proposta)
+  pending,   // Abitudine confermata (visite ricorrenti in giorni diversi): proposta all'utente
+  saved,     // Salvata come luogo registrato
+  dismissed; // Ignorata/rifiutata dall'utente
 
   static HabitStatus fromString(String? val) {
-    if (val == null) return HabitStatus.pending;
+    if (val == null) return HabitStatus.learning;
     return HabitStatus.values.firstWhere(
       (e) => e.name == val,
-      orElse: () => HabitStatus.pending,
+      orElse: () => HabitStatus.learning,
     );
   }
 }
@@ -106,4 +107,7 @@ class HabitSuggestion {
     }
     return '${mins}m';
   }
+
+  /// True solo quando il luogo presenta una reale ricorrenza abituale
+  bool get isHabit => visitCount >= 3 && totalMinutesSpent >= 45;
 }
