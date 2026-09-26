@@ -98,55 +98,73 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                           backgroundColor: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
                           padding: const EdgeInsets.all(6),
                         ),
-                        icon: Icon(Icons.close_rounded, size: 20, color: textPrimary),
+                        icon: const Icon(Icons.close_rounded, size: 20),
                         onPressed: () => Navigator.pop(ctx),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
-                  Flexible(
+                  const SizedBox(height: 8),
+                  Text(
+                    'Seleziona il luogo in cui ti trovi adesso per iniziare la registrazione.',
+                    style: TextStyle(fontSize: 13, color: textMuted),
+                  ),
+                  const SizedBox(height: 16),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(context).size.height * 0.45,
+                    ),
                     child: ListView.separated(
                       shrinkWrap: true,
                       itemCount: places.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (c, idx) {
-                        final p = places[idx];
-                        final isCurrent = trackingEngine.currentPlace?.id == p.id;
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (context, idx) {
+                        final place = places[idx];
+                        final isCurrent = trackingEngine.currentPlace?.id == place.id;
+
                         return Container(
                           decoration: BoxDecoration(
-                            color: isCurrent
-                                ? p.color.withValues(alpha: isDark ? 0.2 : 0.1)
-                                : (isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated),
-                            borderRadius: BorderRadius.circular(18),
+                            color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                            borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: isCurrent ? p.color : borderColor,
-                              width: isCurrent ? 1.8 : 1.0,
+                              color: isCurrent ? AppColors.primary : borderColor,
+                              width: isCurrent ? 2.0 : 1.0,
                             ),
                           ),
                           child: ListTile(
                             leading: Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: p.color.withValues(alpha: 0.2),
+                                color: place.color.withValues(alpha: 0.2),
                                 shape: BoxShape.circle,
                               ),
-                              child: Icon(p.icon, color: p.color, size: 20),
+                              child: Icon(place.icon, color: place.color, size: 20),
                             ),
                             title: Text(
-                              p.name,
+                              place.name,
                               style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
                             ),
                             subtitle: Text(
-                              p.category.displayName,
+                              place.category.displayName,
                               style: TextStyle(fontSize: 12, color: textMuted),
                             ),
-                            onTap: () async {
-                              Navigator.pop(ctx);
-                              await trackingEngine.manualCheckIn(p);
-                              if (context.mounted) {
-                                Provider.of<AnalyticsViewModel>(context, listen: false).loadAnalytics();
-                              }
-                            },
+                            trailing: isCurrent
+                                ? const Chip(
+                                    label: Text('SEI QUI', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900)),
+                                    backgroundColor: AppColors.primary,
+                                    labelStyle: TextStyle(color: Colors.white),
+                                    padding: EdgeInsets.zero,
+                                    visualDensity: VisualDensity.compact,
+                                  )
+                                : const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                            onTap: isCurrent
+                                ? null
+                                : () async {
+                                    Navigator.pop(ctx);
+                                    await trackingEngine.manualCheckIn(place);
+                                    if (context.mounted) {
+                                      Provider.of<AnalyticsViewModel>(context, listen: false).loadAnalytics();
+                                    }
+                                  },
                           ),
                         );
                       },
@@ -175,7 +193,7 @@ class _AnalyticsViewState extends State<AnalyticsView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Statistiche & Ore'),
+        title: const Text('Statistiche & Il Tuo Tempo'),
         actions: [
           IconButton(
             tooltip: 'Aggiungi visita manuale',
@@ -192,7 +210,7 @@ class _AnalyticsViewState extends State<AnalyticsView> {
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           children: [
-            // Filter Pills
+            // Filter Pills (Oggi, Settimana, Mese, Tutto)
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
@@ -218,105 +236,121 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                 }).toList(),
               ),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 8),
 
-            // Top Spotlight Cards (Dynamic based on real visited places)
+            // Date Range Indicator
             Row(
               children: [
+                Icon(Icons.calendar_today_rounded, size: 13, color: textMuted),
+                const SizedBox(width: 6),
+                Text(
+                  viewModel.filterDateRangeLabel,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: textMuted,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+
+            // =========================================================
+            // 🎯 SEZIONE 1: RISPOSTE CHIAVE AL TUO TEMPO (Domande Rapide)
+            // =========================================================
+            Row(
+              children: [
+                const Icon(Icons.psychology_alt_rounded, size: 18, color: AppColors.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'IL TUO TEMPO IN SINTESI',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.1,
+                    color: textMuted,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // 2x2 Grid of Key Answer Cards (Car, Work, Home, Walk/Active)
+            Row(
+              children: [
+                // 1. IN AUTO / MEZZO
                 Expanded(
-                  child: _HeroMetricCard(
-                    title: 'TEMPO TOTALE',
-                    value: viewModel.formatSeconds(viewModel.totalDurationSeconds),
-                    subtitle: '${viewModel.placesVisitedCount} ${viewModel.placesVisitedCount == 1 ? "luogo" : "luoghi"}',
-                    icon: Icons.hourglass_bottom_rounded,
-                    accentColor: AppColors.primary,
+                  child: _AnswerMetricCard(
+                    title: 'IN AUTO / MEZZO',
+                    value: viewModel.carStats.formattedDistance,
+                    highlightSub: viewModel.carStats.formattedDuration,
+                    detail: viewModel.carStats.tripCount > 0
+                        ? '${viewModel.carStats.tripCount} viaggi • ${viewModel.carStats.avgSpeedKmh.toStringAsFixed(0)} km/h media'
+                        : 'Nessun tragitto',
+                    icon: Icons.directions_car_rounded,
+                    accentColor: const Color(0xFF0284C7),
                     isDark: isDark,
                   ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
+                // 2. AL LAVORO
                 Expanded(
-                  child: _HeroMetricCard(
-                    title: 'LUOGO PRINCIPALE',
-                    value: viewModel.topPlace?.key ?? (hasAnyData ? 'Nessuno' : 'In attesa'),
-                    subtitle: viewModel.topPlace != null
-                        ? viewModel.formatSeconds(viewModel.topPlace!.value)
-                        : (hasAnyData ? '0m' : 'Registra soste'),
-                    icon: Icons.stars_rounded,
-                    accentColor: const Color(0xFFF59E0B),
+                  child: _AnswerMetricCard(
+                    title: 'AL LAVORO',
+                    value: viewModel.workStats?.formattedDuration ?? '0m',
+                    highlightSub: viewModel.workStats != null
+                        ? '${viewModel.workStats!.distinctDaysCount} presenze'
+                        : 'Nessuna presenza',
+                    detail: viewModel.workStats != null
+                        ? 'media ${viewModel.workStats!.dailyAverageFormatted}'
+                        : 'Tracciamento automatico',
+                    icon: Icons.business_center_rounded,
+                    accentColor: const Color(0xFF3B82F6),
                     isDark: isDark,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
 
-            // Trips / Spostamenti Hero Metric
-            if (viewModel.totalTripsCount > 0) ...[
-              _HeroMetricCard(
-                title: 'SPOSTAMENTI & TRAGITTI',
-                value: '${viewModel.totalTripsCount} ${viewModel.totalTripsCount == 1 ? "viaggio" : "viaggi"}',
-                subtitle: '${viewModel.formatDistance(viewModel.totalTripDistanceMeters)} percorsi • ${viewModel.formatSeconds(viewModel.totalTripDurationSeconds)} in transito',
-                icon: Icons.directions_car_rounded,
-                accentColor: const Color(0xFF0EA5E9),
-                isDark: isDark,
-              ),
-              const SizedBox(height: 14),
-            ],
-
-            // Quick Horizontal Place Chips if multiple places
-            if (viewModel.sortedPlaces.length > 2) ...[
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: viewModel.sortedPlaces.skip(2).map((entry) {
-                    final pct = viewModel.totalDurationSeconds > 0
-                        ? (entry.value / viewModel.totalDurationSeconds * 100).toInt()
-                        : 0;
-                    return Container(
-                      margin: const EdgeInsets.only(right: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: cardBg,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: borderColor),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.place_rounded, size: 14, color: textMuted),
-                          const SizedBox(width: 6),
-                          Text(
-                            entry.key,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: textPrimary,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              '${viewModel.formatSeconds(entry.value)} ($pct%)',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
+            Row(
+              children: [
+                // 3. A CASA
+                Expanded(
+                  child: _AnswerMetricCard(
+                    title: 'A CASA',
+                    value: viewModel.homeStats?.formattedDuration ?? '0m',
+                    highlightSub: viewModel.homeStats != null
+                        ? '${viewModel.homeStats!.distinctDaysCount} giorni'
+                        : '0m registrati',
+                    detail: viewModel.homeStats != null
+                        ? 'media ${viewModel.homeStats!.dailyAverageFormatted}'
+                        : 'Riposo e relax',
+                    icon: Icons.home_rounded,
+                    accentColor: const Color(0xFFF59E0B),
+                    isDark: isDark,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-            ],
+                const SizedBox(width: 12),
+                // 4. A PIEDI & BICI (Mobilità attiva)
+                Expanded(
+                  child: _AnswerMetricCard(
+                    title: 'A PIEDI & BICI',
+                    value: viewModel.walkStats.formattedDistance,
+                    highlightSub: viewModel.walkStats.formattedDuration,
+                    detail: viewModel.walkStats.tripCount > 0
+                        ? '${viewModel.walkStats.tripCount} uscite a piedi'
+                        : (viewModel.bikeStats.tripCount > 0
+                            ? '${viewModel.bikeStats.formattedDistance} in bici'
+                            : 'Mobilità attiva'),
+                    icon: Icons.directions_walk_rounded,
+                    accentColor: const Color(0xFF10B981),
+                    isDark: isDark,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 22),
 
             if (viewModel.isLoading)
               const Center(
@@ -353,13 +387,13 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                     ),
                     const SizedBox(height: 14),
                     Text(
-                      'Nessuna attività in questo intervallo',
+                      'Nessuna attività registrata',
                       style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: textPrimary),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Non risultano soste registrate per "${viewModel.selectedFilter.displayName}". Effettua un check-in ora o aggiungi una visita passata.',
+                      'Tempo calcola in automatico le ore che passi al lavoro, a casa e i km percorsi in auto o a piedi non appena ti sposti con il telefono.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 13,
@@ -400,20 +434,29 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                         ),
                       ],
                     ),
-                    if (viewModel.selectedFilter != AnalyticsTimeFilter.allTime) ...[
-                      const SizedBox(height: 12),
-                      TextButton(
-                        onPressed: () => viewModel.setFilter(AnalyticsTimeFilter.allTime),
-                        child: const Text(
-                          'Mostra statistiche di sempre (Tutto)',
-                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               )
             else ...[
+              // =========================================================
+              // 🚗 SEZIONE 2: SPOSTAMENTI & MEZZI DI TRASPORTO (Km & Ore)
+              // =========================================================
+              _MobilitySection(
+                viewModel: viewModel,
+                isDark: isDark,
+              ),
+              const SizedBox(height: 22),
+
+              // =========================================================
+              // 🏢 SEZIONE 3: ORE NEI LUOGHI & PRESENZE
+              // =========================================================
+              // Bar Chart: Daily Trend for the Last 7 Days
+              _DailyBarChartSection(
+                dailyDurations: viewModel.dailyDurations,
+                isDark: isDark,
+              ),
+              const SizedBox(height: 20),
+
               // Pie Chart: Distribution by Category
               if (viewModel.durationByCategory.isNotEmpty) ...[
                 _CategoryPieChartSection(
@@ -424,13 +467,6 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                 ),
                 const SizedBox(height: 20),
               ],
-
-              // Bar Chart: Daily Trend for the Last 7 Days
-              _DailyBarChartSection(
-                dailyDurations: viewModel.dailyDurations,
-                isDark: isDark,
-              ),
-              const SizedBox(height: 20),
 
               // Top Places Ranking List
               if (viewModel.durationByPlace.isNotEmpty) ...[
@@ -450,18 +486,20 @@ class _AnalyticsViewState extends State<AnalyticsView> {
   }
 }
 
-class _HeroMetricCard extends StatelessWidget {
+class _AnswerMetricCard extends StatelessWidget {
   final String title;
   final String value;
-  final String? subtitle;
+  final String highlightSub;
+  final String detail;
   final IconData icon;
   final Color accentColor;
   final bool isDark;
 
-  const _HeroMetricCard({
+  const _AnswerMetricCard({
     required this.title,
     required this.value,
-    this.subtitle,
+    required this.highlightSub,
+    required this.detail,
     required this.icon,
     required this.accentColor,
     required this.isDark,
@@ -469,22 +507,21 @@ class _HeroMetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
     final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: cardBg,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: borderColor,
-        ),
+        border: Border.all(color: borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
-            blurRadius: 12,
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+            blurRadius: 10,
             offset: const Offset(0, 3),
           ),
         ],
@@ -500,8 +537,8 @@ class _HeroMetricCard extends StatelessWidget {
                   title,
                   style: TextStyle(
                     fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.1,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.8,
                     color: textMuted,
                   ),
                   maxLines: 1,
@@ -511,40 +548,320 @@ class _HeroMetricCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.14),
+                  color: accentColor.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(icon, color: accentColor, size: 16),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Text(
             value,
             style: TextStyle(
-              fontSize: 19,
+              fontSize: 20,
               fontWeight: FontWeight.w900,
               letterSpacing: -0.5,
+              color: textPrimary,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            highlightSub,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
               color: accentColor,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          if (subtitle != null) ...[
-            const SizedBox(height: 3),
-            Text(
-              subtitle!,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: textMuted,
+          const SizedBox(height: 4),
+          Text(
+            detail,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: textMuted,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MobilitySection extends StatelessWidget {
+  final AnalyticsViewModel viewModel;
+  final bool isDark;
+
+  const _MobilitySection({
+    required this.viewModel,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+    final elevatedBg = isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated;
+
+    final trips = viewModel.recentFilteredTrips;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0284C7).withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.route_rounded, color: Color(0xFF0284C7), size: 18),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Mobilità & Spostamenti',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: textPrimary),
+                  ),
+                ],
               ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+              Text(
+                '${viewModel.totalTripsCount} viaggi',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: textMuted),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Total mobility banner
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: elevatedBg,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _MobilityMiniStat(
+                  label: 'KM TOTALI',
+                  value: viewModel.formatDistance(viewModel.totalTripDistanceMeters),
+                  icon: Icons.speed_rounded,
+                  color: const Color(0xFF0284C7),
+                  isDark: isDark,
+                ),
+                Container(width: 1, height: 28, color: borderColor),
+                _MobilityMiniStat(
+                  label: 'IN TRANSITO',
+                  value: viewModel.formatSeconds(viewModel.totalTripDurationSeconds),
+                  icon: Icons.timer_outlined,
+                  color: const Color(0xFF38BDF8),
+                  isDark: isDark,
+                ),
+                Container(width: 1, height: 28, color: borderColor),
+                _MobilityMiniStat(
+                  label: 'IN AUTO',
+                  value: viewModel.carStats.formattedDistance,
+                  icon: Icons.directions_car_rounded,
+                  color: const Color(0xFF6366F1),
+                  isDark: isDark,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+
+          // Modes Breakdown (Auto, Bici, Piedi)
+          Text(
+            'Ripartizione per Mezzo',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: textPrimary),
+          ),
+          const SizedBox(height: 10),
+
+          ...[viewModel.carStats, viewModel.walkStats, viewModel.bikeStats].map((stat) {
+            final double pct = viewModel.totalTripDistanceMeters > 0
+                ? (stat.distanceMeters / viewModel.totalTripDistanceMeters)
+                : 0.0;
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: borderColor.withValues(alpha: 0.6)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: stat.color.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(stat.icon, color: stat.color, size: 16),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              stat.modeName,
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: textPrimary),
+                            ),
+                            Text(
+                              '${stat.formattedDistance} • ${stat.formattedDuration}',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: stat.color),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: pct.clamp(0.0, 1.0),
+                            minHeight: 5,
+                            backgroundColor: borderColor,
+                            valueColor: AlwaysStoppedAnimation<Color>(stat.color),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+
+          // Recent trips list if available
+          if (trips.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Text(
+              'Ultimi Tragitti Rilevati',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: textPrimary),
+            ),
+            const SizedBox(height: 10),
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: min(trips.length, 3),
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, idx) {
+                final trip = trips[idx];
+                final dest = trip.destinationPlaceName ?? 'Destinazione';
+
+                IconData modeIcon = Icons.directions_car_rounded;
+                if (trip.transportMode.toLowerCase().contains('piedi')) {
+                  modeIcon = Icons.directions_walk_rounded;
+                } else if (trip.transportMode.toLowerCase().contains('bici')) {
+                  modeIcon = Icons.directions_bike_rounded;
+                }
+
+                return Row(
+                  children: [
+                    Icon(modeIcon, size: 16, color: const Color(0xFF0284C7)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${trip.originPlaceName} ➔ $dest',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: textPrimary),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(
+                      '${trip.formattedDistance} (${trip.formattedDuration})',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: textMuted),
+                    ),
+                  ],
+                );
+              },
             ),
           ],
         ],
       ),
+    );
+  }
+}
+
+class _MobilityMiniStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+  final bool isDark;
+
+  const _MobilityMiniStat({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+
+    return Column(
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 12, color: color),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.6,
+                color: textMuted,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w900,
+            color: textPrimary,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -750,7 +1067,7 @@ class _DailyBarChartSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Attività Ultimi 7 Giorni (Ore)',
+            'Ore di Presenza (Ultimi 7 Giorni)',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: textPrimary),
           ),
           const SizedBox(height: 20),
@@ -846,7 +1163,7 @@ class _PlacesRankingSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Classifica Luoghi',
+            'Classifica Luoghi & Presenze',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: textPrimary),
           ),
           const SizedBox(height: 14),

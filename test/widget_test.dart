@@ -173,7 +173,7 @@ void main() {
 
       final parsed = jsonDecode(jsonStr) as Map<String, dynamic>;
       expect(parsed['app'], 'Tempo');
-      expect(parsed['version'], '1.0.8');
+      expect(parsed['version'], '1.0.9');
       expect(parsed['places'], isA<List>());
       expect((parsed['places'] as List).length, 1);
       expect(parsed['visits'], isA<List>());
@@ -185,6 +185,38 @@ void main() {
       expect(AnalyticsTimeFilter.thisWeek.displayName, 'Settimana');
       expect(AnalyticsTimeFilter.thisMonth.displayName, 'Mese');
       expect(AnalyticsTimeFilter.allTime.displayName, 'Tutto');
+    });
+
+    test('TransportModeStats formatting and speed calculation', () {
+      final car = TransportModeStats(
+        modeName: 'In auto / Mezzo',
+        modeKey: 'car',
+        icon: Icons.directions_car_rounded,
+        color: const Color(0xFF0284C7),
+        durationSeconds: 3600,
+        distanceMeters: 45000.0,
+        tripCount: 3,
+      );
+
+      expect(car.formattedDuration, '1h');
+      expect(car.formattedDistance, '45.0 km');
+      expect(car.avgSpeedKmh, 45.0);
+      expect(car.tripCount, 3);
+    });
+
+    test('CategoryTimeStats formatting and daily average calculation', () {
+      final work = CategoryTimeStats(
+        category: PlaceCategory.lavoro,
+        durationSeconds: 28 * 3600,
+        visitCount: 4,
+        distinctDaysCount: 4,
+        percentageOfTotal: 0.35,
+      );
+
+      expect(work.formattedDuration, '28h');
+      expect(work.dailyAverageFormatted, '7h / g');
+      expect(work.visitCount, 4);
+      expect(work.distinctDaysCount, 4);
     });
 
     test('Multi-home and multi-job categories support', () {

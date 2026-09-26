@@ -36,7 +36,7 @@ class ExportService {
     final data = {
       'exportedAt': DateTime.now().toIso8601String(),
       'app': 'Tempo',
-      'version': '1.0.8',
+      'version': '1.0.9',
       'places': places.map((p) => p.toMap()).toList(),
       'visits': visits.map((v) => v.toMap()).toList(),
     };
