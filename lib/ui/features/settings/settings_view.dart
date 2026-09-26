@@ -11,6 +11,7 @@ import '../../core/app_colors.dart';
 import '../analytics/analytics_view_model.dart';
 import '../dashboard/dashboard_view_model.dart';
 import '../../../data/services/permission_manager.dart';
+import '../categories/categories_view.dart';
 import '../history/history_view.dart';
 import '../onboarding/onboarding_view.dart';
 import '../places/places_view_model.dart';
@@ -529,6 +530,42 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
           ),
           const SizedBox(height: 24),
 
+          // Customization & Categories
+          _SectionHeader(title: 'PERSONALIZZAZIONE'),
+          Container(
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: borderColor),
+            ),
+            child: ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.category_rounded, color: Color(0xFF8B5CF6), size: 22),
+              ),
+              title: Text(
+                'Gestione Categorie',
+                style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
+              ),
+              subtitle: Text(
+                'Aggiungi, modifica ed elimina le categorie dei luoghi',
+                style: TextStyle(color: textMuted, fontSize: 13),
+              ),
+              trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CategoriesView()),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 24),
+
           // Data ownership
           _SectionHeader(title: 'I TUOI DATI'),
           Container(
@@ -639,7 +676,7 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
             child: Column(
               children: [
                 Text(
-                  'Tempo v1.0.2',
+                  'Tempo v1.0.7',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,

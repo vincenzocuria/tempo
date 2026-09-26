@@ -143,9 +143,31 @@ class _ManualVisitDialogState extends State<ManualVisitDialog> {
     }
   }
 
+  String _formatDate(DateTime dt) {
+    try {
+      final dateFormat = DateFormat('dd MMMM yyyy', 'it_IT');
+      return dateFormat.format(dt);
+    } catch (_) {
+      const months = [
+        'Gennaio',
+        'Febbraio',
+        'Marzo',
+        'Aprile',
+        'Maggio',
+        'Giugno',
+        'Luglio',
+        'Agosto',
+        'Settembre',
+        'Ottobre',
+        'Novembre',
+        'Dicembre'
+      ];
+      return '${dt.day.toString().padLeft(2, '0')} ${months[dt.month - 1]} ${dt.year}';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final dateFormat = DateFormat('dd MMMM yyyy', 'it_IT');
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
     final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
@@ -323,7 +345,7 @@ class _ManualVisitDialogState extends State<ManualVisitDialog> {
                                     const Icon(Icons.calendar_today_rounded, color: AppColors.primary, size: 20),
                                     const SizedBox(width: 12),
                                     Text(
-                                      dateFormat.format(_date),
+                                      _formatDate(_date),
                                       style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: textPrimary),
                                     ),
                                     const Spacer(),

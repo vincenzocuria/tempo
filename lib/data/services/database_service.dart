@@ -24,7 +24,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _createDB,
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -33,8 +33,25 @@ class DatabaseService {
         if (oldVersion < 3) {
           await _createTripsTable(db);
         }
+        if (oldVersion < 4) {
+          await _createCategoriesTable(db);
+        }
       },
     );
+  }
+
+  static Future<void> _createCategoriesTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS custom_categories (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        displayName TEXT NOT NULL,
+        iconCodePoint INTEGER NOT NULL,
+        colorValue INTEGER NOT NULL,
+        isCustom INTEGER NOT NULL,
+        createdAt TEXT NOT NULL
+      )
+    ''');
   }
 
   static Future<void> _createHabitTable(Database db) async {
@@ -117,6 +134,7 @@ class DatabaseService {
 
     await _createHabitTable(db);
     await _createTripsTable(db);
+    await _createCategoriesTable(db);
   }
 
   // --- PLACES CRUD ---
@@ -487,12 +505,47 @@ class DatabaseService {
     return 0;
   }
 
+  // --- CUSTOM CATEGORIES CRUD ---
+
+  Future<int> insertCustomCategory(PlaceCategory category) async {
+    final db = await database;
+    final map = category.toMap();
+    map['createdAt'] = DateTime.now().toIso8601String();
+    return await db.insert(
+      'custom_categories',
+      map,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<PlaceCategory>> getAllCustomCategories() async {
+    final db = await database;
+    final maps = await db.query('custom_categories', orderBy: 'createdAt ASC');
+    return maps.map((m) => PlaceCategory.fromMap(m)).toList();
+  }
+
+  Future<int> updateCustomCategory(PlaceCategory category) async {
+    final db = await database;
+    return await db.update(
+      'custom_categories',
+      category.toMap(),
+      where: 'id = ?',
+      whereArgs: [category.id],
+    );
+  }
+
+  Future<int> deleteCustomCategory(String id) async {
+    final db = await database;
+    return await db.delete('custom_categories', where: 'id = ?', whereArgs: [id]);
+  }
+
   Future<void> clearAllData() async {
     final db = await database;
     await db.delete('visit_sessions');
     await db.delete('trips');
     await db.delete('places');
     await db.delete('habit_suggestions');
+    await db.delete('custom_categories');
   }
 
   Future<void> seedDemoData() async {

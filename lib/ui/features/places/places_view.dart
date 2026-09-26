@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../data/models/place.dart';
 import '../../../data/services/tracking_engine.dart';
 import '../../core/app_colors.dart';
+import '../categories/categories_view.dart';
 import 'place_form_dialog.dart';
 import 'places_view_model.dart';
 
@@ -124,6 +125,16 @@ class PlacesView extends StatelessWidget {
       appBar: AppBar(
         title: const Text('I Miei Luoghi'),
         actions: [
+          IconButton(
+            tooltip: 'Gestione Categorie',
+            icon: const Icon(Icons.category_rounded),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const CategoriesView()),
+              );
+            },
+          ),
           IconButton(
             tooltip: 'Aggiungi luogo',
             icon: const Icon(Icons.add_location_alt_rounded),

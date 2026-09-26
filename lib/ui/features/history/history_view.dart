@@ -83,11 +83,43 @@ class _HistoryViewState extends State<HistoryView> {
     _loadData();
   }
 
+  String _formatItalianDayHeader(DateTime dt) {
+    try {
+      final fullFormat = DateFormat('EEEE d MMMM yyyy', 'it_IT');
+      final s = fullFormat.format(dt);
+      return s[0].toUpperCase() + s.substring(1);
+    } catch (_) {
+      const days = [
+        'Lunedì',
+        'Martedì',
+        'Mercoledì',
+        'Giovedì',
+        'Venerdì',
+        'Sabato',
+        'Domenica'
+      ];
+      const months = [
+        'Gennaio',
+        'Febbraio',
+        'Marzo',
+        'Aprile',
+        'Maggio',
+        'Giugno',
+        'Luglio',
+        'Agosto',
+        'Settembre',
+        'Ottobre',
+        'Novembre',
+        'Dicembre'
+      ];
+      return '${days[dt.weekday - 1]} ${dt.day} ${months[dt.month - 1]} ${dt.year}';
+    }
+  }
+
   Map<String, List<HistoryItem>> _groupItemsByDay() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
-    final fullFormat = DateFormat('EEEE d MMMM yyyy', 'it_IT');
 
     final List<HistoryItem> items = [];
 
@@ -127,8 +159,7 @@ class _HistoryViewState extends State<HistoryView> {
       } else if (dateOnly == yesterday) {
         key = 'Ieri';
       } else {
-        key = fullFormat.format(dateOnly);
-        key = key[0].toUpperCase() + key.substring(1);
+        key = _formatItalianDayHeader(dateOnly);
       }
 
       groups.putIfAbsent(key, () => []).add(item);

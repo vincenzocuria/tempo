@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'data/repositories/category_repository.dart';
 import 'data/repositories/place_repository.dart';
 import 'data/repositories/trip_repository.dart';
 import 'data/repositories/visit_repository.dart';
@@ -25,6 +27,9 @@ import 'ui/features/onboarding/onboarding_view.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Initialize date formatting for Italian locale
+  await initializeDateFormatting('it_IT', null);
+
   // Initialize notifications
   await NotificationService.instance.initialize();
 
@@ -35,6 +40,8 @@ void main() async {
   final placeRepo = PlaceRepository();
   final visitRepo = VisitRepository();
   final tripRepo = TripRepository();
+  final categoryRepo = CategoryRepository();
+  await categoryRepo.initialize();
 
   // Tracking Engine
   final trackingEngine = TrackingEngine(
@@ -54,6 +61,7 @@ void main() async {
       placeRepository: placeRepo,
       visitRepository: visitRepo,
       tripRepository: tripRepo,
+      categoryRepository: categoryRepo,
       trackingEngine: trackingEngine,
       initialDarkMode: isDark,
       hasCompletedOnboarding: hasCompletedOnboarding,
@@ -65,6 +73,7 @@ class TempoApp extends StatefulWidget {
   final PlaceRepository placeRepository;
   final VisitRepository visitRepository;
   final TripRepository tripRepository;
+  final CategoryRepository categoryRepository;
   final TrackingEngine trackingEngine;
   final bool initialDarkMode;
   final bool hasCompletedOnboarding;
@@ -74,6 +83,7 @@ class TempoApp extends StatefulWidget {
     required this.placeRepository,
     required this.visitRepository,
     required this.tripRepository,
+    required this.categoryRepository,
     required this.trackingEngine,
     required this.initialDarkMode,
     required this.hasCompletedOnboarding,
@@ -105,6 +115,7 @@ class _TempoAppState extends State<TempoApp> {
         Provider<PlaceRepository>.value(value: widget.placeRepository),
         Provider<VisitRepository>.value(value: widget.visitRepository),
         Provider<TripRepository>.value(value: widget.tripRepository),
+        ChangeNotifierProvider<CategoryRepository>.value(value: widget.categoryRepository),
         ChangeNotifierProvider<TrackingEngine>.value(value: widget.trackingEngine),
         ChangeNotifierProvider(
           create: (_) => DashboardViewModel(
@@ -123,6 +134,8 @@ class _TempoAppState extends State<TempoApp> {
         ChangeNotifierProvider(
           create: (_) => AnalyticsViewModel(
             visitRepository: widget.visitRepository,
+            tripRepository: widget.tripRepository,
+            trackingEngine: widget.trackingEngine,
           ),
         ),
       ],

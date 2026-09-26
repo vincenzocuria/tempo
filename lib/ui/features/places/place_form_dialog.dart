@@ -5,8 +5,10 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../../../data/models/place.dart';
 import '../../../data/models/place_category.dart';
+import '../../../data/repositories/category_repository.dart';
 import '../../../data/services/location_service.dart';
 import '../../core/app_colors.dart';
+import '../categories/categories_view.dart';
 import 'places_view_model.dart';
 
 class PlaceFormDialog extends StatefulWidget {
@@ -575,57 +577,109 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
                     const SizedBox(height: 14),
 
                     // Section 4: Category selector
-                    Text(
-                      'CATEGORIA',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.1,
-                        color: textMuted,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'CATEGORIA',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.1,
+                            color: textMuted,
+                          ),
+                        ),
+                        TextButton.icon(
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          icon: const Icon(Icons.tune_rounded, size: 15),
+                          label: const Text(
+                            'Gestisci Categorie',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                          ),
+                          onPressed: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const CategoriesView()),
+                            );
+                            setState(() {});
+                          },
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: PlaceCategory.values.map((cat) {
-                        final isSelected = _selectedCategory == cat;
-                        return ChoiceChip(
-                          selected: isSelected,
-                          selectedColor: _selectedColor.withValues(alpha: 0.18),
-                          backgroundColor: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
-                          side: BorderSide(
-                            color: isSelected ? _selectedColor : borderColor,
-                            width: isSelected ? 1.8 : 1.0,
-                          ),
-                          label: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                cat.icon,
-                                size: 16,
-                                color: isSelected ? _selectedColor : cat.defaultColor,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                cat.displayName,
+                    Builder(
+                      builder: (ctx) {
+                        final catRepo = Provider.of<CategoryRepository>(ctx);
+                        final allCategories = catRepo.categories;
+
+                        return Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            ...allCategories.map((cat) {
+                              final isSelected = _selectedCategory == cat;
+                              return ChoiceChip(
+                                selected: isSelected,
+                                selectedColor: _selectedColor.withValues(alpha: 0.18),
+                                backgroundColor: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                                side: BorderSide(
+                                  color: isSelected ? _selectedColor : borderColor,
+                                  width: isSelected ? 1.8 : 1.0,
+                                ),
+                                label: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      cat.icon,
+                                      size: 16,
+                                      color: isSelected ? _selectedColor : cat.defaultColor,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      cat.displayName,
+                                      style: TextStyle(
+                                        color: isSelected ? _selectedColor : textPrimary,
+                                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                onSelected: (selected) {
+                                  if (selected) {
+                                    setState(() {
+                                      _selectedCategory = cat;
+                                      _selectedColor = cat.defaultColor;
+                                    });
+                                  }
+                                },
+                              );
+                            }),
+                            ActionChip(
+                              backgroundColor: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                              side: BorderSide(color: borderColor, style: BorderStyle.solid),
+                              avatar: const Icon(Icons.add_rounded, size: 16, color: AppColors.primary),
+                              label: const Text(
+                                'Crea Nuova',
                                 style: TextStyle(
-                                  color: isSelected ? _selectedColor : textPrimary,
-                                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.primary,
                                 ),
                               ),
-                            ],
-                          ),
-                          onSelected: (selected) {
-                            if (selected) {
-                              setState(() {
-                                _selectedCategory = cat;
-                                _selectedColor = cat.defaultColor;
-                              });
-                            }
-                          },
+                              onPressed: () async {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => const CategoriesView()),
+                                );
+                                setState(() {});
+                              },
+                            ),
+                          ],
                         );
-                      }).toList(),
+                      },
                     ),
                     const SizedBox(height: 18),
 

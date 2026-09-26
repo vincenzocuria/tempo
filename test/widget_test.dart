@@ -173,7 +173,7 @@ void main() {
 
       final parsed = jsonDecode(jsonStr) as Map<String, dynamic>;
       expect(parsed['app'], 'Tempo');
-      expect(parsed['version'], '1.0.6');
+      expect(parsed['version'], '1.0.7');
       expect(parsed['places'], isA<List>());
       expect((parsed['places'] as List).length, 1);
       expect(parsed['visits'], isA<List>());
@@ -314,6 +314,36 @@ void main() {
       expect(engine.activeTrip, isNull);
     });
 
+    test('Custom category registration, serialization, and lookup', () {
+      final customCat = PlaceCategory(
+        id: 'cat_scuola',
+        name: 'scuola',
+        displayName: 'Scuola Bimbi',
+        icon: Icons.school_rounded,
+        defaultColor: const Color(0xFF8B5CF6),
+        isCustom: true,
+      );
+
+      PlaceCategory.registerCustomCategory(customCat);
+
+      final lookup = PlaceCategory.fromString('scuola');
+      expect(lookup.id, 'cat_scuola');
+      expect(lookup.displayName, 'Scuola Bimbi');
+      expect(lookup.isCustom, true);
+
+      final map = customCat.toMap();
+      final fromMap = PlaceCategory.fromMap(map);
+      expect(fromMap.id, 'cat_scuola');
+      expect(fromMap.name, 'scuola');
+      expect(fromMap.displayName, 'Scuola Bimbi');
+      expect(fromMap.isCustom, true);
+
+      expect(PlaceCategory.values.any((c) => c.id == 'cat_scuola'), true);
+
+      PlaceCategory.unregisterCustomCategory('cat_scuola');
+      expect(PlaceCategory.values.any((c) => c.id == 'cat_scuola'), false);
+    });
+
     testWidgets('OnboardingView renders initial slide with privacy badge and skip button', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
@@ -329,3 +359,4 @@ void main() {
     });
   });
 }
+

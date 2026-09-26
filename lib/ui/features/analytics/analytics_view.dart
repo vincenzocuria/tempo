@@ -1,13 +1,165 @@
+import 'dart:math';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../data/models/place_category.dart';
+import '../../../data/services/tracking_engine.dart';
 import '../../core/app_colors.dart';
+import '../history/manual_visit_dialog.dart';
+import '../places/places_view_model.dart';
 import 'analytics_view_model.dart';
 
-class AnalyticsView extends StatelessWidget {
+class AnalyticsView extends StatefulWidget {
   const AnalyticsView({super.key});
+
+  @override
+  State<AnalyticsView> createState() => _AnalyticsViewState();
+}
+
+class _AnalyticsViewState extends State<AnalyticsView> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        Provider.of<AnalyticsViewModel>(context, listen: false).loadAnalytics();
+      }
+    });
+  }
+
+  void _showQuickCheckIn(BuildContext context) async {
+    final placesVm = Provider.of<PlacesViewModel>(context, listen: false);
+    final trackingEngine = Provider.of<TrackingEngine>(context, listen: false);
+    final places = placesVm.places;
+
+    if (places.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Aggiungi prima un luogo nella scheda "Luoghi" per fare il check-in.'),
+        ),
+      );
+      return;
+    }
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
+                blurRadius: 24,
+                offset: const Offset(0, -4),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      width: 44,
+                      height: 4.5,
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Check-in Rapido',
+                        style: TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w800,
+                          color: textPrimary,
+                        ),
+                      ),
+                      IconButton(
+                        style: IconButton.styleFrom(
+                          backgroundColor: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                          padding: const EdgeInsets.all(6),
+                        ),
+                        icon: Icon(Icons.close_rounded, size: 20, color: textPrimary),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: places.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (c, idx) {
+                        final p = places[idx];
+                        final isCurrent = trackingEngine.currentPlace?.id == p.id;
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: isCurrent
+                                ? p.color.withValues(alpha: isDark ? 0.2 : 0.1)
+                                : (isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: isCurrent ? p.color : borderColor,
+                              width: isCurrent ? 1.8 : 1.0,
+                            ),
+                          ),
+                          child: ListTile(
+                            leading: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: p.color.withValues(alpha: 0.2),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(p.icon, color: p.color, size: 20),
+                            ),
+                            title: Text(
+                              p.name,
+                              style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
+                            ),
+                            subtitle: Text(
+                              p.category.displayName,
+                              style: TextStyle(fontSize: 12, color: textMuted),
+                            ),
+                            onTap: () async {
+                              Navigator.pop(ctx);
+                              await trackingEngine.manualCheckIn(p);
+                              if (context.mounted) {
+                                Provider.of<AnalyticsViewModel>(context, listen: false).loadAnalytics();
+                              }
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,9 +171,21 @@ class AnalyticsView extends StatelessWidget {
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
+    final hasAnyData = viewModel.totalDurationSeconds > 0 || viewModel.totalTripsCount > 0;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Statistiche & Ore'),
+        actions: [
+          IconButton(
+            tooltip: 'Aggiungi visita manuale',
+            icon: const Icon(Icons.add_circle_outline_rounded),
+            onPressed: () => ManualVisitDialog.show(
+              context,
+              onVisitAdded: () => viewModel.loadAnalytics(),
+            ),
+          ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: () => viewModel.loadAnalytics(),
@@ -61,40 +225,46 @@ class AnalyticsView extends StatelessWidget {
               children: [
                 Expanded(
                   child: _HeroMetricCard(
-                    title: 'LUOGO PRINCIPALE',
-                    value: viewModel.topPlace?.key ?? 'Nessuno',
-                    subtitle: viewModel.topPlace != null
-                        ? viewModel.formatSeconds(viewModel.topPlace!.value)
-                        : 'In attesa',
-                    icon: Icons.stars_rounded,
+                    title: 'TEMPO TOTALE',
+                    value: viewModel.formatSeconds(viewModel.totalDurationSeconds),
+                    subtitle: '${viewModel.placesVisitedCount} ${viewModel.placesVisitedCount == 1 ? "luogo" : "luoghi"}',
+                    icon: Icons.hourglass_bottom_rounded,
                     accentColor: AppColors.primary,
                     isDark: isDark,
                   ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
-                  child: viewModel.secondTopPlace != null
-                      ? _HeroMetricCard(
-                          title: 'SECONDO LUOGO',
-                          value: viewModel.secondTopPlace!.key,
-                          subtitle: viewModel.formatSeconds(viewModel.secondTopPlace!.value),
-                          icon: Icons.location_city_rounded,
-                          accentColor: const Color(0xFF0284C7),
-                          isDark: isDark,
-                        )
-                      : _HeroMetricCard(
-                          title: 'TEMPO TOTALE',
-                          value: viewModel.formatSeconds(viewModel.totalDurationSeconds),
-                          subtitle: '${viewModel.placesVisitedCount} ${viewModel.placesVisitedCount == 1 ? "luogo" : "luoghi"}',
-                          icon: Icons.hourglass_bottom_rounded,
-                          accentColor: const Color(0xFF10B981),
-                          isDark: isDark,
-                        ),
+                  child: _HeroMetricCard(
+                    title: 'LUOGO PRINCIPALE',
+                    value: viewModel.topPlace?.key ?? (hasAnyData ? 'Nessuno' : 'In attesa'),
+                    subtitle: viewModel.topPlace != null
+                        ? viewModel.formatSeconds(viewModel.topPlace!.value)
+                        : (hasAnyData ? '0m' : 'Registra soste'),
+                    icon: Icons.stars_rounded,
+                    accentColor: const Color(0xFFF59E0B),
+                    isDark: isDark,
+                  ),
                 ),
               ],
             ),
+            const SizedBox(height: 14),
+
+            // Trips / Spostamenti Hero Metric
+            if (viewModel.totalTripsCount > 0) ...[
+              _HeroMetricCard(
+                title: 'SPOSTAMENTI & TRAGITTI',
+                value: '${viewModel.totalTripsCount} ${viewModel.totalTripsCount == 1 ? "viaggio" : "viaggi"}',
+                subtitle: '${viewModel.formatDistance(viewModel.totalTripDistanceMeters)} percorsi • ${viewModel.formatSeconds(viewModel.totalTripDurationSeconds)} in transito',
+                icon: Icons.directions_car_rounded,
+                accentColor: const Color(0xFF0EA5E9),
+                isDark: isDark,
+              ),
+              const SizedBox(height: 14),
+            ],
+
+            // Quick Horizontal Place Chips if multiple places
             if (viewModel.sortedPlaces.length > 2) ...[
-              const SizedBox(height: 12),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
@@ -145,8 +315,8 @@ class AnalyticsView extends StatelessWidget {
                   }).toList(),
                 ),
               ),
+              const SizedBox(height: 16),
             ],
-            const SizedBox(height: 24),
 
             if (viewModel.isLoading)
               const Center(
@@ -155,9 +325,10 @@ class AnalyticsView extends StatelessWidget {
                   child: CircularProgressIndicator(),
                 ),
               )
-            else if (viewModel.totalDurationSeconds == 0)
+            else if (!hasAnyData)
+              // Interactive, rich empty state that explains how to start tracking
               Container(
-                padding: const EdgeInsets.all(32),
+                padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   color: cardBg,
                   borderRadius: BorderRadius.circular(24),
@@ -172,26 +343,78 @@ class AnalyticsView extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    const Icon(Icons.bar_chart_rounded, size: 48, color: Color(0xFF94A3B8)),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Nessun dato per questo intervallo',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: textPrimary),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.query_stats_rounded, size: 40, color: AppColors.primary),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 14),
                     Text(
-                      'I dati compariranno automaticamente man mano che visiti i tuoi luoghi.',
+                      'Nessuna attività in questo intervallo',
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: textPrimary),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Non risultano soste registrate per "${viewModel.selectedFilter.displayName}". Effettua un check-in ora o aggiungi una visita passata.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 13,
                         color: textMuted,
+                        height: 1.4,
                       ),
                     ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            ),
+                            icon: const Icon(Icons.touch_app_rounded, size: 16),
+                            label: const Text('Check-in ora', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                            onPressed: () => _showQuickCheckIn(context),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            ),
+                            icon: const Icon(Icons.add_rounded, size: 16),
+                            label: const Text('Visita manuale', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                            onPressed: () => ManualVisitDialog.show(
+                              context,
+                              onVisitAdded: () => viewModel.loadAnalytics(),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (viewModel.selectedFilter != AnalyticsTimeFilter.allTime) ...[
+                      const SizedBox(height: 12),
+                      TextButton(
+                        onPressed: () => viewModel.setFilter(AnalyticsTimeFilter.allTime),
+                        child: const Text(
+                          'Mostra statistiche di sempre (Tutto)',
+                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               )
             else ...[
-              // Pie Chart: Distribution by Category (Only active categories)
+              // Pie Chart: Distribution by Category
               if (viewModel.durationByCategory.isNotEmpty) ...[
                 _CategoryPieChartSection(
                   categoryDurations: viewModel.durationByCategory,
@@ -199,24 +422,26 @@ class AnalyticsView extends StatelessWidget {
                   formatDuration: viewModel.formatSeconds,
                   isDark: isDark,
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
               ],
 
-              // Bar Chart: Daily Trend
+              // Bar Chart: Daily Trend for the Last 7 Days
               _DailyBarChartSection(
                 dailyDurations: viewModel.dailyDurations,
                 isDark: isDark,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
               // Top Places Ranking List
-              _PlacesRankingSection(
-                placesDuration: viewModel.durationByPlace,
-                totalSeconds: viewModel.totalDurationSeconds,
-                formatDuration: viewModel.formatSeconds,
-                isDark: isDark,
-              ),
-              const SizedBox(height: 30),
+              if (viewModel.durationByPlace.isNotEmpty) ...[
+                _PlacesRankingSection(
+                  placesDuration: viewModel.durationByPlace,
+                  totalSeconds: viewModel.totalDurationSeconds,
+                  formatDuration: viewModel.formatSeconds,
+                  isDark: isDark,
+                ),
+                const SizedBox(height: 28),
+              ],
             ],
           ],
         ),
@@ -314,7 +539,7 @@ class _HeroMetricCard extends StatelessWidget {
                 fontWeight: FontWeight.w600,
                 color: textMuted,
               ),
-              maxLines: 1,
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
           ],
@@ -391,8 +616,8 @@ class _CategoryPieChartSection extends StatelessWidget {
                         centerSpaceRadius: 42,
                         sectionsSpace: 3,
                       ),
-                      swapAnimationDuration: const Duration(milliseconds: 650),
-                      swapAnimationCurve: Curves.easeInOutCubic,
+                      duration: const Duration(milliseconds: 650),
+                      curve: Curves.easeInOutCubic,
                     ),
                     Text(
                       formatDuration(totalSeconds),
@@ -464,10 +689,11 @@ class _DailyBarChartSection extends StatelessWidget {
     required this.isDark,
   });
 
+  static const List<String> _weekdaysIt = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
+
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final dayFormat = DateFormat('E', 'it_IT');
     final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
     final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
@@ -478,7 +704,7 @@ class _DailyBarChartSection extends StatelessWidget {
 
     for (int i = 6; i >= 0; i--) {
       final date = now.subtract(Duration(days: i));
-      final dateKey = DateFormat('yyyy-MM-dd').format(date);
+      final dateKey = "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
       final seconds = dailyDurations[dateKey] ?? 0;
       final hours = seconds / 3600.0;
 
@@ -490,7 +716,11 @@ class _DailyBarChartSection extends StatelessWidget {
           barRods: [
             BarChartRodData(
               toY: hours,
-              color: i == 0 ? AppColors.primary : (isDark ? AppColors.primaryLight.withValues(alpha: 0.6) : AppColors.primary.withValues(alpha: 0.4)),
+              color: i == 0
+                  ? AppColors.primary
+                  : (isDark
+                      ? AppColors.primaryLight.withValues(alpha: 0.6)
+                      : AppColors.primary.withValues(alpha: 0.4)),
               width: 16,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
             ),
@@ -498,6 +728,9 @@ class _DailyBarChartSection extends StatelessWidget {
         ),
       );
     }
+
+    final double maxYValue = max(4.0, (maxHours * 1.25).ceilToDouble());
+    final double leftInterval = max(1.0, (maxYValue / 4).ceilToDouble());
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -525,7 +758,8 @@ class _DailyBarChartSection extends StatelessWidget {
             height: 180,
             child: BarChart(
               BarChartData(
-                maxY: maxHours * 1.2,
+                minY: 0.0,
+                maxY: maxYValue,
                 barGroups: barGroups,
                 titlesData: FlTitlesData(
                   topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -534,6 +768,7 @@ class _DailyBarChartSection extends StatelessWidget {
                     sideTitles: SideTitles(
                       showTitles: true,
                       reservedSize: 28,
+                      interval: leftInterval,
                       getTitlesWidget: (val, meta) => Text(
                         '${val.toInt()}h',
                         style: TextStyle(fontSize: 10, color: textMuted),
@@ -543,12 +778,14 @@ class _DailyBarChartSection extends StatelessWidget {
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
+                      interval: 1.0,
                       getTitlesWidget: (val, meta) {
                         final idx = val.toInt();
                         if (idx < 0 || idx > 6) return const SizedBox.shrink();
                         final date = now.subtract(Duration(days: 6 - idx));
+                        final label = _weekdaysIt[date.weekday - 1];
                         return Text(
-                          dayFormat.format(date),
+                          label,
                           style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: textMuted),
                         );
                       },
@@ -558,8 +795,8 @@ class _DailyBarChartSection extends StatelessWidget {
                 gridData: const FlGridData(show: false),
                 borderData: FlBorderData(show: false),
               ),
-              swapAnimationDuration: const Duration(milliseconds: 650),
-              swapAnimationCurve: Curves.easeInOutCubic,
+              duration: const Duration(milliseconds: 650),
+              curve: Curves.easeInOutCubic,
             ),
           ),
         ],
@@ -584,6 +821,8 @@ class _PlacesRankingSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final entries = placesDuration.entries.toList();
+    entries.sort((a, b) => b.value.compareTo(a.value));
+
     final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
@@ -640,7 +879,7 @@ class _PlacesRankingSection extends StatelessWidget {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(6),
                     child: LinearProgressIndicator(
-                      value: pct,
+                      value: pct.clamp(0.0, 1.0),
                       minHeight: 6,
                       backgroundColor: elevatedBg,
                       valueColor: AlwaysStoppedAnimation<Color>(
