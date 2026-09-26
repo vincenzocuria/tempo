@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import '../../../../data/services/tracking_engine.dart';
 import '../../../core/app_colors.dart';
 
@@ -26,13 +27,11 @@ class _LiveStatusCardState extends State<LiveStatusCard>
   @override
   void initState() {
     super.initState();
-    // Continuous radiating radar ripple
     _rippleController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2400),
     )..repeat();
 
-    // Subtle scale heartbeat
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1400),
@@ -72,18 +71,20 @@ class _LiveStatusCardState extends State<LiveStatusCard>
     final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
     final cardElevatedBg = isDark ? AppColors.darkSurfaceElevated : Colors.white;
 
+    final timeFormatter = DateFormat('HH:mm');
+
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 500),
+      duration: const Duration(milliseconds: 400),
       curve: Curves.easeInOutCubic,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(26),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: isInside
               ? [
-                  currentPlace.color.withValues(alpha: isDark ? 0.22 : 0.15),
-                  currentPlace.color.withValues(alpha: isDark ? 0.06 : 0.03),
+                  currentPlace.color.withValues(alpha: isDark ? 0.22 : 0.14),
+                  currentPlace.color.withValues(alpha: isDark ? 0.05 : 0.02),
                 ]
               : [
                   isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
@@ -98,29 +99,29 @@ class _LiveStatusCardState extends State<LiveStatusCard>
         ),
         boxShadow: [
           BoxShadow(
-            color: (isInside ? currentPlace.color : Colors.black).withValues(alpha: isDark ? 0.16 : 0.06),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
+            color: (isInside ? currentPlace.color : Colors.black).withValues(alpha: isDark ? 0.16 : 0.05),
+            blurRadius: 22,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header Row: Status Indicator & GPS Refresh
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
                 children: [
-                  // Dual-ring living radar animation
                   SizedBox(
                     width: 22,
                     height: 22,
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        if (isInside) ...[
+                        if (isInside)
                           AnimatedBuilder(
                             animation: _rippleController,
                             builder: (context, _) {
@@ -138,7 +139,6 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                               );
                             },
                           ),
-                        ],
                         AnimatedBuilder(
                           animation: _pulseAnimation,
                           builder: (context, _) {
@@ -169,7 +169,7 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                   ),
                   const SizedBox(width: 10),
                   Text(
-                    isInside ? 'PRESENZA RILEVATA' : 'STATO ATTUALE',
+                    isInside ? 'PRESENZA ATTIVA' : 'IN MOVIMENTO / FUORI ZONA',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
@@ -180,14 +180,18 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                 ],
               ),
               IconButton(
+                style: IconButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.all(6),
+                ),
                 icon: engine.isChecking
                     ? const SizedBox(
-                        width: 18,
-                        height: 18,
+                        width: 16,
+                        height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.refresh_rounded, size: 20),
-                tooltip: 'Aggiorna coordinate GPS',
+                    : Icon(Icons.refresh_rounded, size: 20, color: textMuted),
+                tooltip: 'Rileva coordinate GPS',
                 onPressed: engine.isChecking
                     ? null
                     : () {
@@ -197,17 +201,18 @@ class _LiveStatusCardState extends State<LiveStatusCard>
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
+
+          // Inside Place State
           if (isInside) ...[
             Row(
               children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  width: 56,
-                  height: 56,
+                Container(
+                  width: 54,
+                  height: 54,
                   decoration: BoxDecoration(
                     color: currentPlace.color.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(18),
                     border: Border.all(
                       color: currentPlace.color.withValues(alpha: 0.4),
                       width: 1.5,
@@ -215,15 +220,15 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                     boxShadow: [
                       BoxShadow(
                         color: currentPlace.color.withValues(alpha: 0.25),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
                       ),
                     ],
                   ),
                   child: Icon(
                     currentPlace.icon,
                     color: currentPlace.color,
-                    size: 30,
+                    size: 28,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -243,47 +248,60 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: currentPlace.color.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: currentPlace.color.withValues(alpha: 0.25),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: currentPlace.color.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: currentPlace.color.withValues(alpha: 0.25),
+                              ),
+                            ),
+                            child: Text(
+                              currentPlace.category.displayName,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: currentPlace.color,
+                              ),
+                            ),
                           ),
-                        ),
-                        child: Text(
-                          currentPlace.category.displayName,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: currentPlace.color,
+                          const SizedBox(width: 8),
+                          Text(
+                            'Arrivo alle ${timeFormatter.format(activeVisit.startTime)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: textMuted,
+                            ),
                           ),
-                        ),
+                        ],
                       ),
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 18),
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
               decoration: BoxDecoration(
                 color: cardElevatedBg,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(18),
                 border: Border.all(
                   color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+                    color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
                   ),
                 ],
               ),
@@ -296,80 +314,87 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                       Row(
                         children: [
                           Icon(
-                            Icons.timer_outlined,
+                            Icons.timelapse_rounded,
                             size: 13,
                             color: textMuted,
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            'TEMPO TRASCORSO',
+                            'DURATA SOSTA ATTUALE',
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
-                              letterSpacing: 1.1,
+                              letterSpacing: 1.0,
                               color: textMuted,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 4),
                       Text(
                         _formatTimer(activeVisit.currentDuration),
                         style: TextStyle(
-                          fontSize: 28,
+                          fontSize: 27,
                           fontWeight: FontWeight.w900,
                           fontFamily: 'monospace',
                           letterSpacing: 1.2,
                           color: currentPlace.color,
                           shadows: [
                             Shadow(
-                              color: currentPlace.color.withValues(alpha: 0.4),
-                              blurRadius: 10,
+                              color: currentPlace.color.withValues(alpha: 0.35),
+                              blurRadius: 8,
                             ),
                           ],
                         ),
                       ),
                     ],
                   ),
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.danger.withValues(alpha: 0.12),
                       foregroundColor: AppColors.danger,
-                      side: const BorderSide(color: AppColors.danger, width: 1.5),
+                      shadowColor: Colors.transparent,
+                      elevation: 0,
+                      side: BorderSide(
+                        color: AppColors.danger.withValues(alpha: 0.35),
+                        width: 1.2,
+                      ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(14),
                       ),
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
+                        horizontal: 14,
+                        vertical: 11,
                       ),
                     ),
                     onPressed: () {
                       HapticFeedback.mediumImpact();
                       engine.manualCheckOut();
                     },
-                    icon: const Icon(Icons.exit_to_app_rounded, size: 18),
+                    icon: const Icon(Icons.exit_to_app_rounded, size: 17),
                     label: const Text(
                       'Check-out',
-                      style: TextStyle(fontWeight: FontWeight.w800),
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
                     ),
                   ),
                 ],
               ),
             ),
           ] else ...[
+            // Outside / Moving State
             Row(
               children: [
                 Container(
-                  width: 52,
-                  height: 52,
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
                     color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   child: const Icon(
                     Icons.navigation_rounded,
                     color: Color(0xFF64748B),
-                    size: 26,
+                    size: 24,
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -378,17 +403,17 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'In movimento / Fuori zona',
+                        'Nessuna sosta attiva',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
                           color: textPrimary,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 3),
                       Text(
                         engine.statusMessage ??
-                            'Nessun luogo registrato nelle vicinanze.',
+                            'In attesa di raggiungere un luogo registrato.',
                         style: TextStyle(
                           fontSize: 13,
                           color: textMuted,
@@ -408,35 +433,35 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                   child: OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(14),
                       ),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                     onPressed: () {
                       HapticFeedback.lightImpact();
                       engine.checkCurrentLocation();
                     },
-                    icon: const Icon(Icons.gps_fixed_rounded, size: 18),
+                    icon: const Icon(Icons.gps_fixed_rounded, size: 17),
                     label: Text(
                       'Rileva Ora',
                       style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
                   child: FilledButton.tonalIcon(
                     style: FilledButton.styleFrom(
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(14),
                       ),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                     onPressed: () {
                       HapticFeedback.lightImpact();
                       widget.onQuickCheckInTap();
                     },
-                    icon: const Icon(Icons.touch_app_rounded, size: 18),
+                    icon: const Icon(Icons.touch_app_rounded, size: 17),
                     label: Text(
                       'Check-in',
                       style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),

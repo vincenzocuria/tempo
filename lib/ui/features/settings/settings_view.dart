@@ -13,6 +13,7 @@ import '../../core/app_colors.dart';
 import '../analytics/analytics_view_model.dart';
 import '../dashboard/dashboard_view_model.dart';
 import '../history/history_view.dart';
+import '../onboarding/onboarding_view.dart';
 import '../places/places_view_model.dart';
 
 class SettingsView extends StatefulWidget {
@@ -527,6 +528,20 @@ class _SettingsViewState extends State<SettingsView> {
                         ),
                       );
                     }
+                  },
+                ),
+                Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
+                ListTile(
+                  leading: const Icon(Icons.school_rounded, color: AppColors.primary),
+                  title: Text('Rivedi Guida & Onboarding', style: TextStyle(fontWeight: FontWeight.w600, color: textPrimary)),
+                  subtitle: Text('Rivedi le slide introduttive e la filosofia di Tempo', style: TextStyle(color: textMuted, fontSize: 13)),
+                  trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const OnboardingView(),
+                      ),
+                    );
                   },
                 ),
                 Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),

@@ -31,61 +31,93 @@ class RecentVisitsList extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Ultime Visite di Oggi',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.3,
-                color: textPrimary,
+            Row(
+              children: [
+                Container(
+                  width: 4,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Attività di Oggi',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
+                    color: textPrimary,
+                  ),
+                ),
+              ],
+            ),
+            if (visits.isNotEmpty)
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                ),
+                onPressed: onViewAllTap,
+                icon: const Icon(Icons.arrow_forward_rounded, size: 14),
+                label: const Text(
+                  'Cronologia',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                ),
               ),
-            ),
-            TextButton(
-              onPressed: onViewAllTap,
-              child: const Text('Vedi tutte', style: TextStyle(fontWeight: FontWeight.w700)),
-            ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         if (visits.isEmpty)
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
+            padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 24),
             decoration: BoxDecoration(
               color: cardBg,
-              borderRadius: BorderRadius.circular(22),
+              borderRadius: BorderRadius.circular(24),
               border: Border.all(color: borderColor),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
-                  blurRadius: 12,
-                  offset: const Offset(0, 3),
+                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
             child: Column(
               children: [
-                Icon(
-                  Icons.explore_off_outlined,
-                  size: 40,
-                  color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.history_toggle_off_rounded,
+                    size: 28,
+                    color: textMuted,
+                  ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 Text(
-                  'Nessuna visita registrata oggi',
+                  'Nessuna sosta registrata oggi',
                   style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.2,
                     color: textPrimary,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
-                  'Le tue soste a lavoro o palestra appariranno qui automaticamente.',
+                  'Le tue soste nei tuoi luoghi registrati o abituali appariranno qui automaticamente.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 13,
                     color: textMuted,
+                    height: 1.4,
                   ),
                 ),
               ],
@@ -106,11 +138,16 @@ class RecentVisitsList extends StatelessWidget {
                   : 'In corso';
 
               return Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 decoration: BoxDecoration(
                   color: cardBg,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: borderColor),
+                  border: Border.all(
+                    color: visit.isOngoing
+                        ? AppColors.primary.withValues(alpha: 0.5)
+                        : borderColor,
+                    width: visit.isOngoing ? 1.5 : 1.0,
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
@@ -127,6 +164,9 @@ class RecentVisitsList extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: category.defaultColor.withValues(alpha: 0.14),
                         borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: category.defaultColor.withValues(alpha: 0.25),
+                        ),
                       ),
                       child: Icon(
                         category.icon,
@@ -139,17 +179,46 @@ class RecentVisitsList extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            visit.placeName,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: textPrimary,
-                            ),
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  visit.placeName,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: textPrimary,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (visit.isOngoing) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.success.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Text(
+                                    'ORA',
+                                    style: TextStyle(
+                                      color: AppColors.success,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 3),
                           Text(
-                            '$startStr - $endStr',
+                            '$startStr – $endStr',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
@@ -169,6 +238,11 @@ class RecentVisitsList extends StatelessWidget {
                             ? AppColors.primary.withValues(alpha: 0.15)
                             : elevatedBg,
                         borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: visit.isOngoing
+                              ? AppColors.primary.withValues(alpha: 0.3)
+                              : Colors.transparent,
+                        ),
                       ),
                       child: Text(
                         visit.formattedDuration,

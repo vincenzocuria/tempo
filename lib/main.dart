@@ -18,6 +18,7 @@ import 'ui/features/places/places_view.dart';
 import 'ui/features/places/places_view_model.dart';
 import 'ui/features/settings/settings_view.dart';
 import 'ui/features/splash/splash_view.dart';
+import 'ui/features/onboarding/onboarding_view.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,6 +43,7 @@ void main() async {
   // Read theme preference - DEFAULT TO LIGHT MODE!
   final prefs = await SharedPreferences.getInstance();
   final isDark = prefs.getBool('is_dark_mode') ?? false;
+  final hasCompletedOnboarding = prefs.getBool('has_completed_onboarding') ?? false;
 
   runApp(
     TempoApp(
@@ -49,6 +51,7 @@ void main() async {
       visitRepository: visitRepo,
       trackingEngine: trackingEngine,
       initialDarkMode: isDark,
+      hasCompletedOnboarding: hasCompletedOnboarding,
     ),
   );
 }
@@ -58,6 +61,7 @@ class TempoApp extends StatefulWidget {
   final VisitRepository visitRepository;
   final TrackingEngine trackingEngine;
   final bool initialDarkMode;
+  final bool hasCompletedOnboarding;
 
   const TempoApp({
     super.key,
@@ -65,6 +69,7 @@ class TempoApp extends StatefulWidget {
     required this.visitRepository,
     required this.trackingEngine,
     required this.initialDarkMode,
+    required this.hasCompletedOnboarding,
   });
 
   @override
@@ -119,10 +124,17 @@ class _TempoAppState extends State<TempoApp> {
         darkTheme: AppTheme.darkTheme,
         themeMode: _isDarkMode ? ThemeMode.dark : ThemeMode.light,
         home: SplashView(
-          nextScreen: MainShell(
-            isDarkMode: _isDarkMode,
-            onThemeToggle: _toggleTheme,
-          ),
+          nextScreen: widget.hasCompletedOnboarding
+              ? MainShell(
+                  isDarkMode: _isDarkMode,
+                  onThemeToggle: _toggleTheme,
+                )
+              : OnboardingView(
+                  nextScreen: MainShell(
+                    isDarkMode: _isDarkMode,
+                    onThemeToggle: _toggleTheme,
+                  ),
+                ),
         ),
       ),
     );

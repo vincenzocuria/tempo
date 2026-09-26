@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../data/repositories/place_repository.dart';
 import '../../../data/services/tracking_engine.dart';
 import '../../core/app_colors.dart';
+import '../onboarding/onboarding_view.dart';
 import '../places/place_form_dialog.dart';
 import 'dashboard_view_model.dart';
 import 'widgets/habit_suggestion_card.dart';
@@ -22,6 +24,35 @@ class DashboardView extends StatelessWidget {
     required this.isDarkMode,
   });
 
+  String _formattedItalianDate(DateTime dt) {
+    const days = [
+      'Lunedì',
+      'Martedì',
+      'Mercoledì',
+      'Giovedì',
+      'Venerdì',
+      'Sabato',
+      'Domenica'
+    ];
+    const months = [
+      'Gennaio',
+      'Febbraio',
+      'Marzo',
+      'Aprile',
+      'Maggio',
+      'Giugno',
+      'Luglio',
+      'Agosto',
+      'Settembre',
+      'Ottobre',
+      'Novembre',
+      'Dicembre'
+    ];
+    final dayName = days[dt.weekday - 1];
+    final monthName = months[dt.month - 1];
+    return '$dayName, ${dt.day} $monthName';
+  }
+
   void _showQuickCheckInSheet(BuildContext context, TrackingEngine engine) async {
     final placeRepo = Provider.of<PlaceRepository>(context, listen: false);
     final places = await placeRepo.getAllPlaces();
@@ -31,7 +62,7 @@ class DashboardView extends StatelessWidget {
     if (places.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Aggiungi prima un luogo (es. Lavoro, Palestra) per fare il check-in.'),
+          content: Text('Aggiungi prima un luogo (es. Casa, Ufficio, Studio) per fare il check-in.'),
         ),
       );
       return;
@@ -45,6 +76,7 @@ class DashboardView extends StatelessWidget {
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         return Container(
@@ -81,7 +113,7 @@ class DashboardView extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Check-in Manuale',
+                        'Check-in Rapido',
                         style: TextStyle(
                           fontSize: 19,
                           fontWeight: FontWeight.w800,
@@ -175,128 +207,330 @@ class DashboardView extends StatelessWidget {
     final viewModel = Provider.of<DashboardViewModel>(context);
     final trackingEngine = Provider.of<TrackingEngine>(context);
 
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+
+    final now = DateTime.now();
+    final dateString = _formattedItalianDate(now);
+
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [AppColors.primary, AppColors.primaryLight],
-                ),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.timelapse_rounded,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Text('Tempo'),
-          ],
-        ),
-        actions: [
-          IconButton(
-            tooltip: isDarkMode ? 'Passa al Tema Chiaro' : 'Passa al Tema Scuro',
-            icon: Icon(
-              isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-              color: isDarkMode ? AppColors.warning : AppColors.primary,
-            ),
-            onPressed: onThemeToggle,
-          ),
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: AppColors.success.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: AppColors.success.withOpacity(0.3),
-              ),
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.shield_outlined,
-                  size: 14,
-                  color: AppColors.success,
-                ),
-                SizedBox(width: 4),
-                Text(
-                  '100% Locale',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.success,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: () => viewModel.refresh(),
-        child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          children: [
-            LiveStatusCard(
-              trackingEngine: trackingEngine,
-              onQuickCheckInTap: () => _showQuickCheckInSheet(context, trackingEngine),
-            ),
-            const SizedBox(height: 20),
-            ListenableBuilder(
-              listenable: trackingEngine.habitService,
-              builder: (context, _) {
-                final suggestions = trackingEngine.habitService.pendingSuggestions;
-                if (suggestions.isEmpty) return const SizedBox.shrink();
-                return Column(
-                  children: suggestions.map((s) => HabitSuggestionCard(
-                    suggestion: s,
-                    onDismissed: () => viewModel.refresh(),
-                    onSaved: () => viewModel.refresh(),
-                  )).toList(),
-                );
-              },
-            ),
-            TodaySummaryRow(
-              formattedTotal: viewModel.formattedTotalToday,
-              topPlace: viewModel.topPlaceToday,
-              visitCount: viewModel.todayVisits.length,
-            ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+      body: SafeArea(
+        bottom: false,
+        child: RefreshIndicator(
+          onRefresh: () => viewModel.refresh(),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+            children: [
+              // Executive Top Navigation Bar
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // App Brand Chip
+                  Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [AppColors.primary, AppColors.secondary],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(11),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.35),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.timelapse_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                       ),
-                    ),
-                    onPressed: () => PlaceFormDialog.show(context),
-                    icon: const Icon(Icons.add_location_alt_rounded, size: 20),
-                    label: const Text(
-                      'Nuovo Luogo',
-                      style: TextStyle(fontWeight: FontWeight.w700),
+                      const SizedBox(width: 10),
+                      Text(
+                        'TEMPO',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.2,
+                          color: textPrimary,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.success.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.shield_rounded,
+                              size: 11,
+                              color: AppColors.success,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              '100% Locale',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.success,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // Actions: Help/Guide & Theme Toggle
+                  Row(
+                    children: [
+                      IconButton(
+                        tooltip: 'Guida Rapida',
+                        style: IconButton.styleFrom(
+                          backgroundColor: cardBg,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: borderColor),
+                          ),
+                          padding: const EdgeInsets.all(8),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        icon: Icon(
+                          Icons.help_outline_rounded,
+                          size: 19,
+                          color: textMuted,
+                        ),
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const OnboardingView(),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        tooltip: isDarkMode ? 'Tema Chiaro' : 'Tema Scuro',
+                        style: IconButton.styleFrom(
+                          backgroundColor: cardBg,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: borderColor),
+                          ),
+                          padding: const EdgeInsets.all(8),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        icon: Icon(
+                          isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                          size: 19,
+                          color: isDarkMode ? AppColors.warning : AppColors.primary,
+                        ),
+                        onPressed: onThemeToggle,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+
+              // Date & Title Header
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    dateString.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.2,
+                      color: textMuted,
                     ),
                   ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Riepilogo Oggi',
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.6,
+                      color: textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+
+              // Live Status Card
+              LiveStatusCard(
+                trackingEngine: trackingEngine,
+                onQuickCheckInTap: () => _showQuickCheckInSheet(context, trackingEngine),
+              ),
+              const SizedBox(height: 18),
+
+              // Smart Habit Suggestions (if detected)
+              ListenableBuilder(
+                listenable: trackingEngine.habitService,
+                builder: (context, _) {
+                  final suggestions = trackingEngine.habitService.pendingSuggestions;
+                  if (suggestions.isEmpty) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 18),
+                    child: Column(
+                      children: suggestions
+                          .map((s) => HabitSuggestionCard(
+                                suggestion: s,
+                                onDismissed: () => viewModel.refresh(),
+                                onSaved: () => viewModel.refresh(),
+                              ))
+                          .toList(),
+                    ),
+                  );
+                },
+              ),
+
+              // Today Summary Row (Total Time & Top Place)
+              TodaySummaryRow(
+                formattedTotal: viewModel.formattedTotalToday,
+                topPlace: viewModel.topPlaceToday,
+                visitCount: viewModel.todayVisits.length,
+              ),
+              const SizedBox(height: 20),
+
+              // Modern Quick Action Bar (3 Segmented Cards)
+              Row(
+                children: [
+                  Expanded(
+                    child: _QuickActionButton(
+                      icon: Icons.add_location_alt_rounded,
+                      label: 'Nuovo Luogo',
+                      accentColor: AppColors.primary,
+                      onTap: () => PlaceFormDialog.show(context),
+                      isDark: isDark,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _QuickActionButton(
+                      icon: Icons.touch_app_rounded,
+                      label: 'Check-in',
+                      accentColor: const Color(0xFF6366F1),
+                      onTap: () => _showQuickCheckInSheet(context, trackingEngine),
+                      isDark: isDark,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _QuickActionButton(
+                      icon: Icons.calendar_month_rounded,
+                      label: 'Cronologia',
+                      accentColor: const Color(0xFF06B6D4),
+                      onTap: onNavigateToHistory,
+                      isDark: isDark,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 26),
+
+              // Recent Visits Activity Feed
+              RecentVisitsList(
+                visits: viewModel.todayVisits,
+                onViewAllTap: onNavigateToHistory,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color accentColor;
+  final VoidCallback onTap;
+  final bool isDark;
+
+  const _QuickActionButton({
+    required this.icon,
+    required this.label,
+    required this.accentColor,
+    required this.onTap,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+    final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: borderColor),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.16 : 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ],
-            ),
-            const SizedBox(height: 28),
-            RecentVisitsList(
-              visits: viewModel.todayVisits,
-              onViewAllTap: onNavigateToHistory,
-            ),
-            const SizedBox(height: 30),
-          ],
+                child: Icon(icon, color: accentColor, size: 20),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: textPrimary,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
       ),
     );

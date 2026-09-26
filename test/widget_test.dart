@@ -7,6 +7,7 @@ import 'package:tempo/data/models/place_category.dart';
 import 'package:tempo/data/models/visit_session.dart';
 import 'package:tempo/data/services/export_service.dart';
 import 'package:tempo/ui/features/analytics/analytics_view_model.dart';
+import 'package:tempo/ui/features/onboarding/onboarding_view.dart';
 
 void main() {
   group('Tempo Domain Models Unit Tests', () {
@@ -229,6 +230,20 @@ void main() {
       expect(fromMap.totalMinutesSpent, 135);
       expect(fromMap.suggestedCategory, PlaceCategory.secondaCasa);
       expect(fromMap.status, HabitStatus.pending);
+    });
+
+    testWidgets('OnboardingView renders initial slide with privacy badge and skip button', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: OnboardingView(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('TEMPO'), findsOneWidget);
+      expect(find.text('Salta'), findsOneWidget);
+      expect(find.text('PRIVACY AL 100%'), findsOneWidget);
+      expect(find.text('Il tuo tempo nei luoghi che contano'), findsOneWidget);
     });
   });
 }
