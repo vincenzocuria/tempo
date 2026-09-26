@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart' hide Path;
 import 'package:provider/provider.dart';
 import '../../../data/models/place.dart';
 import '../../../data/models/trip.dart';
@@ -42,6 +44,12 @@ enum MapLayerType {
   bool get isDark => this == MapLayerType.osmDark;
 }
 
+enum MapFollowMode {
+  none,            // Mappa libera (spostata manualmente con gesture)
+  follow,          // Centra e segui in tempo reale (Nord in alto)
+  followAndRotate, // Bussola / Navigazione: la mappa si orienta verso la direzione di marcia
+}
+
 class MapView extends StatefulWidget {
   final VoidCallback onThemeToggle;
   final bool isDarkMode;
@@ -56,14 +64,23 @@ class MapView extends StatefulWidget {
   State<MapView> createState() => _MapViewState();
 }
 
-class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
+class _MapViewState extends State<MapView> with TickerProviderStateMixin {
   final MapController _mapController = MapController();
   Place? _selectedPlace;
-  LatLng _currentLocation = const LatLng(41.9028, 12.4964); // Default Italy (Rome)
+  LatLng _currentLocation = const LatLng(41.9028, 12.4964); // Default Italia (Roma)
   bool _hasLocatedUser = false;
   MapLayerType? _customLayerType;
   List<Trip> _todayTrips = [];
   bool _showTripsOnMap = true;
+
+  // Google Maps Follow & Live Tracking States
+  MapFollowMode _followMode = MapFollowMode.follow;
+  StreamSubscription<Position>? _positionStreamSub;
+  AnimationController? _moveAnimController;
+  double _currentHeading = 0.0;
+  double _currentSpeedKmh = 0.0;
+  double _currentAccuracy = 0.0;
+  final List<LatLng> _recentBreadcrumbs = [];
 
   late AnimationController _beaconController;
   late Animation<double> _beaconRadiusAnim;
@@ -73,6 +90,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
   void initState() {
     super.initState();
     _fetchUserLocation();
+    _startForegroundLocationStream();
     _loadTrips();
 
     // Radar pulse animation for GPS beacon
@@ -92,8 +110,94 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
 
   @override
   void dispose() {
+    _positionStreamSub?.cancel();
     _beaconController.dispose();
+    _moveAnimController?.dispose();
     super.dispose();
+  }
+
+  void _startForegroundLocationStream() {
+    _positionStreamSub?.cancel();
+    try {
+      _positionStreamSub = LocationService.instance
+          .getPositionStream(
+            distanceFilterMeters: 2,
+            accuracy: LocationAccuracy.high,
+          )
+          .listen(
+            _onForegroundPosition,
+            onError: (err) {
+              debugPrint('Foreground location stream error: $err');
+            },
+          );
+    } catch (e) {
+      debugPrint('Error starting position stream: $e');
+    }
+  }
+
+  double _calculateBearing(LatLng start, LatLng end) {
+    final startLat = start.latitude * (pi / 180.0);
+    final startLng = start.longitude * (pi / 180.0);
+    final endLat = end.latitude * (pi / 180.0);
+    final endLng = end.longitude * (pi / 180.0);
+
+    final dLng = endLng - startLng;
+    final y = sin(dLng) * cos(endLat);
+    final x = cos(startLat) * sin(endLat) - sin(startLat) * cos(endLat) * cos(dLng);
+    final radians = atan2(y, x);
+    return (radians * (180.0 / pi) + 360.0) % 360.0;
+  }
+
+  void _onForegroundPosition(Position pos) {
+    if (!mounted) return;
+
+    final newPoint = LatLng(pos.latitude, pos.longitude);
+    final speedKmh = pos.speed > 0 ? pos.speed * 3.6 : 0.0;
+
+    double heading = pos.heading;
+    if ((heading <= 0.0 || heading.isNaN) && _hasLocatedUser) {
+      final dist = LocationService.instance.calculateDistance(
+        _currentLocation.latitude,
+        _currentLocation.longitude,
+        pos.latitude,
+        pos.longitude,
+      );
+      if (dist >= 1.5) {
+        heading = _calculateBearing(_currentLocation, newPoint);
+      } else {
+        heading = _currentHeading;
+      }
+    }
+
+    // Accumulate live breadcrumb trail
+    if (_recentBreadcrumbs.isEmpty ||
+        LocationService.instance.calculateDistance(
+          _recentBreadcrumbs.last.latitude,
+          _recentBreadcrumbs.last.longitude,
+          newPoint.latitude,
+          newPoint.longitude,
+        ) >= 3.0) {
+      _recentBreadcrumbs.add(newPoint);
+      if (_recentBreadcrumbs.length > 150) {
+        _recentBreadcrumbs.removeAt(0);
+      }
+    }
+
+    setState(() {
+      _currentLocation = newPoint;
+      _currentHeading = heading;
+      _currentSpeedKmh = speedKmh;
+      _currentAccuracy = pos.accuracy;
+      _hasLocatedUser = true;
+    });
+
+    // Auto-glide camera if follow mode is active
+    if (_followMode == MapFollowMode.follow) {
+      _animatedMapMove(newPoint, _mapController.camera.zoom);
+    } else if (_followMode == MapFollowMode.followAndRotate) {
+      final targetRot = heading > 0 ? (360.0 - heading) % 360.0 : 0.0;
+      _animatedMapMove(newPoint, _mapController.camera.zoom, destRotation: targetRot);
+    }
   }
 
   Future<void> _fetchUserLocation() async {
@@ -102,9 +206,12 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
       setState(() {
         _currentLocation = LatLng(pos.latitude, pos.longitude);
         _hasLocatedUser = true;
+        _currentSpeedKmh = pos.speed > 0 ? pos.speed * 3.6 : 0.0;
+        _currentHeading = pos.heading;
+        _currentAccuracy = pos.accuracy;
       });
       try {
-        _mapController.move(_currentLocation, 15.5);
+        _animatedMapMove(_currentLocation, 16.0);
       } catch (_) {}
     }
   }
@@ -119,17 +226,85 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
     } catch (_) {}
   }
 
-  void _centerOnUser() async {
+  void _animatedMapMove(LatLng destLocation, double destZoom, {double? destRotation}) {
+    _moveAnimController?.dispose();
+
+    final camera = _mapController.camera;
+    final latTween = Tween<double>(begin: camera.center.latitude, end: destLocation.latitude);
+    final lngTween = Tween<double>(begin: camera.center.longitude, end: destLocation.longitude);
+    final zoomTween = Tween<double>(begin: camera.zoom, end: destZoom);
+    final rotTween = destRotation != null
+        ? Tween<double>(begin: camera.rotation, end: destRotation)
+        : null;
+
+    final controller = AnimationController(
+      duration: const Duration(milliseconds: 550),
+      vsync: this,
+    );
+    _moveAnimController = controller;
+
+    final animation = CurvedAnimation(parent: controller, curve: Curves.easeOutCubic);
+
+    controller.addListener(() {
+      final rot = rotTween?.evaluate(animation);
+      _mapController.move(
+        LatLng(latTween.evaluate(animation), lngTween.evaluate(animation)),
+        zoomTween.evaluate(animation),
+      );
+      if (rot != null) {
+        _mapController.rotate(rot);
+      }
+    });
+
+    controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        controller.dispose();
+        if (_moveAnimController == controller) {
+          _moveAnimController = null;
+        }
+      }
+    });
+
+    controller.forward();
+  }
+
+  void _toggleFollowMode() {
+    HapticFeedback.mediumImpact();
+    if (_followMode == MapFollowMode.none) {
+      // Re-center and engage follow
+      setState(() => _followMode = MapFollowMode.follow);
+      _animatedMapMove(_currentLocation, 16.5);
+    } else if (_followMode == MapFollowMode.follow) {
+      // Engage Follow + Compass rotation
+      setState(() => _followMode = MapFollowMode.followAndRotate);
+      if (_currentHeading > 0) {
+        _animatedMapMove(_currentLocation, 16.5, destRotation: (360.0 - _currentHeading) % 360.0);
+      }
+    } else {
+      // Reset rotation and go back to North-up follow
+      _resetNorth();
+      setState(() => _followMode = MapFollowMode.follow);
+    }
+  }
+
+  void _resetNorth() {
     HapticFeedback.lightImpact();
-    await _fetchUserLocation();
+    final camera = _mapController.camera;
+    if (camera.rotation == 0.0) return;
+    _animatedMapMove(camera.center, camera.zoom, destRotation: 0.0);
+    if (_followMode == MapFollowMode.followAndRotate) {
+      setState(() => _followMode = MapFollowMode.follow);
+    }
   }
 
   void _fitAllPlaces(List<Place> places) {
     HapticFeedback.lightImpact();
     if (places.isEmpty) return;
 
+    setState(() => _followMode = MapFollowMode.none);
+
     if (places.length == 1) {
-      _mapController.move(
+      _animatedMapMove(
         LatLng(places.first.latitude, places.first.longitude),
         16.0,
       );
@@ -149,7 +324,32 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
     }
 
     final center = LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
-    _mapController.move(center, 13.0);
+    _animatedMapMove(center, 13.5);
+  }
+
+  void _fitTripOnMap(Trip trip) {
+    HapticFeedback.lightImpact();
+    final points = <LatLng>[
+      ...trip.latLngPoints,
+      _currentLocation,
+    ];
+    if (points.isEmpty) return;
+
+    double minLat = points.first.latitude;
+    double maxLat = points.first.latitude;
+    double minLng = points.first.longitude;
+    double maxLng = points.first.longitude;
+
+    for (final p in points) {
+      minLat = min(minLat, p.latitude);
+      maxLat = max(maxLat, p.latitude);
+      minLng = min(minLng, p.longitude);
+      maxLng = max(maxLng, p.longitude);
+    }
+
+    final center = LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
+    _animatedMapMove(center, 14.5);
+    setState(() => _followMode = MapFollowMode.none);
   }
 
   void _showLayerSelector(BuildContext context, bool isDark) {
@@ -281,7 +481,21 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
       );
     }).toList();
 
-    // Build polylines for recorded trips & active movement
+    // Accuracy halo around user location (Google Maps style)
+    if (_hasLocatedUser && _currentAccuracy > 0) {
+      circles.add(
+        CircleMarker(
+          point: _currentLocation,
+          radius: _currentAccuracy.clamp(12.0, 45.0),
+          useRadiusInMeter: true,
+          color: const Color(0xFF38BDF8).withValues(alpha: 0.12),
+          borderColor: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+          borderStrokeWidth: 1.0,
+        ),
+      );
+    }
+
+    // Build polylines for recorded trips & active live movements
     final polylines = <Polyline>[];
     if (_showTripsOnMap) {
       // 1. Completed trips today
@@ -290,76 +504,148 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
           polylines.add(
             Polyline(
               points: trip.latLngPoints,
-              color: const Color(0xFF0284C7).withValues(alpha: 0.85),
+              color: const Color(0xFF0284C7).withValues(alpha: 0.8),
               strokeWidth: 4.5,
-              borderColor: Colors.white.withValues(alpha: 0.7),
+              borderColor: Colors.white.withValues(alpha: 0.65),
               borderStrokeWidth: 1.5,
             ),
           );
         }
       }
 
-      // 2. Active live trip
+      // 2. Active live trip / displacement (Google Maps real-time trace)
       final activeTrip = trackingEngine.activeTrip;
-      if (activeTrip != null && trackingEngine.activeRoutePoints.length >= 2) {
+      if (activeTrip != null) {
+        final activePoints = [
+          ...trackingEngine.activeRoutePoints.map((p) => p.toLatLng()),
+          if (_hasLocatedUser) _currentLocation,
+        ];
+        if (activePoints.length >= 2) {
+          polylines.add(
+            Polyline(
+              points: activePoints,
+              color: const Color(0xFF0EA5E9), // Google Maps Sky Blue
+              strokeWidth: 6.0,
+              borderColor: Colors.white,
+              borderStrokeWidth: 2.0,
+            ),
+          );
+        }
+      } else if (_recentBreadcrumbs.length >= 2 && trackingEngine.currentPlace == null) {
+        // Real-time breadcrumb footsteps when walking/moving outside places
         polylines.add(
           Polyline(
-            points: trackingEngine.activeRoutePoints.map((p) => p.toLatLng()).toList(),
-            color: const Color(0xFF0EA5E9),
-            strokeWidth: 5.5,
-            borderColor: Colors.white,
-            borderStrokeWidth: 2.0,
+            points: [..._recentBreadcrumbs, if (_hasLocatedUser) _currentLocation],
+            color: const Color(0xFF38BDF8).withValues(alpha: 0.85),
+            strokeWidth: 4.5,
+            borderColor: Colors.white.withValues(alpha: 0.6),
+            borderStrokeWidth: 1.5,
           ),
         );
       }
     }
 
-    // Build markers for places
+    // Build markers
     final markers = <Marker>[];
 
-    // User's live GPS marker with animated pulsing beacon
+    // Trip origin start pin
+    final activeTrip = trackingEngine.activeTrip;
+    if (activeTrip != null && trackingEngine.activeRoutePoints.isNotEmpty) {
+      final startPt = trackingEngine.activeRoutePoints.first.toLatLng();
+      markers.add(
+        Marker(
+          point: startPt,
+          width: 34,
+          height: 34,
+          alignment: Alignment.center,
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF10B981), // Emerald green origin
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2.5),
+              boxShadow: const [
+                BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2)),
+              ],
+            ),
+            child: const Icon(Icons.trip_origin_rounded, color: Colors.white, size: 16),
+          ),
+        ),
+      );
+    }
+
+    // User's live GPS marker with Google Maps styling (accuracy halo, heading beam, core dot)
     if (_hasLocatedUser || trackingEngine.lastKnownPosition != null) {
-      final userLat = trackingEngine.lastKnownPosition?.latitude ?? _currentLocation.latitude;
-      final userLng = trackingEngine.lastKnownPosition?.longitude ?? _currentLocation.longitude;
+      final userLat = _currentLocation.latitude;
+      final userLng = _currentLocation.longitude;
 
       markers.add(
         Marker(
           point: LatLng(userLat, userLng),
-          width: 64,
-          height: 64,
+          width: 90,
+          height: 90,
+          alignment: Alignment.center,
           child: AnimatedBuilder(
             animation: _beaconController,
             builder: (context, _) {
+              final isMoving = _currentSpeedKmh > 2.5;
+
               return Stack(
                 alignment: Alignment.center,
                 children: [
-                  // Outer expanding radar pulse
+                  // 1. Google Maps Directional Heading Beam (illuminates forward)
+                  if (_currentHeading > 0)
+                    Transform.rotate(
+                      angle: _currentHeading * (pi / 180.0),
+                      child: const CustomPaint(
+                        size: Size(90, 90),
+                        painter: _HeadingBeamPainter(color: Color(0xFF38BDF8)),
+                      ),
+                    ),
+
+                  // 2. Outer expanding radar pulse
                   Container(
-                    width: 26 * _beaconRadiusAnim.value,
-                    height: 26 * _beaconRadiusAnim.value,
+                    width: 28 * _beaconRadiusAnim.value,
+                    height: 28 * _beaconRadiusAnim.value,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: AppColors.primary.withValues(alpha: _beaconOpacityAnim.value),
+                      color: AppColors.primary.withValues(alpha: _beaconOpacityAnim.value * 0.6),
                     ),
                   ),
-                  // Central GPS core dot
+
+                  // 3. Central GPS core dot (Google Maps style)
                   Container(
                     width: 24,
                     height: 24,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: AppColors.primary,
+                      color: const Color(0xFF2563EB), // Google Maps Blue
                       border: Border.all(color: Colors.white, width: 3),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.5),
+                          color: const Color(0xFF2563EB).withValues(alpha: 0.55),
                           blurRadius: 10,
                           spreadRadius: 2,
                         ),
                       ],
                     ),
-                    child: const Center(
-                      child: Icon(Icons.navigation_rounded, color: Colors.white, size: 12),
+                    child: Center(
+                      child: isMoving
+                          ? Transform.rotate(
+                              angle: _currentHeading * (pi / 180.0),
+                              child: const Icon(
+                                Icons.navigation_rounded,
+                                color: Colors.white,
+                                size: 13,
+                              ),
+                            )
+                          : Container(
+                              width: 6,
+                              height: 6,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white,
+                              ),
+                            ),
                     ),
                   ),
                 ],
@@ -386,8 +672,9 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
               HapticFeedback.selectionClick();
               setState(() {
                 _selectedPlace = place;
+                _followMode = MapFollowMode.none;
               });
-              _mapController.move(
+              _animatedMapMove(
                 LatLng(place.latitude, place.longitude),
                 16.0,
               );
@@ -456,7 +743,13 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
             mapController: _mapController,
             options: MapOptions(
               initialCenter: _currentLocation,
-              initialZoom: 14.5,
+              initialZoom: 15.5,
+              onPositionChanged: (camera, hasGesture) {
+                // If user drags or pinches map, disengage auto-follow mode
+                if (hasGesture && _followMode != MapFollowMode.none) {
+                  setState(() => _followMode = MapFollowMode.none);
+                }
+              },
               onTap: (_, __) {
                 if (_selectedPlace != null) {
                   setState(() => _selectedPlace = null);
@@ -528,7 +821,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
                         child: const Icon(Icons.route_rounded),
                       ),
                       const SizedBox(width: 8),
-                      // Map Layer Selector (OSM / CartoDB)
+                      // Map Layer Selector
                       FloatingActionButton.small(
                         heroTag: 'map_layer_selector',
                         backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
@@ -550,18 +843,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
                           onPressed: () => _fitAllPlaces(placesVm.places),
                           child: const Icon(Icons.crop_free_rounded),
                         ),
-                        const SizedBox(width: 8),
                       ],
-                      // Recenter on GPS
-                      FloatingActionButton.small(
-                        heroTag: 'map_recenter_user',
-                        backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
-                        foregroundColor: AppColors.primary,
-                        elevation: 3,
-                        tooltip: 'Mia Posizione',
-                        onPressed: _centerOnUser,
-                        child: const Icon(Icons.my_location_rounded),
-                      ),
                     ],
                   ),
                 ],
@@ -569,53 +851,46 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
             ),
           ),
 
-          // Zoom in / Zoom out floating controls on right side
+          // Live Displacement / Movement Navigation HUD (Google Maps style)
+          if (trackingEngine.isInTransit || activeTrip != null || (_currentSpeedKmh > 3.5 && trackingEngine.currentPlace == null))
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 60, left: 16, right: 16),
+                child: _LiveMovementHud(
+                  isDark: isDark,
+                  speedKmh: _currentSpeedKmh,
+                  activeTrip: activeTrip,
+                  currentPlace: trackingEngine.currentPlace,
+                  isFollowing: _followMode != MapFollowMode.none,
+                  onToggleFollow: _toggleFollowMode,
+                  onFitTrip: activeTrip != null && activeTrip.routePoints.isNotEmpty
+                      ? () => _fitTripOnMap(activeTrip)
+                      : null,
+                ),
+              ),
+            ),
+
+          // Floating Controls Column on Right (Compass, Zoom In/Out, Google Maps Recenter FAB)
           Positioned(
             right: 16,
-            bottom: _selectedPlace != null ? 220 : 96,
-            child: Container(
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.darkSurface : Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                ),
-                boxShadow: const [
-                  BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 2)),
+            bottom: _selectedPlace != null ? 240 : 96,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                // Compass Needle button (visible when rotation != 0)
+                if (_mapController.camera.rotation.abs() > 1.0) ...[
+                  _buildCompassButton(isDark),
+                  const SizedBox(height: 12),
                 ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.add, size: 20),
-                    tooltip: 'Zoom avanti',
-                    onPressed: () {
-                      HapticFeedback.selectionClick();
-                      _mapController.move(
-                        _mapController.camera.center,
-                        _mapController.camera.zoom + 1,
-                      );
-                    },
-                  ),
-                  Divider(
-                    height: 1,
-                    thickness: 1,
-                    color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.remove, size: 20),
-                    tooltip: 'Zoom indietro',
-                    onPressed: () {
-                      HapticFeedback.selectionClick();
-                      _mapController.move(
-                        _mapController.camera.center,
-                        _mapController.camera.zoom - 1,
-                      );
-                    },
-                  ),
-                ],
-              ),
+
+                // Zoom controls container
+                _buildZoomControls(isDark),
+                const SizedBox(height: 14),
+
+                // Dedicated Google Maps Recenter & Follow FAB
+                _buildRecenterFollowFab(isDark),
+              ],
             ),
           ),
 
@@ -645,6 +920,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
             ),
         ],
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
       floatingActionButton: _selectedPlace == null
           ? FloatingActionButton.extended(
               heroTag: 'map_add_place_fab',
@@ -661,6 +937,335 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
               label: const Text('Nuovo Luogo', style: TextStyle(fontWeight: FontWeight.w700)),
             )
           : null,
+    );
+  }
+
+  Widget _buildCompassButton(bool isDark) {
+    final rotation = _mapController.camera.rotation;
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+        ),
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 2)),
+        ],
+      ),
+      child: IconButton(
+        iconSize: 22,
+        tooltip: 'Reimposta Nord in alto',
+        onPressed: _resetNorth,
+        icon: Transform.rotate(
+          angle: -rotation * (pi / 180.0),
+          child: const Icon(
+            Icons.explore_rounded,
+            color: Color(0xFFEF4444), // Compass Red
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildZoomControls(bool isDark) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+        ),
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.add, size: 20),
+            tooltip: 'Zoom avanti',
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              _animatedMapMove(
+                _mapController.camera.center,
+                _mapController.camera.zoom + 1,
+              );
+            },
+          ),
+          Divider(
+            height: 1,
+            thickness: 1,
+            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+          ),
+          IconButton(
+            icon: const Icon(Icons.remove, size: 20),
+            tooltip: 'Zoom indietro',
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              _animatedMapMove(
+                _mapController.camera.center,
+                _mapController.camera.zoom - 1,
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecenterFollowFab(bool isDark) {
+    final isFollowing = _followMode == MapFollowMode.follow;
+    final isCompass = _followMode == MapFollowMode.followAndRotate;
+    final isActive = isFollowing || isCompass;
+
+    String tooltip = 'Centra e segui posizione';
+    if (isFollowing) {
+      tooltip = 'Seguimento attivo • Tocca per modalità bussola';
+    } else if (isCompass) {
+      tooltip = 'Bussola attiva • Tocca per Nord in alto';
+    }
+
+    return Tooltip(
+      message: tooltip,
+      child: Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: isActive
+                  ? AppColors.primary.withValues(alpha: 0.45)
+                  : Colors.black12,
+              blurRadius: isActive ? 12 : 8,
+              offset: const Offset(0, 3),
+              spreadRadius: isActive ? 1 : 0,
+            ),
+          ],
+        ),
+        child: Material(
+          color: isActive
+              ? (isCompass ? const Color(0xFF4F46E5) : AppColors.primary)
+              : (isDark ? AppColors.darkSurface : Colors.white),
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: _toggleFollowMode,
+            child: SizedBox(
+              width: 52,
+              height: 52,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  if (isActive)
+                    AnimatedBuilder(
+                      animation: _beaconController,
+                      builder: (context, _) {
+                        return Container(
+                          width: 46 + (8 * _beaconRadiusAnim.value),
+                          height: 46 + (8 * _beaconRadiusAnim.value),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: _beaconOpacityAnim.value * 0.7),
+                              width: 1.5,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  Icon(
+                    isCompass
+                        ? Icons.explore_rounded
+                        : (isFollowing
+                            ? Icons.gps_fixed_rounded
+                            : Icons.my_location_outlined),
+                    color: isActive
+                        ? Colors.white
+                        : (isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary),
+                    size: 24,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HeadingBeamPainter extends CustomPainter {
+  final Color color;
+
+  const _HeadingBeamPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+
+    final paint = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          color.withValues(alpha: 0.45),
+          color.withValues(alpha: 0.0),
+        ],
+      ).createShader(Rect.fromCircle(center: center, radius: radius));
+
+    final path = Path()
+      ..moveTo(center.dx, center.dy)
+      ..arcTo(
+        Rect.fromCircle(center: center, radius: radius),
+        -pi / 2 - (35 * pi / 180),
+        70 * pi / 180,
+        false,
+      )
+      ..close();
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _HeadingBeamPainter oldDelegate) => false;
+}
+
+class _LiveMovementHud extends StatelessWidget {
+  final bool isDark;
+  final double speedKmh;
+  final Trip? activeTrip;
+  final Place? currentPlace;
+  final bool isFollowing;
+  final VoidCallback onToggleFollow;
+  final VoidCallback? onFitTrip;
+
+  const _LiveMovementHud({
+    required this.isDark,
+    required this.speedKmh,
+    required this.activeTrip,
+    required this.currentPlace,
+    required this.isFollowing,
+    required this.onToggleFollow,
+    this.onFitTrip,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    IconData modeIcon = Icons.directions_walk_rounded;
+    String modeLabel = 'A piedi';
+
+    final mode = activeTrip?.transportMode;
+    if (mode != null) {
+      if (mode.contains('auto') || mode.contains('Mezzo')) {
+        modeIcon = Icons.directions_car_rounded;
+        modeLabel = 'In auto / Mezzo';
+      } else if (mode.contains('bici')) {
+        modeIcon = Icons.directions_bike_rounded;
+        modeLabel = 'In bicicletta';
+      } else {
+        modeIcon = Icons.directions_walk_rounded;
+        modeLabel = 'A piedi';
+      }
+    } else if (speedKmh > 22.0) {
+      modeIcon = Icons.directions_car_rounded;
+      modeLabel = 'In auto';
+    } else if (speedKmh > 7.0) {
+      modeIcon = Icons.directions_bike_rounded;
+      modeLabel = 'In bici';
+    }
+
+    final distanceStr = activeTrip?.formattedDistance ?? '0 m';
+    final durationStr = activeTrip?.formattedDuration ?? '0s';
+    final originName = activeTrip?.originPlaceName;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: isDark
+            ? AppColors.darkSurface.withValues(alpha: 0.95)
+            : Colors.white.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFF0EA5E9).withValues(alpha: 0.5),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0EA5E9).withValues(alpha: 0.2),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0EA5E9).withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(modeIcon, color: const Color(0xFF0EA5E9), size: 20),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        originName != null ? 'Da $originName' : 'In Spostamento',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? Colors.white : AppColors.textLightPrimary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0EA5E9).withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        modeLabel,
+                        style: const TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0284C7),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${speedKmh.toStringAsFixed(0)} km/h • $distanceStr • $durationStr',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (onFitTrip != null) ...[
+            IconButton(
+              icon: const Icon(Icons.fullscreen_rounded, size: 20),
+              tooltip: 'Inquadra percorso',
+              onPressed: onFitTrip,
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
