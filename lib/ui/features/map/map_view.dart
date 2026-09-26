@@ -15,30 +15,31 @@ import '../places/places_view_model.dart';
 
 enum MapLayerType {
   osm,
-  cartoVoyager,
-  cartoDark;
+  osmDark,
+  topo;
 
   String get displayName {
     switch (this) {
       case MapLayerType.osm:
         return 'Stradale Dettagliata (OSM)';
-      case MapLayerType.cartoVoyager:
-        return 'Moderna Chiara (CartoDB)';
-      case MapLayerType.cartoDark:
-        return 'Notturna OLED (CartoDB Dark)';
+      case MapLayerType.osmDark:
+        return 'Notturna OLED (Contrasto Scuro)';
+      case MapLayerType.topo:
+        return 'Topografica Rilievi (OpenTopoMap)';
     }
   }
 
   String get tileUrl {
     switch (this) {
       case MapLayerType.osm:
+      case MapLayerType.osmDark:
         return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-      case MapLayerType.cartoVoyager:
-        return 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png';
-      case MapLayerType.cartoDark:
-        return 'https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png';
+      case MapLayerType.topo:
+        return 'https://tile.opentopomap.org/{z}/{x}/{y}.png';
     }
   }
+
+  bool get isDark => this == MapLayerType.osmDark;
 }
 
 class MapView extends StatefulWidget {
@@ -152,7 +153,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
   }
 
   void _showLayerSelector(BuildContext context, bool isDark) {
-    final currentType = _customLayerType ?? (isDark ? MapLayerType.cartoDark : MapLayerType.osm);
+    final currentType = _customLayerType ?? (isDark ? MapLayerType.osmDark : MapLayerType.osm);
     final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
     final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
@@ -226,7 +227,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
                     leading: Icon(
                       layer == MapLayerType.osm
                           ? Icons.map_rounded
-                          : (layer == MapLayerType.cartoVoyager ? Icons.wb_sunny_rounded : Icons.dark_mode_rounded),
+                          : (layer == MapLayerType.topo ? Icons.terrain_rounded : Icons.dark_mode_rounded),
                       color: isSelected ? AppColors.primary : textMuted,
                     ),
                     title: Text(
@@ -260,7 +261,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
     final placesVm = Provider.of<PlacesViewModel>(context);
     final isDark = widget.isDarkMode;
 
-    final activeLayer = _customLayerType ?? (isDark ? MapLayerType.cartoDark : MapLayerType.osm);
+    final activeLayer = _customLayerType ?? (isDark ? MapLayerType.osmDark : MapLayerType.osm);
     final tileUrl = activeLayer.tileUrl;
 
     final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
@@ -470,6 +471,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
               TileLayer(
                 urlTemplate: tileUrl,
                 userAgentPackageName: 'com.tempo.app.tempo',
+                tileBuilder: activeLayer.isDark ? darkModeTileBuilder : null,
               ),
               PolylineLayer(polylines: polylines),
               CircleLayer(circles: circles),

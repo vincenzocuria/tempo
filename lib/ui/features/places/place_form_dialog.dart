@@ -184,10 +184,6 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    final tileUrl = isDark
-        ? 'https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png'
-        : 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png';
-
     final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
     final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
@@ -418,8 +414,9 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
                             ),
                             children: [
                               TileLayer(
-                                urlTemplate: tileUrl,
+                                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                                 userAgentPackageName: 'com.tempo.app.tempo',
+                                tileBuilder: isDark ? darkModeTileBuilder : null,
                               ),
                               CircleLayer(
                                 circles: [

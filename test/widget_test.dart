@@ -173,7 +173,7 @@ void main() {
 
       final parsed = jsonDecode(jsonStr) as Map<String, dynamic>;
       expect(parsed['app'], 'Tempo');
-      expect(parsed['version'], '1.0.5');
+      expect(parsed['version'], '1.0.6');
       expect(parsed['places'], isA<List>());
       expect((parsed['places'] as List).length, 1);
       expect(parsed['visits'], isA<List>());
