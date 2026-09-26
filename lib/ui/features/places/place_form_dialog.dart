@@ -416,14 +416,14 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
                             ),
                             children: [
                               TileLayer(
-                                urlTemplate: isDark
-                                    ? 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png'
-                                    : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-                                subdomains: const ['a', 'b', 'c', 'd'],
+                                urlTemplate: 'https://tile.openstreetmap.de/{z}/{x}/{y}.png',
+                                fallbackUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                                 userAgentPackageName: 'com.tempo.app.tempo',
+                                tileProvider: NetworkTileProvider(
+                                  headers: const {'User-Agent': 'TempoApp/1.0 (Android; com.tempo.app.tempo)'},
+                                ),
                                 maxZoom: 19,
-                                maxNativeZoom: 18,
-                                fallbackUrl: 'https://tile.opentopomap.org/{z}/{x}/{y}.png',
+                                maxNativeZoom: 19,
                               ),
                               CircleLayer(
                                 circles: [

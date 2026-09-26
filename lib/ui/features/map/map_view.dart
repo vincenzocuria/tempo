@@ -16,16 +16,16 @@ import '../places/place_form_dialog.dart';
 import '../places/places_view_model.dart';
 
 enum MapLayerType {
-  voyager,
-  darkMatter,
+  osm,
+  osmDark,
   topo;
 
   String get displayName {
     switch (this) {
-      case MapLayerType.voyager:
-        return 'Stradale Dettagliata (CartoDB)';
-      case MapLayerType.darkMatter:
-        return 'Notturna OLED (CartoDB Dark)';
+      case MapLayerType.osm:
+        return 'Stradale Dettagliata (OpenStreetMap)';
+      case MapLayerType.osmDark:
+        return 'Notturna Contrasto Elevato';
       case MapLayerType.topo:
         return 'Topografica Rilievi (OpenTopoMap)';
     }
@@ -33,16 +33,15 @@ enum MapLayerType {
 
   String get tileUrl {
     switch (this) {
-      case MapLayerType.voyager:
-        return 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png';
-      case MapLayerType.darkMatter:
-        return 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png';
+      case MapLayerType.osm:
+      case MapLayerType.osmDark:
+        return 'https://tile.openstreetmap.de/{z}/{x}/{y}.png';
       case MapLayerType.topo:
         return 'https://tile.opentopomap.org/{z}/{x}/{y}.png';
     }
   }
 
-  bool get isDark => this == MapLayerType.darkMatter;
+  bool get isDark => this == MapLayerType.osmDark;
 }
 
 enum MapFollowMode {
@@ -375,7 +374,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
   }
 
   void _showLayerSelector(BuildContext context, bool isDark) {
-    final currentType = _customLayerType ?? (isDark ? MapLayerType.darkMatter : MapLayerType.voyager);
+    final currentType = _customLayerType ?? MapLayerType.osm;
     final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
     final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
@@ -447,7 +446,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
                   ),
                   child: ListTile(
                     leading: Icon(
-                      layer == MapLayerType.voyager
+                      layer == MapLayerType.osm
                           ? Icons.map_rounded
                           : (layer == MapLayerType.topo ? Icons.terrain_rounded : Icons.dark_mode_rounded),
                       color: isSelected ? AppColors.primary : textMuted,
@@ -483,7 +482,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
     final placesVm = Provider.of<PlacesViewModel>(context);
     final isDark = widget.isDarkMode;
 
-    final activeLayer = _customLayerType ?? (isDark ? MapLayerType.darkMatter : MapLayerType.voyager);
+    final activeLayer = _customLayerType ?? MapLayerType.osm;
     final tileUrl = activeLayer.tileUrl;
 
     final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
@@ -793,11 +792,14 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
             children: [
               TileLayer(
                 urlTemplate: tileUrl,
-                subdomains: const ['a', 'b', 'c', 'd'],
+                fallbackUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.tempo.app.tempo',
+                tileProvider: NetworkTileProvider(
+                  headers: const {'User-Agent': 'TempoApp/1.0 (Android; com.tempo.app.tempo)'},
+                ),
                 maxZoom: 19,
-                maxNativeZoom: 18,
-                fallbackUrl: 'https://tile.opentopomap.org/{z}/{x}/{y}.png',
+                maxNativeZoom: 19,
+                tileBuilder: activeLayer.isDark ? darkModeTileBuilder : null,
               ),
               PolylineLayer(polylines: polylines),
               CircleLayer(circles: circles),
