@@ -9,7 +9,10 @@ import '../../../data/services/location_service.dart';
 import '../../../data/services/notification_service.dart';
 import '../../../data/services/tracking_engine.dart';
 import '../../core/app_colors.dart';
+import '../analytics/analytics_view_model.dart';
+import '../dashboard/dashboard_view_model.dart';
 import '../history/history_view.dart';
+import '../places/places_view_model.dart';
 
 class SettingsView extends StatefulWidget {
   final VoidCallback onThemeToggle;
@@ -169,6 +172,7 @@ class _SettingsViewState extends State<SettingsView> {
     final places = await placeRepo.getAllPlaces();
     final visits = await visitRepo.getVisits();
 
+    if (!mounted) return;
     final csv = ExportService.exportVisitsToCsv(visits: visits, places: places);
     _showExportPreview('Esportazione CSV', csv);
   }
@@ -180,17 +184,27 @@ class _SettingsViewState extends State<SettingsView> {
     final places = await placeRepo.getAllPlaces();
     final visits = await visitRepo.getVisits();
 
+    if (!mounted) return;
     final json = ExportService.exportDataToJson(places: places, visits: visits);
     _showExportPreview('Esportazione JSON', json);
   }
 
   void _seedDemo() async {
     final visitRepo = Provider.of<VisitRepository>(context, listen: false);
+    final dashboardVm = Provider.of<DashboardViewModel>(context, listen: false);
+    final placesVm = Provider.of<PlacesViewModel>(context, listen: false);
+    final analyticsVm = Provider.of<AnalyticsViewModel>(context, listen: false);
+
     await visitRepo.seedDemoData();
+    await dashboardVm.loadData();
+    await placesVm.loadPlaces();
+    await analyticsVm.loadAnalytics();
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Dati demo aggiunti con successo! Controlla la Dashboard e le Statistiche.'),
+          content: Text('Dati demo aggiunti con successo! Dashboard, Luoghi e Statistiche aggiornati.'),
+          backgroundColor: AppColors.success,
         ),
       );
     }
@@ -278,14 +292,23 @@ class _SettingsViewState extends State<SettingsView> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
                       onPressed: () async {
+                        final messenger = ScaffoldMessenger.of(context);
                         Navigator.pop(ctx);
                         final visitRepo = Provider.of<VisitRepository>(context, listen: false);
+                        final dashboardVm = Provider.of<DashboardViewModel>(context, listen: false);
+                        final placesVm = Provider.of<PlacesViewModel>(context, listen: false);
+                        final analyticsVm = Provider.of<AnalyticsViewModel>(context, listen: false);
+                        final trackingEngine = Provider.of<TrackingEngine>(context, listen: false);
+
                         await visitRepo.clearAllData();
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Tutti i dati sono stati cancellati.')),
-                          );
-                        }
+                        await trackingEngine.manualCheckOut();
+                        await dashboardVm.loadData();
+                        await placesVm.loadPlaces();
+                        await analyticsVm.loadAnalytics();
+
+                        messenger.showSnackBar(
+                          const SnackBar(content: Text('Tutti i dati sono stati cancellati.')),
+                        );
                       },
                       child: const Text('Cancella Tutto', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
                     ),

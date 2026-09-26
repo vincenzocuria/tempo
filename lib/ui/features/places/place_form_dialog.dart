@@ -162,11 +162,13 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
       vm.addPlace(newPlace);
     }
 
+    final messenger = ScaffoldMessenger.of(context);
+    final placeName = _nameController.text.trim();
     HapticFeedback.mediumImpact();
     Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
+    messenger.showSnackBar(
       SnackBar(
-        content: Text('Luogo "${_nameController.text.trim()}" salvato con successo!'),
+        content: Text('Luogo "$placeName" salvato con successo!'),
         backgroundColor: AppColors.success,
       ),
     );

@@ -28,7 +28,18 @@ class DashboardViewModel extends ChangeNotifier {
     loadData();
   }
 
-  void _onTrackingEngineUpdated() {
+  String? _lastPlaceId;
+  String? _lastVisitId;
+
+  void _onTrackingEngineUpdated() async {
+    final currentPlaceId = _trackingEngine.currentPlace?.id;
+    final currentVisitId = _trackingEngine.activeVisit?.id;
+
+    if (currentPlaceId != _lastPlaceId || currentVisitId != _lastVisitId) {
+      _lastPlaceId = currentPlaceId;
+      _lastVisitId = currentVisitId;
+      _todayVisits = await _visitRepository.getTodayVisits();
+    }
     _calculateTodayStats();
     notifyListeners();
   }

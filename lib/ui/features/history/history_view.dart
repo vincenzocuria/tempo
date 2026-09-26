@@ -28,6 +28,7 @@ class _HistoryViewState extends State<HistoryView> {
     setState(() => _isLoading = true);
     final repo = Provider.of<VisitRepository>(context, listen: false);
     final v = await repo.getVisits();
+    if (!mounted) return;
     setState(() {
       _visits = v;
       _isLoading = false;
@@ -37,6 +38,7 @@ class _HistoryViewState extends State<HistoryView> {
   void _deleteVisit(String id) async {
     final repo = Provider.of<VisitRepository>(context, listen: false);
     await repo.deleteVisit(id);
+    if (!mounted) return;
     _loadVisits();
   }
 

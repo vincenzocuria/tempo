@@ -51,6 +51,7 @@ class _ManualVisitDialogState extends State<ManualVisitDialog> {
   Future<void> _loadPlaces() async {
     final repo = Provider.of<PlaceRepository>(context, listen: false);
     final p = await repo.getAllPlaces();
+    if (!mounted) return;
     setState(() {
       _places = p;
       if (p.isNotEmpty) _selectedPlace = p.first;
@@ -65,7 +66,7 @@ class _ManualVisitDialogState extends State<ManualVisitDialog> {
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
     );
-    if (picked != null) {
+    if (picked != null && mounted) {
       setState(() => _date = picked);
     }
   }
@@ -75,7 +76,7 @@ class _ManualVisitDialogState extends State<ManualVisitDialog> {
       context: context,
       initialTime: _startTime,
     );
-    if (picked != null) {
+    if (picked != null && mounted) {
       setState(() => _startTime = picked);
     }
   }
@@ -85,7 +86,7 @@ class _ManualVisitDialogState extends State<ManualVisitDialog> {
       context: context,
       initialTime: _endTime,
     );
-    if (picked != null) {
+    if (picked != null && mounted) {
       setState(() => _endTime = picked);
     }
   }
@@ -129,8 +130,17 @@ class _ManualVisitDialogState extends State<ManualVisitDialog> {
 
     await repo.addManualVisit(visit);
     HapticFeedback.mediumImpact();
-    widget.onVisitAdded();
-    if (mounted) Navigator.pop(context);
+    if (mounted) {
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.pop(context);
+      widget.onVisitAdded();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Visita a "${_selectedPlace!.name}" aggiunta alla cronologia!'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    }
   }
 
   @override
