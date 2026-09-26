@@ -5,6 +5,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../../../data/models/place.dart';
+import '../../../data/models/trip.dart';
+import '../../../data/repositories/trip_repository.dart';
 import '../../../data/services/location_service.dart';
 import '../../../data/services/tracking_engine.dart';
 import '../../core/app_colors.dart';
@@ -59,6 +61,8 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
   LatLng _currentLocation = const LatLng(41.9028, 12.4964); // Default Italy (Rome)
   bool _hasLocatedUser = false;
   MapLayerType? _customLayerType;
+  List<Trip> _todayTrips = [];
+  bool _showTripsOnMap = true;
 
   late AnimationController _beaconController;
   late Animation<double> _beaconRadiusAnim;
@@ -68,6 +72,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
   void initState() {
     super.initState();
     _fetchUserLocation();
+    _loadTrips();
 
     // Radar pulse animation for GPS beacon
     _beaconController = AnimationController(
@@ -101,6 +106,16 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
         _mapController.move(_currentLocation, 15.5);
       } catch (_) {}
     }
+  }
+
+  Future<void> _loadTrips() async {
+    try {
+      final tripRepo = Provider.of<TripRepository>(context, listen: false);
+      final trips = await tripRepo.getTodayTrips();
+      if (mounted) {
+        setState(() => _todayTrips = trips);
+      }
+    } catch (_) {}
   }
 
   void _centerOnUser() async {
@@ -265,6 +280,39 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
       );
     }).toList();
 
+    // Build polylines for recorded trips & active movement
+    final polylines = <Polyline>[];
+    if (_showTripsOnMap) {
+      // 1. Completed trips today
+      for (final trip in _todayTrips) {
+        if (trip.routePoints.length >= 2) {
+          polylines.add(
+            Polyline(
+              points: trip.latLngPoints,
+              color: const Color(0xFF0284C7).withValues(alpha: 0.85),
+              strokeWidth: 4.5,
+              borderColor: Colors.white.withValues(alpha: 0.7),
+              borderStrokeWidth: 1.5,
+            ),
+          );
+        }
+      }
+
+      // 2. Active live trip
+      final activeTrip = trackingEngine.activeTrip;
+      if (activeTrip != null && trackingEngine.activeRoutePoints.length >= 2) {
+        polylines.add(
+          Polyline(
+            points: trackingEngine.activeRoutePoints.map((p) => p.toLatLng()).toList(),
+            color: const Color(0xFF0EA5E9),
+            strokeWidth: 5.5,
+            borderColor: Colors.white,
+            borderStrokeWidth: 2.0,
+          ),
+        );
+      }
+    }
+
     // Build markers for places
     final markers = <Marker>[];
 
@@ -423,6 +471,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
                 urlTemplate: tileUrl,
                 userAgentPackageName: 'com.tempo.app.tempo',
               ),
+              PolylineLayer(polylines: polylines),
               CircleLayer(circles: circles),
               MarkerLayer(markers: markers),
             ],
@@ -449,7 +498,7 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
                         const Icon(Icons.map_rounded, color: AppColors.primary, size: 20),
                         const SizedBox(width: 8),
                         Text(
-                          'Mappa Luoghi (${placesVm.places.length})',
+                          'Mappa (${placesVm.places.length} luoghi)',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w800,
@@ -461,6 +510,22 @@ class _MapViewState extends State<MapView> with SingleTickerProviderStateMixin {
                   ),
                   Row(
                     children: [
+                      // Toggle Routes/Trips on map
+                      FloatingActionButton.small(
+                        heroTag: 'map_toggle_trips',
+                        backgroundColor: _showTripsOnMap
+                            ? const Color(0xFF0EA5E9)
+                            : (isDark ? AppColors.darkSurface : Colors.white),
+                        foregroundColor: _showTripsOnMap ? Colors.white : textPrimary,
+                        elevation: 3,
+                        tooltip: _showTripsOnMap ? 'Nascondi percorsi' : 'Mostra percorsi',
+                        onPressed: () {
+                          HapticFeedback.selectionClick();
+                          setState(() => _showTripsOnMap = !_showTripsOnMap);
+                        },
+                        child: const Icon(Icons.route_rounded),
+                      ),
+                      const SizedBox(width: 8),
                       // Map Layer Selector (OSM / CartoDB)
                       FloatingActionButton.small(
                         heroTag: 'map_layer_selector',

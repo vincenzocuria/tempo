@@ -53,6 +53,68 @@ class DashboardView extends StatelessWidget {
     return '$dayName, ${dt.day} $monthName';
   }
 
+  Widget _buildLiveStatusBadge(
+    BuildContext context,
+    TrackingEngine engine,
+    bool isDark,
+  ) {
+    final activeVisit = engine.activeVisit;
+    final currentPlace = engine.currentPlace;
+    final activeTrip = engine.activeTrip;
+
+    final Color badgeColor;
+    final String badgeLabel;
+
+    if (activeVisit != null && currentPlace != null) {
+      badgeColor = currentPlace.color;
+      badgeLabel = currentPlace.name;
+    } else if (activeTrip != null) {
+      badgeColor = const Color(0xFF0EA5E9);
+      badgeLabel = 'In viaggio';
+    } else {
+      badgeColor = const Color(0xFFF59E0B);
+      badgeLabel = 'Fuori dai Luoghi';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: badgeColor.withValues(alpha: isDark ? 0.16 : 0.1),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: badgeColor.withValues(alpha: isDark ? 0.35 : 0.25),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: badgeColor,
+            ),
+          ),
+          const SizedBox(width: 6),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 130),
+            child: Text(
+              badgeLabel,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: badgeColor,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showQuickCheckInSheet(BuildContext context, TrackingEngine engine) async {
     final placeRepo = Provider.of<PlaceRepository>(context, listen: false);
     final places = await placeRepo.getAllPlaces();
@@ -351,29 +413,36 @@ class DashboardView extends StatelessWidget {
               ),
               const SizedBox(height: 18),
 
-              // Date & Title Header
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              // Date & Title Header with Live Status Badge
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(
-                    dateString.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.2,
-                      color: textMuted,
-                    ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        dateString.toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
+                          color: textMuted,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Riepilogo Oggi',
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.6,
+                          color: textPrimary,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Riepilogo Oggi',
-                    style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.6,
-                      color: textPrimary,
-                    ),
-                  ),
+                  _buildLiveStatusBadge(context, trackingEngine, isDark),
                 ],
               ),
               const SizedBox(height: 18),
@@ -406,11 +475,14 @@ class DashboardView extends StatelessWidget {
                 },
               ),
 
-              // Today Summary Row (Total Time & Top Place)
+              // Today Summary Row (Total Time, Top Place, & Trips)
               TodaySummaryRow(
                 formattedTotal: viewModel.formattedTotalToday,
                 topPlace: viewModel.topPlaceToday,
                 visitCount: viewModel.todayVisits.length,
+                tripCount: viewModel.todayTrips.length,
+                formattedDistance: viewModel.formattedTotalDistanceToday,
+                formattedTripDuration: viewModel.formattedTotalTripDurationToday,
               ),
               const SizedBox(height: 20),
 
@@ -450,9 +522,10 @@ class DashboardView extends StatelessWidget {
               ),
               const SizedBox(height: 26),
 
-              // Recent Visits Activity Feed
+              // Recent Activity Feed (Visits & Trips)
               RecentVisitsList(
                 visits: viewModel.todayVisits,
+                trips: viewModel.todayTrips,
                 onViewAllTap: onNavigateToHistory,
               ),
             ],

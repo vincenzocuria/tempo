@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:provider/provider.dart';
+import '../../../../data/models/place.dart';
 import '../../../../data/services/tracking_engine.dart';
 import '../../../core/app_colors.dart';
+import '../../places/place_form_dialog.dart';
+import '../../places/places_view_model.dart';
 
 class LiveStatusCard extends StatefulWidget {
   final TrackingEngine trackingEngine;
@@ -270,124 +276,559 @@ class _LiveStatusCardState extends State<LiveStatusCard>
     }
 
     // -------------------------------------------------------------
-    // STATE 2: OUTSIDE (IN MOVIMENTO) - Compact, Modern Ambient Capsule
+    // STATE 2: ACTIVE TRIP (IN SPOSTAMENTO / TRAGITTO IN CORSO)
     // -------------------------------------------------------------
-    return Container(
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.16 : 0.03),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
+    final activeTrip = engine.activeTrip;
+    if (activeTrip != null) {
+      const tripColor = Color(0xFF0EA5E9); // Bright Cyan / Sky Blue
+
+      return Container(
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: tripColor.withValues(alpha: isDark ? 0.4 : 0.3),
+            width: 1.5,
           ),
-        ],
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-              shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: tripColor.withValues(alpha: isDark ? 0.15 : 0.08),
+              blurRadius: 20,
+              offset: const Offset(0, 6),
             ),
-            child: Icon(
-              Icons.near_me_outlined,
-              color: textMuted,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+          ],
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top Status Bar: Live Moving Indicator + Mode Pill
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Row(
                   children: [
-                    Text(
-                      'Nessuna sosta attiva',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: textPrimary,
-                      ),
+                    AnimatedBuilder(
+                      animation: _pulseAnimation,
+                      builder: (context, _) {
+                        return Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: tripColor.withValues(alpha: _pulseAnimation.value),
+                            boxShadow: [
+                              BoxShadow(
+                                color: tripColor.withValues(alpha: 0.6),
+                                blurRadius: 8 * _pulseAnimation.value,
+                                spreadRadius: 2 * _pulseAnimation.value,
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 8),
                     Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppColors.success,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: tripColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.directions_car_rounded, size: 14, color: tripColor),
+                          SizedBox(width: 4),
+                          Text(
+                            'IN SPOSTAMENTO',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.8,
+                              color: tripColor,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 2),
                 Text(
-                  engine.statusMessage ?? 'In attesa di raggiungere un luogo',
+                  activeTrip.transportMode,
                   style: TextStyle(
                     fontSize: 12,
+                    fontWeight: FontWeight.w600,
                     color: textMuted,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
-          ),
-          IconButton(
-            tooltip: 'Rileva GPS',
-            style: IconButton.styleFrom(
-              visualDensity: VisualDensity.compact,
-              padding: const EdgeInsets.all(8),
-            ),
-            icon: engine.isChecking
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Icon(Icons.refresh_rounded, size: 20, color: textMuted),
-            onPressed: engine.isChecking
-                ? null
-                : () {
-                    HapticFeedback.lightImpact();
-                    engine.checkCurrentLocation();
-                  },
-          ),
-          const SizedBox(width: 4),
-          FilledButton.tonal(
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              visualDensity: VisualDensity.compact,
-            ),
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              widget.onQuickCheckInTap();
-            },
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
+            const SizedBox(height: 14),
+
+            // Middle: Origin & Live Distance
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
               children: [
-                Icon(Icons.add_rounded, size: 16),
-                SizedBox(width: 2),
                 Text(
-                  'Check-in',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  activeTrip.formattedDistance,
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.w900,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                    color: textPrimary,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'percorsi da ${activeTrip.originPlaceName}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: textMuted,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),
+            const SizedBox(height: 16),
+
+            // Bottom Section: Tabular Figures Timer & Complete Button
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF0F9FF),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isDark ? AppColors.darkBorder : const Color(0xFFBAE6FD),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'TEMPO IN VIAGGIO',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                          color: textMuted,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _formatDuration(activeTrip.currentDuration),
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                          letterSpacing: 0.5,
+                          color: textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      TextButton.icon(
+                        style: TextButton.styleFrom(
+                          backgroundColor: tripColor.withValues(alpha: 0.12),
+                          foregroundColor: tripColor,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: () {
+                          HapticFeedback.mediumImpact();
+                          engine.manualFinishTrip();
+                        },
+                        icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
+                        label: const Text(
+                          'Termina',
+                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton.tonal(
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: () {
+                          HapticFeedback.lightImpact();
+                          widget.onQuickCheckInTap();
+                        },
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.place_rounded, size: 15),
+                            SizedBox(width: 2),
+                            Text(
+                              'Arrivo',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // -------------------------------------------------------------
+    // STATE 3: OUTSIDE IDLE (FUORI DAI LUOGHI NOTI) - Executive Hero Card
+    // -------------------------------------------------------------
+    final placesVm = Provider.of<PlacesViewModel>(context);
+    final places = placesVm.places;
+    final pos = engine.lastKnownPosition;
+
+    Place? nearestPlace;
+    double minDistance = double.infinity;
+    if (pos != null && places.isNotEmpty) {
+      for (final p in places) {
+        final d = Geolocator.distanceBetween(
+          pos.latitude,
+          pos.longitude,
+          p.latitude,
+          p.longitude,
+        );
+        if (d < minDistance) {
+          minDistance = d;
+          nearestPlace = p;
+        }
+      }
+    }
+
+    String? distanceText;
+    if (nearestPlace != null && minDistance < double.infinity) {
+      if (minDistance < 1000) {
+        distanceText = '${minDistance.round()} m da ${nearestPlace.name}';
+      } else {
+        distanceText = '${(minDistance / 1000).toStringAsFixed(1)} km da ${nearestPlace.name}';
+      }
+    }
+
+    const outsideColor = Color(0xFFF59E0B); // Amber / Warm Accent
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: outsideColor.withValues(alpha: isDark ? 0.4 : 0.3),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: outsideColor.withValues(alpha: isDark ? 0.12 : 0.06),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Top Status Bar: Radar Breathing Dot + Badge + GPS Live Telemetry
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  AnimatedBuilder(
+                    animation: _pulseAnimation,
+                    builder: (context, _) {
+                      return Container(
+                        width: 9,
+                        height: 9,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: outsideColor.withValues(alpha: _pulseAnimation.value),
+                          boxShadow: [
+                            BoxShadow(
+                              color: outsideColor.withValues(alpha: 0.6),
+                              blurRadius: 8 * _pulseAnimation.value,
+                              spreadRadius: 2 * _pulseAnimation.value,
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: outsideColor.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'FUORI DAI LUOGHI NOTI',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.9,
+                        color: outsideColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              InkWell(
+                onTap: engine.isChecking
+                    ? null
+                    : () {
+                        HapticFeedback.lightImpact();
+                        engine.checkCurrentLocation();
+                      },
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (engine.isChecking) ...[
+                        const SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Rilevo...',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: textMuted,
+                          ),
+                        ),
+                      ] else ...[
+                        Icon(Icons.refresh_rounded, size: 14, color: textMuted),
+                        const SizedBox(width: 4),
+                        Text(
+                          pos != null ? '±${pos.accuracy.round()}m' : 'Rileva GPS',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: textMuted,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Middle: Icon + Title + Nearest Place / Status Message
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: outsideColor.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  Icons.explore_outlined,
+                  color: outsideColor,
+                  size: 26,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Posizione Attuale',
+                      style: TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.3,
+                        color: textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    if (distanceText != null)
+                      Row(
+                        children: [
+                          Icon(Icons.near_me_rounded, size: 13, color: textMuted),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              'A $distanceText',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: textMuted,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      )
+                    else
+                      Text(
+                        engine.statusMessage ?? 'In attesa di raggiungere un luogo registrato',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: textMuted,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          // Coordinates & Speed telemetry strip
+          if (pos != null) ...[
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: borderColor),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.location_on_outlined, size: 14, color: textMuted),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      '${pos.latitude.toStringAsFixed(4)}°, ${pos.longitude.toStringAsFixed(4)}°',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                        color: textPrimary,
+                      ),
+                    ),
+                  ),
+                  if (pos.speed > 0.8)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0EA5E9).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.speed_rounded, size: 12, color: Color(0xFF0EA5E9)),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${(pos.speed * 3.6).round()} km/h',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0EA5E9),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+
+          // Action Buttons: Salva Luogo + Avvia Tragitto + Check-in
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: outsideColor,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: () {
+                  HapticFeedback.mediumImpact();
+                  final latLng = pos != null ? LatLng(pos.latitude, pos.longitude) : null;
+                  PlaceFormDialog.show(context, initialLocation: latLng);
+                },
+                icon: const Icon(Icons.add_location_alt_rounded, size: 16),
+                label: const Text(
+                  'Salva Luogo',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                ),
+              ),
+              FilledButton.tonalIcon(
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: () {
+                  HapticFeedback.mediumImpact();
+                  final origin = nearestPlace != null
+                      ? 'Nei pressi di ${nearestPlace.name}'
+                      : 'Posizione corrente';
+                  engine.startManualTrip(originName: origin);
+                },
+                icon: const Icon(Icons.directions_car_rounded, size: 16),
+                label: const Text(
+                  'Avvia Tragitto',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                ),
+              ),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  widget.onQuickCheckInTap();
+                },
+                icon: const Icon(Icons.how_to_reg_rounded, size: 16),
+                label: const Text(
+                  'Check-in',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
+
   }
 }

@@ -4,8 +4,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tempo/data/models/habit_suggestion.dart';
 import 'package:tempo/data/models/place.dart';
 import 'package:tempo/data/models/place_category.dart';
+import 'package:tempo/data/models/trip.dart';
 import 'package:tempo/data/models/visit_session.dart';
+import 'package:tempo/data/repositories/place_repository.dart';
+import 'package:tempo/data/repositories/trip_repository.dart';
+import 'package:tempo/data/repositories/visit_repository.dart';
 import 'package:tempo/data/services/export_service.dart';
+import 'package:tempo/data/services/tracking_engine.dart';
 import 'package:tempo/ui/features/analytics/analytics_view_model.dart';
 import 'package:tempo/ui/features/onboarding/onboarding_view.dart';
 
@@ -168,7 +173,7 @@ void main() {
 
       final parsed = jsonDecode(jsonStr) as Map<String, dynamic>;
       expect(parsed['app'], 'Tempo');
-      expect(parsed['version'], '1.0.4');
+      expect(parsed['version'], '1.0.5');
       expect(parsed['places'], isA<List>());
       expect((parsed['places'] as List).length, 1);
       expect(parsed['visits'], isA<List>());
@@ -230,6 +235,83 @@ void main() {
       expect(fromMap.totalMinutesSpent, 135);
       expect(fromMap.suggestedCategory, PlaceCategory.secondaCasa);
       expect(fromMap.status, HabitStatus.pending);
+    });
+
+    test('Trip creation, distance, and duration formatting', () {
+      final start = DateTime(2026, 9, 26, 8, 30);
+      final end = DateTime(2026, 9, 26, 8, 52);
+
+      final trip = Trip(
+        originPlaceName: 'Casa Principale',
+        destinationPlaceName: 'Ufficio Principale',
+        startTime: start,
+        endTime: end,
+        durationSeconds: 22 * 60,
+        distanceMeters: 5400.0,
+        transportMode: 'In auto / Mezzo',
+        routePoints: [
+          TripPoint(latitude: 45.45, longitude: 9.18, timestamp: start, speed: 8.5),
+          TripPoint(latitude: 45.464, longitude: 9.19, timestamp: end, speed: 10.2),
+        ],
+      );
+
+      expect(trip.isOngoing, false);
+      expect(trip.formattedDistance, '5.4 km');
+      expect(trip.formattedDuration, '22m');
+      expect(trip.originPlaceName, 'Casa Principale');
+      expect(trip.destinationPlaceName, 'Ufficio Principale');
+      expect(trip.routePoints.length, 2);
+      expect(trip.averageSpeedKmH, closeTo(14.7, 0.5));
+    });
+
+    test('Trip serialization with encoded points and fromMap', () {
+      final start = DateTime(2026, 9, 26, 14, 0);
+      final end = DateTime(2026, 9, 26, 14, 15);
+
+      final trip = Trip(
+        originPlaceName: 'Ufficio',
+        destinationPlaceName: 'Palestra',
+        startTime: start,
+        endTime: end,
+        durationSeconds: 15 * 60,
+        distanceMeters: 1800.0,
+        transportMode: 'In bicicletta',
+        routePoints: [
+          TripPoint(latitude: 45.46, longitude: 9.19, timestamp: start),
+          TripPoint(latitude: 45.47, longitude: 9.20, timestamp: end),
+        ],
+      );
+
+      final map = trip.toMap();
+      final fromMap = Trip.fromMap(map);
+
+      expect(fromMap.id, trip.id);
+      expect(fromMap.originPlaceName, 'Ufficio');
+      expect(fromMap.destinationPlaceName, 'Palestra');
+      expect(fromMap.distanceMeters, 1800.0);
+      expect(fromMap.transportMode, 'In bicicletta');
+      expect(fromMap.routePoints.length, 2);
+      expect(fromMap.routePoints.first.latitude, 45.46);
+      expect(fromMap.routePoints.last.longitude, 9.20);
+    });
+
+    test('TrackingEngine startManualTrip initializes active trip with origin', () async {
+      final engine = TrackingEngine(
+        placeRepository: PlaceRepository(),
+        visitRepository: VisitRepository(),
+        tripRepository: TripRepository(),
+      );
+
+      expect(engine.activeTrip, isNull);
+      await engine.startManualTrip(originName: 'Posizione esterna');
+
+      expect(engine.activeTrip, isNotNull);
+      expect(engine.activeTrip!.originPlaceName, 'Posizione esterna');
+      expect(engine.activeTrip!.distanceMeters, 0.0);
+      expect(engine.activeTrip!.transportMode, 'In spostamento');
+
+      await engine.manualFinishTrip();
+      expect(engine.activeTrip, isNull);
     });
 
     testWidgets('OnboardingView renders initial slide with privacy badge and skip button', (tester) async {

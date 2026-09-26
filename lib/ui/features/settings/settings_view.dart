@@ -418,18 +418,34 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
               children: [
                 SwitchListTile(
                   title: Text(
-                    'Tracciamento Automatico',
+                    'Tracciamento Luoghi',
                     style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
                   ),
                   subtitle: Text(
                     engine.isTrackingEnabled
-                        ? 'Attivo • Controlla l\'ingresso/uscita dai luoghi'
+                        ? 'Attivo • Monitora soste e geofence'
                         : 'Sospeso • Nessun calcolo in background',
                     style: TextStyle(color: textMuted, fontSize: 13),
                   ),
                   value: engine.isTrackingEnabled,
                   activeColor: AppColors.primary,
                   onChanged: (val) => engine.setTrackingEnabled(val),
+                ),
+                Divider(height: 1, color: borderColor),
+                SwitchListTile(
+                  title: Text(
+                    'Registra Tragitti & Spostamenti',
+                    style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
+                  ),
+                  subtitle: Text(
+                    engine.isTripTrackingEnabled
+                        ? 'Attivo • Traccia tragitti, distanze e tempi all\'uscita dall\'area'
+                        : 'Disattivato • Non registra gli spostamenti tra luoghi',
+                    style: TextStyle(color: textMuted, fontSize: 13),
+                  ),
+                  value: engine.isTripTrackingEnabled,
+                  activeColor: const Color(0xFF0EA5E9),
+                  onChanged: (val) => engine.setTripTrackingEnabled(val),
                 ),
               ],
             ),

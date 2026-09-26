@@ -132,6 +132,91 @@ class NotificationService {
     }
   }
 
+  Future<void> showAreaExitAndTripStartedNotification({
+    required String placeName,
+    String? formattedDuration,
+  }) async {
+    if (!_isInitialized) await initialize();
+
+    const androidDetails = AndroidNotificationDetails(
+      'tempo_places_channel',
+      'Presenza e Spostamenti',
+      channelDescription: 'Notifiche di entrata/uscita area e registrazione tragitti',
+      importance: Importance.high,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
+    );
+
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    const details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    try {
+      final bodyText = formattedDuration != null
+          ? 'Hai trascorso $formattedDuration qui. Tragitto avviato in background.'
+          : 'Sei uscito dall\'area. Registrazione spostamento avviata.';
+      await _notificationsPlugin.show(
+        id: 1002,
+        title: '🚶 Uscito da $placeName',
+        body: bodyText,
+        notificationDetails: details,
+      );
+    } catch (e) {
+      debugPrint('Error showing area exit notification: $e');
+    }
+  }
+
+  Future<void> showTripCompletedNotification({
+    required String destinationName,
+    required String formattedDistance,
+    required String formattedDuration,
+    String? originName,
+  }) async {
+    if (!_isInitialized) await initialize();
+
+    const androidDetails = AndroidNotificationDetails(
+      'tempo_places_channel',
+      'Presenza e Spostamenti',
+      channelDescription: 'Notifiche di entrata/uscita area e registrazione tragitti',
+      importance: Importance.high,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
+    );
+
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    const details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    try {
+      final title = '📍 Arrivato a $destinationName';
+      final body = originName != null
+          ? 'Tragitto da $originName: $formattedDistance in $formattedDuration.'
+          : 'Tragitto completato: $formattedDistance in $formattedDuration.';
+      await _notificationsPlugin.show(
+        id: 1001,
+        title: title,
+        body: body,
+        notificationDetails: details,
+      );
+    } catch (e) {
+      debugPrint('Error showing trip completion notification: $e');
+    }
+  }
+
   Future<void> showLocalNotification({
     required String title,
     required String body,

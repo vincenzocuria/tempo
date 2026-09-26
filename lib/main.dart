@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'data/repositories/place_repository.dart';
+import 'data/repositories/trip_repository.dart';
 import 'data/repositories/visit_repository.dart';
 import 'data/services/database_service.dart';
 import 'data/services/notification_service.dart';
@@ -33,11 +34,13 @@ void main() async {
   // Repositories
   final placeRepo = PlaceRepository();
   final visitRepo = VisitRepository();
+  final tripRepo = TripRepository();
 
   // Tracking Engine
   final trackingEngine = TrackingEngine(
     placeRepository: placeRepo,
     visitRepository: visitRepo,
+    tripRepository: tripRepo,
   );
   await trackingEngine.initialize();
 
@@ -50,6 +53,7 @@ void main() async {
     TempoApp(
       placeRepository: placeRepo,
       visitRepository: visitRepo,
+      tripRepository: tripRepo,
       trackingEngine: trackingEngine,
       initialDarkMode: isDark,
       hasCompletedOnboarding: hasCompletedOnboarding,
@@ -60,6 +64,7 @@ void main() async {
 class TempoApp extends StatefulWidget {
   final PlaceRepository placeRepository;
   final VisitRepository visitRepository;
+  final TripRepository tripRepository;
   final TrackingEngine trackingEngine;
   final bool initialDarkMode;
   final bool hasCompletedOnboarding;
@@ -68,6 +73,7 @@ class TempoApp extends StatefulWidget {
     super.key,
     required this.placeRepository,
     required this.visitRepository,
+    required this.tripRepository,
     required this.trackingEngine,
     required this.initialDarkMode,
     required this.hasCompletedOnboarding,
@@ -98,10 +104,12 @@ class _TempoAppState extends State<TempoApp> {
       providers: [
         Provider<PlaceRepository>.value(value: widget.placeRepository),
         Provider<VisitRepository>.value(value: widget.visitRepository),
+        Provider<TripRepository>.value(value: widget.tripRepository),
         ChangeNotifierProvider<TrackingEngine>.value(value: widget.trackingEngine),
         ChangeNotifierProvider(
           create: (_) => DashboardViewModel(
             visitRepository: widget.visitRepository,
+            tripRepository: widget.tripRepository,
             trackingEngine: widget.trackingEngine,
           ),
         ),
@@ -207,41 +215,70 @@ class _MainShellState extends State<MainShell> {
         index: _currentIndex,
         children: pages,
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          if (_currentIndex != index) {
-            HapticFeedback.selectionClick();
+      bottomNavigationBar: Consumer<TrackingEngine>(
+        builder: (context, engine, _) {
+          final isInside = engine.activeVisit != null && engine.currentPlace != null;
+          final isTraveling = engine.activeTrip != null;
+
+          final Color badgeColor;
+          final String tabLabel;
+
+          if (isInside) {
+            badgeColor = engine.currentPlace!.color;
+            tabLabel = 'Oggi';
+          } else if (isTraveling) {
+            badgeColor = const Color(0xFF0EA5E9);
+            tabLabel = 'In viaggio';
+          } else {
+            badgeColor = const Color(0xFFF59E0B);
+            tabLabel = 'Oggi • Fuori';
           }
-          setState(() => _currentIndex = index);
+
+          return NavigationBar(
+            selectedIndex: _currentIndex,
+            onDestinationSelected: (index) {
+              if (_currentIndex != index) {
+                HapticFeedback.selectionClick();
+              }
+              setState(() => _currentIndex = index);
+            },
+            destinations: [
+              NavigationDestination(
+                icon: Badge(
+                  backgroundColor: badgeColor,
+                  smallSize: 8,
+                  child: const Icon(Icons.dashboard_outlined),
+                ),
+                selectedIcon: Badge(
+                  backgroundColor: badgeColor,
+                  smallSize: 9,
+                  child: const Icon(Icons.dashboard_rounded),
+                ),
+                label: tabLabel,
+              ),
+              const NavigationDestination(
+                icon: Icon(Icons.map_outlined),
+                selectedIcon: Icon(Icons.map_rounded),
+                label: 'Mappa',
+              ),
+              const NavigationDestination(
+                icon: Icon(Icons.place_outlined),
+                selectedIcon: Icon(Icons.place_rounded),
+                label: 'Luoghi',
+              ),
+              const NavigationDestination(
+                icon: Icon(Icons.pie_chart_outline_rounded),
+                selectedIcon: Icon(Icons.pie_chart_rounded),
+                label: 'Statistiche',
+              ),
+              const NavigationDestination(
+                icon: Icon(Icons.settings_outlined),
+                selectedIcon: Icon(Icons.settings_rounded),
+                label: 'Impostazioni',
+              ),
+            ],
+          );
         },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard_rounded),
-            label: 'Oggi',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.map_outlined),
-            selectedIcon: Icon(Icons.map_rounded),
-            label: 'Mappa',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.place_outlined),
-            selectedIcon: Icon(Icons.place_rounded),
-            label: 'Luoghi',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.pie_chart_outline_rounded),
-            selectedIcon: Icon(Icons.pie_chart_rounded),
-            label: 'Statistiche',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings_rounded),
-            label: 'Impostazioni',
-          ),
-        ],
       ),
     );
   }

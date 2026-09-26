@@ -3,6 +3,7 @@ import 'package:sqflite/sqflite.dart';
 import '../models/habit_suggestion.dart';
 import '../models/place.dart';
 import '../models/place_category.dart';
+import '../models/trip.dart';
 import '../models/visit_session.dart';
 
 class DatabaseService {
@@ -23,11 +24,14 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _createDB,
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
           await _createHabitTable(db);
+        }
+        if (oldVersion < 3) {
+          await _createTripsTable(db);
         }
       },
     );
@@ -47,6 +51,28 @@ class DatabaseService {
         suggestedCategory TEXT NOT NULL,
         status TEXT NOT NULL
       )
+    ''');
+  }
+
+  static Future<void> _createTripsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS trips (
+        id TEXT PRIMARY KEY,
+        originPlaceId TEXT,
+        originPlaceName TEXT NOT NULL,
+        destinationPlaceId TEXT,
+        destinationPlaceName TEXT,
+        startTime TEXT NOT NULL,
+        endTime TEXT,
+        durationSeconds INTEGER NOT NULL,
+        distanceMeters REAL NOT NULL,
+        transportMode TEXT NOT NULL,
+        encodedPoints TEXT NOT NULL,
+        notes TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_trip_startTime ON trips(startTime);
     ''');
   }
 
@@ -90,6 +116,7 @@ class DatabaseService {
     ''');
 
     await _createHabitTable(db);
+    await _createTripsTable(db);
   }
 
   // --- PLACES CRUD ---
@@ -351,9 +378,119 @@ class DatabaseService {
     return null;
   }
 
+  // --- TRIPS CRUD ---
+
+  Future<int> insertTrip(Trip trip) async {
+    final db = await database;
+    return await db.insert(
+      'trips',
+      trip.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<int> updateTrip(Trip trip) async {
+    final db = await database;
+    return await db.update(
+      'trips',
+      trip.toMap(),
+      where: 'id = ?',
+      whereArgs: [trip.id],
+    );
+  }
+
+  Future<int> deleteTrip(String id) async {
+    final db = await database;
+    return await db.delete('trips', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<Trip?> getActiveTrip() async {
+    final db = await database;
+    final maps = await db.query(
+      'trips',
+      where: 'endTime IS NULL',
+      orderBy: 'startTime DESC',
+      limit: 1,
+    );
+    if (maps.isNotEmpty) {
+      return Trip.fromMap(maps.first);
+    }
+    return null;
+  }
+
+  Future<List<Trip>> getTrips({
+    DateTime? from,
+    DateTime? to,
+    int? limit,
+  }) async {
+    final db = await database;
+    String? whereClause;
+    List<dynamic>? whereArgs;
+
+    if (from != null && to != null) {
+      whereClause = 'startTime >= ? AND startTime <= ?';
+      whereArgs = [from.toIso8601String(), to.toIso8601String()];
+    } else if (from != null) {
+      whereClause = 'startTime >= ?';
+      whereArgs = [from.toIso8601String()];
+    }
+
+    final maps = await db.query(
+      'trips',
+      where: whereClause,
+      whereArgs: whereArgs,
+      orderBy: 'startTime DESC',
+      limit: limit,
+    );
+    return maps.map((m) => Trip.fromMap(m)).toList();
+  }
+
+  Future<List<Trip>> getTodayTrips() async {
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    return getTrips(from: startOfDay);
+  }
+
+  Future<double> getTotalDistance({DateTime? from, DateTime? to}) async {
+    final db = await database;
+    String query = 'SELECT SUM(distanceMeters) as totalDist FROM trips WHERE endTime IS NOT NULL';
+    List<dynamic> args = [];
+    if (from != null && to != null) {
+      query += ' AND startTime >= ? AND startTime <= ?';
+      args.addAll([from.toIso8601String(), to.toIso8601String()]);
+    } else if (from != null) {
+      query += ' AND startTime >= ?';
+      args.add(from.toIso8601String());
+    }
+    final res = await db.rawQuery(query, args);
+    if (res.isNotEmpty) {
+      return (res.first['totalDist'] as num?)?.toDouble() ?? 0.0;
+    }
+    return 0.0;
+  }
+
+  Future<int> getTotalTripDuration({DateTime? from, DateTime? to}) async {
+    final db = await database;
+    String query = 'SELECT SUM(durationSeconds) as totalDur FROM trips WHERE endTime IS NOT NULL';
+    List<dynamic> args = [];
+    if (from != null && to != null) {
+      query += ' AND startTime >= ? AND startTime <= ?';
+      args.addAll([from.toIso8601String(), to.toIso8601String()]);
+    } else if (from != null) {
+      query += ' AND startTime >= ?';
+      args.add(from.toIso8601String());
+    }
+    final res = await db.rawQuery(query, args);
+    if (res.isNotEmpty) {
+      return (res.first['totalDur'] as num?)?.toInt() ?? 0;
+    }
+    return 0;
+  }
+
   Future<void> clearAllData() async {
     final db = await database;
     await db.delete('visit_sessions');
+    await db.delete('trips');
     await db.delete('places');
     await db.delete('habit_suggestions');
   }
@@ -395,12 +532,33 @@ class DatabaseService {
     await insertPlace(p3);
 
     final now = DateTime.now();
-    // Generate realistic visit data for the last 5 days
+    // Generate realistic visit and trip data for the last 5 days
     for (int i = 4; i >= 0; i--) {
       final day = DateTime(now.year, now.month, now.day).subtract(Duration(days: i));
 
-      // Work session (e.g. 09:00 to 17:30)
+      // Work session (e.g. 09:15 to 17:30)
       if (day.weekday <= 5) {
+        // Morning commute trip: Casa -> Ufficio
+        final tripStart = day.add(const Duration(hours: 8, minutes: 45));
+        final tripEnd = day.add(const Duration(hours: 9, minutes: 12));
+        await insertTrip(Trip(
+          originPlaceId: p2.id,
+          originPlaceName: p2.name,
+          destinationPlaceId: p1.id,
+          destinationPlaceName: p1.name,
+          startTime: tripStart,
+          endTime: tripEnd,
+          durationSeconds: tripEnd.difference(tripStart).inSeconds,
+          distanceMeters: 4200.0,
+          transportMode: 'In auto / Mezzo',
+          routePoints: [
+            TripPoint(latitude: 45.4500, longitude: 9.1800, timestamp: tripStart),
+            TripPoint(latitude: 45.4550, longitude: 9.1830, timestamp: tripStart.add(const Duration(minutes: 8))),
+            TripPoint(latitude: 45.4600, longitude: 9.1870, timestamp: tripStart.add(const Duration(minutes: 18))),
+            TripPoint(latitude: 45.4642, longitude: 9.1900, timestamp: tripEnd),
+          ],
+        ));
+
         final workStart = day.add(const Duration(hours: 9, minutes: 15));
         final workEnd = day.add(Duration(hours: 17, minutes: 30 + (i * 10 % 30)));
         await insertVisit(VisitSession(
@@ -410,6 +568,27 @@ class DatabaseService {
           startTime: workStart,
           endTime: workEnd,
           durationSeconds: workEnd.difference(workStart).inSeconds,
+        ));
+
+        // Evening commute trip: Ufficio -> Casa
+        final returnTripStart = workEnd.add(const Duration(minutes: 5));
+        final returnTripEnd = returnTripStart.add(const Duration(minutes: 32));
+        await insertTrip(Trip(
+          originPlaceId: p1.id,
+          originPlaceName: p1.name,
+          destinationPlaceId: p2.id,
+          destinationPlaceName: p2.name,
+          startTime: returnTripStart,
+          endTime: returnTripEnd,
+          durationSeconds: returnTripEnd.difference(returnTripStart).inSeconds,
+          distanceMeters: 4400.0,
+          transportMode: 'In auto / Mezzo',
+          routePoints: [
+            TripPoint(latitude: 45.4642, longitude: 9.1900, timestamp: returnTripStart),
+            TripPoint(latitude: 45.4590, longitude: 9.1860, timestamp: returnTripStart.add(const Duration(minutes: 10))),
+            TripPoint(latitude: 45.4540, longitude: 9.1820, timestamp: returnTripStart.add(const Duration(minutes: 20))),
+            TripPoint(latitude: 45.4500, longitude: 9.1800, timestamp: returnTripEnd),
+          ],
         ));
       }
 
