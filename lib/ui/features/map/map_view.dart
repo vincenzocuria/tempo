@@ -16,16 +16,16 @@ import '../places/place_form_dialog.dart';
 import '../places/places_view_model.dart';
 
 enum MapLayerType {
-  osm,
-  osmDark,
+  voyager,
+  darkMatter,
   topo;
 
   String get displayName {
     switch (this) {
-      case MapLayerType.osm:
-        return 'Stradale Dettagliata (OSM)';
-      case MapLayerType.osmDark:
-        return 'Notturna OLED (Contrasto Scuro)';
+      case MapLayerType.voyager:
+        return 'Stradale Dettagliata (CartoDB)';
+      case MapLayerType.darkMatter:
+        return 'Notturna OLED (CartoDB Dark)';
       case MapLayerType.topo:
         return 'Topografica Rilievi (OpenTopoMap)';
     }
@@ -33,15 +33,16 @@ enum MapLayerType {
 
   String get tileUrl {
     switch (this) {
-      case MapLayerType.osm:
-      case MapLayerType.osmDark:
-        return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+      case MapLayerType.voyager:
+        return 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png';
+      case MapLayerType.darkMatter:
+        return 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png';
       case MapLayerType.topo:
         return 'https://tile.opentopomap.org/{z}/{x}/{y}.png';
     }
   }
 
-  bool get isDark => this == MapLayerType.osmDark;
+  bool get isDark => this == MapLayerType.darkMatter;
 }
 
 enum MapFollowMode {
@@ -69,6 +70,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
   Place? _selectedPlace;
   LatLng _currentLocation = const LatLng(41.9028, 12.4964); // Default Italia (Roma)
   bool _hasLocatedUser = false;
+  bool _isMapReady = false;
   MapLayerType? _customLayerType;
   List<Trip> _todayTrips = [];
   bool _showTripsOnMap = true;
@@ -192,11 +194,18 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
     });
 
     // Auto-glide camera if follow mode is active
-    if (_followMode == MapFollowMode.follow) {
-      _animatedMapMove(newPoint, _mapController.camera.zoom);
-    } else if (_followMode == MapFollowMode.followAndRotate) {
-      final targetRot = heading > 0 ? (360.0 - heading) % 360.0 : 0.0;
-      _animatedMapMove(newPoint, _mapController.camera.zoom, destRotation: targetRot);
+    if (_isMapReady) {
+      double zoom = 16.0;
+      try {
+        zoom = _mapController.camera.zoom;
+      } catch (_) {}
+
+      if (_followMode == MapFollowMode.follow) {
+        _animatedMapMove(newPoint, zoom);
+      } else if (_followMode == MapFollowMode.followAndRotate) {
+        final targetRot = heading > 0 ? (360.0 - heading) % 360.0 : 0.0;
+        _animatedMapMove(newPoint, zoom, destRotation: targetRot);
+      }
     }
   }
 
@@ -210,9 +219,11 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
         _currentHeading = pos.heading;
         _currentAccuracy = pos.accuracy;
       });
-      try {
-        _animatedMapMove(_currentLocation, 16.0);
-      } catch (_) {}
+      if (_isMapReady) {
+        try {
+          _animatedMapMove(_currentLocation, 16.0);
+        } catch (_) {}
+      }
     }
   }
 
@@ -227,45 +238,53 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
   }
 
   void _animatedMapMove(LatLng destLocation, double destZoom, {double? destRotation}) {
+    if (!mounted || !_isMapReady) return;
     _moveAnimController?.dispose();
 
-    final camera = _mapController.camera;
-    final latTween = Tween<double>(begin: camera.center.latitude, end: destLocation.latitude);
-    final lngTween = Tween<double>(begin: camera.center.longitude, end: destLocation.longitude);
-    final zoomTween = Tween<double>(begin: camera.zoom, end: destZoom);
-    final rotTween = destRotation != null
-        ? Tween<double>(begin: camera.rotation, end: destRotation)
-        : null;
+    try {
+      final camera = _mapController.camera;
+      final latTween = Tween<double>(begin: camera.center.latitude, end: destLocation.latitude);
+      final lngTween = Tween<double>(begin: camera.center.longitude, end: destLocation.longitude);
+      final zoomTween = Tween<double>(begin: camera.zoom, end: destZoom);
+      final rotTween = destRotation != null
+          ? Tween<double>(begin: camera.rotation, end: destRotation)
+          : null;
 
-    final controller = AnimationController(
-      duration: const Duration(milliseconds: 550),
-      vsync: this,
-    );
-    _moveAnimController = controller;
-
-    final animation = CurvedAnimation(parent: controller, curve: Curves.easeOutCubic);
-
-    controller.addListener(() {
-      final rot = rotTween?.evaluate(animation);
-      _mapController.move(
-        LatLng(latTween.evaluate(animation), lngTween.evaluate(animation)),
-        zoomTween.evaluate(animation),
+      final controller = AnimationController(
+        duration: const Duration(milliseconds: 550),
+        vsync: this,
       );
-      if (rot != null) {
-        _mapController.rotate(rot);
-      }
-    });
+      _moveAnimController = controller;
 
-    controller.addStatusListener((status) {
-      if (status == AnimationStatus.completed) {
-        controller.dispose();
-        if (_moveAnimController == controller) {
-          _moveAnimController = null;
+      final animation = CurvedAnimation(parent: controller, curve: Curves.easeOutCubic);
+
+      controller.addListener(() {
+        if (!mounted || !_isMapReady) return;
+        try {
+          final rot = rotTween?.evaluate(animation);
+          _mapController.move(
+            LatLng(latTween.evaluate(animation), lngTween.evaluate(animation)),
+            zoomTween.evaluate(animation),
+          );
+          if (rot != null) {
+            _mapController.rotate(rot);
+          }
+        } catch (_) {}
+      });
+
+      controller.addStatusListener((status) {
+        if (status == AnimationStatus.completed) {
+          controller.dispose();
+          if (_moveAnimController == controller) {
+            _moveAnimController = null;
+          }
         }
-      }
-    });
+      });
 
-    controller.forward();
+      controller.forward();
+    } catch (e) {
+      debugPrint('Error animating map: $e');
+    }
   }
 
   void _toggleFollowMode() {
@@ -289,12 +308,15 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
 
   void _resetNorth() {
     HapticFeedback.lightImpact();
-    final camera = _mapController.camera;
-    if (camera.rotation == 0.0) return;
-    _animatedMapMove(camera.center, camera.zoom, destRotation: 0.0);
-    if (_followMode == MapFollowMode.followAndRotate) {
-      setState(() => _followMode = MapFollowMode.follow);
-    }
+    if (!_isMapReady) return;
+    try {
+      final camera = _mapController.camera;
+      if (camera.rotation == 0.0) return;
+      _animatedMapMove(camera.center, camera.zoom, destRotation: 0.0);
+      if (_followMode == MapFollowMode.followAndRotate) {
+        setState(() => _followMode = MapFollowMode.follow);
+      }
+    } catch (_) {}
   }
 
   void _fitAllPlaces(List<Place> places) {
@@ -353,7 +375,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
   }
 
   void _showLayerSelector(BuildContext context, bool isDark) {
-    final currentType = _customLayerType ?? (isDark ? MapLayerType.osmDark : MapLayerType.osm);
+    final currentType = _customLayerType ?? (isDark ? MapLayerType.darkMatter : MapLayerType.voyager);
     final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
     final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
@@ -425,7 +447,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
                   ),
                   child: ListTile(
                     leading: Icon(
-                      layer == MapLayerType.osm
+                      layer == MapLayerType.voyager
                           ? Icons.map_rounded
                           : (layer == MapLayerType.topo ? Icons.terrain_rounded : Icons.dark_mode_rounded),
                       color: isSelected ? AppColors.primary : textMuted,
@@ -461,7 +483,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
     final placesVm = Provider.of<PlacesViewModel>(context);
     final isDark = widget.isDarkMode;
 
-    final activeLayer = _customLayerType ?? (isDark ? MapLayerType.osmDark : MapLayerType.osm);
+    final activeLayer = _customLayerType ?? (isDark ? MapLayerType.darkMatter : MapLayerType.voyager);
     final tileUrl = activeLayer.tileUrl;
 
     final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
@@ -738,12 +760,20 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
     return Scaffold(
       body: Stack(
         children: [
-          // Genuine interactive Map Layer (OpenStreetMap / CartoDB)
+          // Genuine interactive Map Layer (CartoDB / OpenTopoMap)
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
               initialCenter: _currentLocation,
               initialZoom: 15.5,
+              onMapReady: () {
+                if (mounted) {
+                  setState(() => _isMapReady = true);
+                  if (_hasLocatedUser) {
+                    _animatedMapMove(_currentLocation, 16.0);
+                  }
+                }
+              },
               onPositionChanged: (camera, hasGesture) {
                 // If user drags or pinches map, disengage auto-follow mode
                 if (hasGesture && _followMode != MapFollowMode.none) {
@@ -763,8 +793,11 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
             children: [
               TileLayer(
                 urlTemplate: tileUrl,
+                subdomains: const ['a', 'b', 'c', 'd'],
                 userAgentPackageName: 'com.tempo.app.tempo',
-                tileBuilder: activeLayer.isDark ? darkModeTileBuilder : null,
+                maxZoom: 19,
+                maxNativeZoom: 18,
+                fallbackUrl: 'https://tile.opentopomap.org/{z}/{x}/{y}.png',
               ),
               PolylineLayer(polylines: polylines),
               CircleLayer(circles: circles),
