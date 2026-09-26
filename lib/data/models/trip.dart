@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:uuid/uuid.dart';
 
@@ -199,3 +200,61 @@ class Trip {
     );
   }
 }
+
+class TransportMode {
+  static const String auto = 'In auto';
+  static const String moto = 'In moto / scooter';
+  static const String bici = 'In bicicletta';
+  static const String piedi = 'A piedi';
+  static const String corsa = 'Corsa';
+  static const String altro = 'In spostamento';
+
+  static const List<String> allModes = [
+    auto,
+    moto,
+    bici,
+    piedi,
+    corsa,
+  ];
+
+  static IconData getIcon(String mode) {
+    final m = mode.toLowerCase();
+    if (m.contains('moto') || m.contains('scooter')) {
+      return Icons.two_wheeler_rounded;
+    }
+    if (m.contains('auto') || m.contains('macchina') || m.contains('mezzo') || m.contains('veicolo')) {
+      return Icons.directions_car_rounded;
+    }
+    if (m.contains('bici') || m.contains('bicicletta') || m.contains('cycling')) {
+      return Icons.directions_bike_rounded;
+    }
+    if (m.contains('corsa') || m.contains('running')) {
+      return Icons.directions_run_rounded;
+    }
+    if (m.contains('piedi') || m.contains('cammin') || m.contains('walk')) {
+      return Icons.directions_walk_rounded;
+    }
+    return Icons.route_rounded;
+  }
+
+  static Color getColor(String mode) {
+    final m = mode.toLowerCase();
+    if (m.contains('moto') || m.contains('scooter')) {
+      return const Color(0xFFF97316); // Arancione Moto
+    }
+    if (m.contains('auto') || m.contains('macchina') || m.contains('mezzo')) {
+      return const Color(0xFF0284C7); // Blu Auto
+    }
+    if (m.contains('bici') || m.contains('bicicletta')) {
+      return const Color(0xFF10B981); // Verde Bici
+    }
+    if (m.contains('corsa')) {
+      return const Color(0xFFEC4899); // Rosa Corsa
+    }
+    if (m.contains('piedi') || m.contains('cammin')) {
+      return const Color(0xFF14B8A6); // Teal Camminata
+    }
+    return const Color(0xFF8B5CF6); // Viola Altro
+  }
+}
+

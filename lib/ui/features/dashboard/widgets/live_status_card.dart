@@ -5,10 +5,12 @@ import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../../../../data/models/place.dart';
+import '../../../../data/models/trip.dart';
 import '../../../../data/services/tracking_engine.dart';
 import '../../../core/app_colors.dart';
 import '../../places/place_form_dialog.dart';
 import '../../places/places_view_model.dart';
+import '../../trips/transport_mode_picker.dart';
 
 class LiveStatusCard extends StatefulWidget {
   final TrackingEngine trackingEngine;
@@ -332,20 +334,24 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: tripColor.withValues(alpha: 0.15),
+                        color: TransportMode.getColor(activeTrip.transportMode).withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Row(
+                      child: Row(
                         children: [
-                          Icon(Icons.directions_car_rounded, size: 14, color: tripColor),
-                          SizedBox(width: 4),
+                          Icon(
+                            TransportMode.getIcon(activeTrip.transportMode),
+                            size: 14,
+                            color: TransportMode.getColor(activeTrip.transportMode),
+                          ),
+                          const SizedBox(width: 4),
                           Text(
                             'IN SPOSTAMENTO',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 0.8,
-                              color: tripColor,
+                              color: TransportMode.getColor(activeTrip.transportMode),
                             ),
                           ),
                         ],
@@ -353,12 +359,44 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                     ),
                   ],
                 ),
-                Text(
-                  activeTrip.transportMode,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: textMuted,
+                InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () async {
+                    HapticFeedback.selectionClick();
+                    final newMode = await TransportModePicker.show(
+                      context,
+                      currentMode: activeTrip.transportMode,
+                    );
+                    if (newMode != null && newMode != activeTrip.transportMode) {
+                      engine.updateActiveTripMode(newMode);
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: borderColor),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          activeTrip.transportMode,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: TransportMode.getColor(activeTrip.transportMode),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.edit_rounded,
+                          size: 11,
+                          color: TransportMode.getColor(activeTrip.transportMode),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],

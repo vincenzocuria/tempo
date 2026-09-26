@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+import '../../../data/models/trip.dart';
 import '../../../data/repositories/place_repository.dart';
 import '../../../data/repositories/visit_repository.dart';
 import '../../../data/services/export_service.dart';
@@ -448,6 +449,61 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
                   activeColor: const Color(0xFF0EA5E9),
                   onChanged: (val) => engine.setTripTrackingEnabled(val),
                 ),
+                Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: (engine.preferredMotorVehicle == TransportMode.moto
+                              ? const Color(0xFFF97316)
+                              : const Color(0xFF0284C7))
+                          .withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      engine.preferredMotorVehicle == TransportMode.moto
+                          ? Icons.two_wheeler_rounded
+                          : Icons.directions_car_rounded,
+                      color: engine.preferredMotorVehicle == TransportMode.moto
+                          ? const Color(0xFFF97316)
+                          : const Color(0xFF0284C7),
+                      size: 22,
+                    ),
+                  ),
+                  title: Text(
+                    'Mezzo a Motore Predefinito',
+                    style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
+                  ),
+                  subtitle: Text(
+                    engine.preferredMotorVehicle == TransportMode.moto
+                        ? 'Moto / Scooter (priorità due ruote)'
+                        : 'Auto (priorità automobile)',
+                    style: TextStyle(color: textMuted, fontSize: 12),
+                  ),
+                  trailing: SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment<String>(
+                        value: TransportMode.auto,
+                        icon: Icon(Icons.directions_car_rounded, size: 16),
+                        label: Text('Auto', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      ),
+                      ButtonSegment<String>(
+                        value: TransportMode.moto,
+                        icon: Icon(Icons.two_wheeler_rounded, size: 16),
+                        label: Text('Moto', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                    selected: {engine.preferredMotorVehicle},
+                    onSelectionChanged: (newSelection) {
+                      if (newSelection.isNotEmpty) {
+                        engine.setPreferredMotorVehicle(newSelection.first);
+                      }
+                    },
+                    style: SegmentedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -676,7 +732,7 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
             child: Column(
               children: [
                 Text(
-                  'Tempo v1.0.9',
+                  'Tempo v1.0.10',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,

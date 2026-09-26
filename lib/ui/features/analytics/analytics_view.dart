@@ -1,12 +1,15 @@
 import 'dart:math';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../data/models/place_category.dart';
+import '../../../data/models/trip.dart';
 import '../../../data/services/tracking_engine.dart';
 import '../../core/app_colors.dart';
 import '../history/manual_visit_dialog.dart';
 import '../places/places_view_model.dart';
+import '../trips/transport_mode_picker.dart';
 import 'analytics_view_model.dart';
 
 class AnalyticsView extends StatefulWidget {
@@ -275,22 +278,34 @@ class _AnalyticsViewState extends State<AnalyticsView> {
             ),
             const SizedBox(height: 12),
 
-            // 2x2 Grid of Key Answer Cards (Car, Work, Home, Walk/Active)
+            // 2x2 Grid of Key Answer Cards (Car/Moto, Work, Home, Walk/Active)
             Row(
               children: [
-                // 1. IN AUTO / MEZZO
+                // 1. IN AUTO / MOTO
                 Expanded(
-                  child: _AnswerMetricCard(
-                    title: 'IN AUTO / MEZZO',
-                    value: viewModel.carStats.formattedDistance,
-                    highlightSub: viewModel.carStats.formattedDuration,
-                    detail: viewModel.carStats.tripCount > 0
-                        ? '${viewModel.carStats.tripCount} viaggi • ${viewModel.carStats.avgSpeedKmh.toStringAsFixed(0)} km/h media'
-                        : 'Nessun tragitto',
-                    icon: Icons.directions_car_rounded,
-                    accentColor: const Color(0xFF0284C7),
-                    isDark: isDark,
-                  ),
+                  child: (viewModel.motoStats.tripCount > 0 && viewModel.carStats.tripCount == 0)
+                      ? _AnswerMetricCard(
+                          title: 'IN MOTO / SCOOTER',
+                          value: viewModel.motoStats.formattedDistance,
+                          highlightSub: viewModel.motoStats.formattedDuration,
+                          detail: '${viewModel.motoStats.tripCount} viaggi • ${viewModel.motoStats.avgSpeedKmh.toStringAsFixed(0)} km/h media',
+                          icon: Icons.two_wheeler_rounded,
+                          accentColor: const Color(0xFFF97316),
+                          isDark: isDark,
+                        )
+                      : _AnswerMetricCard(
+                          title: viewModel.motoStats.tripCount > 0 ? 'AUTO & MOTO' : 'IN AUTO',
+                          value: viewModel.carStats.formattedDistance,
+                          highlightSub: viewModel.carStats.formattedDuration,
+                          detail: viewModel.carStats.tripCount > 0
+                              ? '${viewModel.carStats.tripCount} viaggi • ${viewModel.carStats.avgSpeedKmh.toStringAsFixed(0)} km/h media'
+                              : (viewModel.motoStats.tripCount > 0
+                                  ? '${viewModel.motoStats.formattedDistance} in moto'
+                                  : 'Nessun tragitto'),
+                          icon: Icons.directions_car_rounded,
+                          accentColor: const Color(0xFF0284C7),
+                          isDark: isDark,
+                        ),
                 ),
                 const SizedBox(width: 12),
                 // 2. AL LAVORO
@@ -339,7 +354,7 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                     value: viewModel.walkStats.formattedDistance,
                     highlightSub: viewModel.walkStats.formattedDuration,
                     detail: viewModel.walkStats.tripCount > 0
-                        ? '${viewModel.walkStats.tripCount} uscite a piedi'
+                        ? '${viewModel.walkStats.tripCount} a piedi • ${viewModel.bikeStats.tripCount} in bici'
                         : (viewModel.bikeStats.tripCount > 0
                             ? '${viewModel.bikeStats.formattedDistance} in bici'
                             : 'Mobilità attiva'),
@@ -350,6 +365,18 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                 ),
               ],
             ),
+            if (viewModel.motoStats.tripCount > 0 && viewModel.carStats.tripCount > 0) ...[
+              const SizedBox(height: 12),
+              _AnswerMetricCard(
+                title: 'IN MOTO / SCOOTER',
+                value: viewModel.motoStats.formattedDistance,
+                highlightSub: viewModel.motoStats.formattedDuration,
+                detail: '${viewModel.motoStats.tripCount} viaggi su due ruote • ${viewModel.motoStats.avgSpeedKmh.toStringAsFixed(0)} km/h media',
+                icon: Icons.two_wheeler_rounded,
+                accentColor: const Color(0xFFF97316),
+                isDark: isDark,
+              ),
+            ],
             const SizedBox(height: 22),
 
             if (viewModel.isLoading)
@@ -686,10 +713,16 @@ class _MobilitySection extends StatelessWidget {
                 ),
                 Container(width: 1, height: 28, color: borderColor),
                 _MobilityMiniStat(
-                  label: 'IN AUTO',
-                  value: viewModel.carStats.formattedDistance,
-                  icon: Icons.directions_car_rounded,
-                  color: const Color(0xFF6366F1),
+                  label: viewModel.motoStats.tripCount > 0 ? 'MOTO' : 'IN AUTO',
+                  value: viewModel.motoStats.tripCount > 0
+                      ? viewModel.motoStats.formattedDistance
+                      : viewModel.carStats.formattedDistance,
+                  icon: viewModel.motoStats.tripCount > 0
+                      ? Icons.two_wheeler_rounded
+                      : Icons.directions_car_rounded,
+                  color: viewModel.motoStats.tripCount > 0
+                      ? const Color(0xFFF97316)
+                      : const Color(0xFF6366F1),
                   isDark: isDark,
                 ),
               ],
@@ -697,14 +730,17 @@ class _MobilitySection extends StatelessWidget {
           ),
           const SizedBox(height: 18),
 
-          // Modes Breakdown (Auto, Bici, Piedi)
+          // Modes Breakdown (Auto, Moto, Bici, Piedi, Corsa)
           Text(
             'Ripartizione per Mezzo',
             style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: textPrimary),
           ),
           const SizedBox(height: 10),
 
-          ...[viewModel.carStats, viewModel.walkStats, viewModel.bikeStats].map((stat) {
+          ...(viewModel.allTransportStats.isNotEmpty
+                  ? viewModel.allTransportStats
+                  : [viewModel.carStats, viewModel.motoStats, viewModel.bikeStats, viewModel.walkStats])
+              .map((stat) {
             final double pct = viewModel.totalTripDistanceMeters > 0
                 ? (stat.distanceMeters / viewModel.totalTripDistanceMeters)
                 : 0.0;
@@ -763,47 +799,111 @@ class _MobilitySection extends StatelessWidget {
             );
           }),
 
-          // Recent trips list if available
+          // Recent trips list if available (Interactive with 1-tap mode change)
           if (trips.isNotEmpty) ...[
             const SizedBox(height: 14),
-            Text(
-              'Ultimi Tragitti Rilevati',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: textPrimary),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Ultimi Tragitti Rilevati',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: textPrimary),
+                ),
+                Text(
+                  'Tocca per cambiare mezzo',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: textMuted),
+                ),
+              ],
             ),
             const SizedBox(height: 10),
             ListView.separated(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: min(trips.length, 3),
+              itemCount: min(trips.length, 4),
               separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemBuilder: (context, idx) {
                 final trip = trips[idx];
                 final dest = trip.destinationPlaceName ?? 'Destinazione';
+                final modeColor = TransportMode.getColor(trip.transportMode);
+                final modeIcon = TransportMode.getIcon(trip.transportMode);
 
-                IconData modeIcon = Icons.directions_car_rounded;
-                if (trip.transportMode.toLowerCase().contains('piedi')) {
-                  modeIcon = Icons.directions_walk_rounded;
-                } else if (trip.transportMode.toLowerCase().contains('bici')) {
-                  modeIcon = Icons.directions_bike_rounded;
-                }
-
-                return Row(
-                  children: [
-                    Icon(modeIcon, size: 16, color: const Color(0xFF0284C7)),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '${trip.originPlaceName} ➔ $dest',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: textPrimary),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                return InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () async {
+                    HapticFeedback.selectionClick();
+                    final newMode = await TransportModePicker.show(
+                      context,
+                      currentMode: trip.transportMode,
+                    );
+                    if (newMode != null && newMode != trip.transportMode && context.mounted) {
+                      final engine = Provider.of<TrackingEngine>(context, listen: false);
+                      await engine.updateTripTransportMode(trip, newMode);
+                      if (context.mounted) {
+                        viewModel.loadAnalytics();
+                      }
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: borderColor.withValues(alpha: 0.6)),
                     ),
-                    Text(
-                      '${trip.formattedDistance} (${trip.formattedDuration})',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: textMuted),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: modeColor.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(modeIcon, size: 16, color: modeColor),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${trip.originPlaceName} ➔ $dest',
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: textPrimary),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 3),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                    decoration: BoxDecoration(
+                                      color: modeColor.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          trip.transportMode,
+                                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: modeColor),
+                                        ),
+                                        const SizedBox(width: 3),
+                                        Icon(Icons.edit_rounded, size: 10, color: modeColor),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          '${trip.formattedDistance} (${trip.formattedDuration})',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: textMuted),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 );
               },
             ),

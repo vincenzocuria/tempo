@@ -132,7 +132,7 @@ class AnalyticsViewModel extends ChangeNotifier {
 
   // Rich direct answers breakdown
   TransportModeStats _carStats = const TransportModeStats(
-    modeName: 'In auto / Mezzo',
+    modeName: 'In auto',
     modeKey: 'car',
     icon: Icons.directions_car_rounded,
     color: Color(0xFF0284C7),
@@ -141,6 +141,17 @@ class AnalyticsViewModel extends ChangeNotifier {
     tripCount: 0,
   );
   TransportModeStats get carStats => _carStats;
+
+  TransportModeStats _motoStats = const TransportModeStats(
+    modeName: 'In moto / scooter',
+    modeKey: 'moto',
+    icon: Icons.two_wheeler_rounded,
+    color: Color(0xFFF97316),
+    durationSeconds: 0,
+    distanceMeters: 0,
+    tripCount: 0,
+  );
+  TransportModeStats get motoStats => _motoStats;
 
   TransportModeStats _walkStats = const TransportModeStats(
     modeName: 'A piedi',
@@ -153,11 +164,22 @@ class AnalyticsViewModel extends ChangeNotifier {
   );
   TransportModeStats get walkStats => _walkStats;
 
+  TransportModeStats _runStats = const TransportModeStats(
+    modeName: 'Corsa',
+    modeKey: 'run',
+    icon: Icons.directions_run_rounded,
+    color: Color(0xFFEC4899),
+    durationSeconds: 0,
+    distanceMeters: 0,
+    tripCount: 0,
+  );
+  TransportModeStats get runStats => _runStats;
+
   TransportModeStats _bikeStats = const TransportModeStats(
     modeName: 'In bicicletta',
     modeKey: 'bike',
     icon: Icons.directions_bike_rounded,
-    color: Color(0xFFF59E0B),
+    color: Color(0xFF14B8A6),
     durationSeconds: 0,
     distanceMeters: 0,
     tripCount: 0,
@@ -368,9 +390,17 @@ class AnalyticsViewModel extends ChangeNotifier {
         double carDist = 0.0;
         int carTrips = 0;
 
+        int motoSec = 0;
+        double motoDist = 0.0;
+        int motoTrips = 0;
+
         int walkSec = 0;
         double walkDist = 0.0;
         int walkTrips = 0;
+
+        int runSec = 0;
+        double runDist = 0.0;
+        int runTrips = 0;
 
         int bikeSec = 0;
         double bikeDist = 0.0;
@@ -382,7 +412,11 @@ class AnalyticsViewModel extends ChangeNotifier {
 
         for (final t in trips) {
           final mode = t.transportMode.toLowerCase();
-          if (mode.contains('auto') || mode.contains('mezzo') || mode.contains('veicolo') || mode.contains('macchina')) {
+          if (mode.contains('moto') || mode.contains('scooter')) {
+            motoSec += t.durationSeconds;
+            motoDist += t.distanceMeters;
+            motoTrips++;
+          } else if (mode.contains('auto') || mode.contains('macchina') || mode.contains('veicolo')) {
             carSec += t.durationSeconds;
             carDist += t.distanceMeters;
             carTrips++;
@@ -390,18 +424,38 @@ class AnalyticsViewModel extends ChangeNotifier {
             bikeSec += t.durationSeconds;
             bikeDist += t.distanceMeters;
             bikeTrips++;
+          } else if (mode.contains('corsa') || mode.contains('running')) {
+            runSec += t.durationSeconds;
+            runDist += t.distanceMeters;
+            runTrips++;
           } else if (mode.contains('piedi') || mode.contains('cammin') || mode.contains('walk')) {
             walkSec += t.durationSeconds;
             walkDist += t.distanceMeters;
             walkTrips++;
+          } else if (mode.contains('mezzo')) {
+            if (engine?.preferredMotorVehicle == TransportMode.moto) {
+              motoSec += t.durationSeconds;
+              motoDist += t.distanceMeters;
+              motoTrips++;
+            } else {
+              carSec += t.durationSeconds;
+              carDist += t.distanceMeters;
+              carTrips++;
+            }
           } else {
-            // Speed inference if speed was available
+            // Speed inference fallback if old trips had generic mode
             if (t.distanceMeters > 0 && t.durationSeconds > 0) {
               final avgSpd = (t.distanceMeters / 1000.0) / (t.durationSeconds / 3600.0);
               if (avgSpd > 22.0) {
-                carSec += t.durationSeconds;
-                carDist += t.distanceMeters;
-                carTrips++;
+                if (engine?.preferredMotorVehicle == TransportMode.moto) {
+                  motoSec += t.durationSeconds;
+                  motoDist += t.distanceMeters;
+                  motoTrips++;
+                } else {
+                  carSec += t.durationSeconds;
+                  carDist += t.distanceMeters;
+                  carTrips++;
+                }
               } else if (avgSpd > 7.0) {
                 bikeSec += t.durationSeconds;
                 bikeDist += t.distanceMeters;
@@ -427,7 +481,11 @@ class AnalyticsViewModel extends ChangeNotifier {
             final sec = active.durationSeconds;
             final dist = engine.activeTripDistance;
             final mode = active.transportMode.toLowerCase();
-            if (mode.contains('auto') || mode.contains('mezzo')) {
+            if (mode.contains('moto') || mode.contains('scooter')) {
+              motoSec += sec;
+              motoDist += dist;
+              motoTrips++;
+            } else if (mode.contains('auto') || mode.contains('macchina') || mode.contains('mezzo')) {
               carSec += sec;
               carDist += dist;
               carTrips++;
@@ -435,6 +493,10 @@ class AnalyticsViewModel extends ChangeNotifier {
               bikeSec += sec;
               bikeDist += dist;
               bikeTrips++;
+            } else if (mode.contains('corsa')) {
+              runSec += sec;
+              runDist += dist;
+              runTrips++;
             } else {
               walkSec += sec;
               walkDist += dist;
@@ -447,13 +509,23 @@ class AnalyticsViewModel extends ChangeNotifier {
         }
 
         _carStats = TransportModeStats(
-          modeName: 'In auto / Mezzo',
+          modeName: 'In auto',
           modeKey: 'car',
           icon: Icons.directions_car_rounded,
           color: const Color(0xFF0284C7),
           durationSeconds: carSec,
           distanceMeters: carDist,
           tripCount: carTrips,
+        );
+
+        _motoStats = TransportModeStats(
+          modeName: 'In moto / scooter',
+          modeKey: 'moto',
+          icon: Icons.two_wheeler_rounded,
+          color: const Color(0xFFF97316),
+          durationSeconds: motoSec,
+          distanceMeters: motoDist,
+          tripCount: motoTrips,
         );
 
         _walkStats = TransportModeStats(
@@ -466,11 +538,21 @@ class AnalyticsViewModel extends ChangeNotifier {
           tripCount: walkTrips,
         );
 
+        _runStats = TransportModeStats(
+          modeName: 'Corsa',
+          modeKey: 'run',
+          icon: Icons.directions_run_rounded,
+          color: const Color(0xFFEC4899),
+          durationSeconds: runSec,
+          distanceMeters: runDist,
+          tripCount: runTrips,
+        );
+
         _bikeStats = TransportModeStats(
           modeName: 'In bicicletta',
           modeKey: 'bike',
           icon: Icons.directions_bike_rounded,
-          color: const Color(0xFFF59E0B),
+          color: const Color(0xFF14B8A6),
           durationSeconds: bikeSec,
           distanceMeters: bikeDist,
           tripCount: bikeTrips,
@@ -478,8 +560,10 @@ class AnalyticsViewModel extends ChangeNotifier {
 
         final list = <TransportModeStats>[];
         if (carTrips > 0 || carSec > 0) list.add(_carStats);
-        if (walkTrips > 0 || walkSec > 0) list.add(_walkStats);
+        if (motoTrips > 0 || motoSec > 0) list.add(_motoStats);
         if (bikeTrips > 0 || bikeSec > 0) list.add(_bikeStats);
+        if (walkTrips > 0 || walkSec > 0) list.add(_walkStats);
+        if (runTrips > 0 || runSec > 0) list.add(_runStats);
         if (otherTrips > 0 || otherSec > 0) {
           list.add(TransportModeStats(
             modeName: 'Altri spostamenti',

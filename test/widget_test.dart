@@ -173,7 +173,7 @@ void main() {
 
       final parsed = jsonDecode(jsonStr) as Map<String, dynamic>;
       expect(parsed['app'], 'Tempo');
-      expect(parsed['version'], '1.0.9');
+      expect(parsed['version'], '1.0.10');
       expect(parsed['places'], isA<List>());
       expect((parsed['places'] as List).length, 1);
       expect(parsed['visits'], isA<List>());
@@ -340,7 +340,7 @@ void main() {
       expect(engine.activeTrip, isNotNull);
       expect(engine.activeTrip!.originPlaceName, 'Posizione esterna');
       expect(engine.activeTrip!.distanceMeters, 0.0);
-      expect(engine.activeTrip!.transportMode, 'In spostamento');
+      expect(engine.activeTrip!.transportMode, TransportMode.piedi);
 
       await engine.manualFinishTrip();
       expect(engine.activeTrip, isNull);
@@ -374,6 +374,77 @@ void main() {
 
       PlaceCategory.unregisterCustomCategory('cat_scuola');
       expect(PlaceCategory.values.any((c) => c.id == 'cat_scuola'), false);
+    });
+
+    test('TransportMode constants, icons, and colors', () {
+      expect(TransportMode.auto, 'In auto');
+      expect(TransportMode.moto, 'In moto / scooter');
+      expect(TransportMode.bici, 'In bicicletta');
+      expect(TransportMode.piedi, 'A piedi');
+      expect(TransportMode.corsa, 'Corsa');
+      expect(TransportMode.altro, 'In spostamento');
+
+      expect(TransportMode.allModes.length, 5);
+      for (final mode in TransportMode.allModes) {
+        expect(TransportMode.getIcon(mode), isNotNull);
+        expect(TransportMode.getColor(mode), isNotNull);
+      }
+    });
+
+    test('TrackingEngine.inferTransportMode kinematic heuristics', () {
+      // 1. Walking
+      final walk = TrackingEngine.inferTransportMode(
+        avgSpeedKmH: 4.8,
+        maxSpeedKmH: 6.2,
+        maxAccelerationMs2: 0.8,
+        preferredMotorVehicle: TransportMode.auto,
+      );
+      expect(walk, TransportMode.piedi);
+
+      // 2. Running
+      final run = TrackingEngine.inferTransportMode(
+        avgSpeedKmH: 10.5,
+        maxSpeedKmH: 14.0,
+        maxAccelerationMs2: 1.2,
+        preferredMotorVehicle: TransportMode.auto,
+      );
+      expect(run, TransportMode.corsa);
+
+      // 3. Bicycle
+      final bike = TrackingEngine.inferTransportMode(
+        avgSpeedKmH: 18.0,
+        maxSpeedKmH: 28.0,
+        maxAccelerationMs2: 1.5,
+        preferredMotorVehicle: TransportMode.auto,
+      );
+      expect(bike, TransportMode.bici);
+
+      // 4. Car (default motorized)
+      final car = TrackingEngine.inferTransportMode(
+        avgSpeedKmH: 48.0,
+        maxSpeedKmH: 85.0,
+        maxAccelerationMs2: 2.1,
+        preferredMotorVehicle: TransportMode.auto,
+      );
+      expect(car, TransportMode.auto);
+
+      // 5. Motorcycle by preference
+      final motoPref = TrackingEngine.inferTransportMode(
+        avgSpeedKmH: 52.0,
+        maxSpeedKmH: 90.0,
+        maxAccelerationMs2: 2.0,
+        preferredMotorVehicle: TransportMode.moto,
+      );
+      expect(motoPref, TransportMode.moto);
+
+      // 6. Motorcycle by rapid acceleration burst
+      final motoBurst = TrackingEngine.inferTransportMode(
+        avgSpeedKmH: 42.0,
+        maxSpeedKmH: 75.0,
+        maxAccelerationMs2: 3.6,
+        preferredMotorVehicle: TransportMode.auto,
+      );
+      expect(motoBurst, TransportMode.moto);
     });
 
     testWidgets('OnboardingView renders initial slide with privacy badge and skip button', (tester) async {

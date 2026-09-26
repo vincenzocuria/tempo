@@ -30,6 +30,13 @@ class TrackingEngine extends ChangeNotifier {
   bool _isTripTrackingEnabled = true;
   bool get isTripTrackingEnabled => _isTripTrackingEnabled;
 
+  String _preferredMotorVehicle = TransportMode.auto;
+  String get preferredMotorVehicle => _preferredMotorVehicle;
+
+  double _activeTripMaxSpeedKmH = 0.0;
+  double _activeTripMaxAcceleration = 0.0;
+  String? _activeTripManualMode;
+
   Place? _currentPlace;
   Place? get currentPlace => _currentPlace;
 
@@ -79,6 +86,7 @@ class TrackingEngine extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     _isTrackingEnabled = prefs.getBool('tracking_enabled') ?? true;
     _isTripTrackingEnabled = prefs.getBool('trip_tracking_enabled') ?? true;
+    _preferredMotorVehicle = prefs.getString('preferred_motor_vehicle') ?? TransportMode.auto;
 
     await _habitService.initialize();
 
@@ -139,6 +147,64 @@ class TrackingEngine extends ChangeNotifier {
     _isTripTrackingEnabled = enabled;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('trip_tracking_enabled', enabled);
+    notifyListeners();
+  }
+
+  Future<void> setPreferredMotorVehicle(String vehicle) async {
+    _preferredMotorVehicle = vehicle;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('preferred_motor_vehicle', vehicle);
+    notifyListeners();
+  }
+
+  /// Classifies transport mode based on average speed, top speed, and acceleration kinetics.
+  static String inferTransportMode({
+    required double avgSpeedKmH,
+    required double maxSpeedKmH,
+    required double maxAccelerationMs2,
+    required String preferredMotorVehicle,
+  }) {
+    // 1. Walking / Pedestrian (top speed < 7.5 km/h, avg < 6.5 km/h)
+    if (maxSpeedKmH < 7.5 && avgSpeedKmH < 6.5) {
+      return TransportMode.piedi;
+    }
+
+    // 2. Running vs brisk walking (max speed < 18.0 km/h, avg < 14.0 km/h)
+    if (maxSpeedKmH < 18.0 && avgSpeedKmH < 14.0) {
+      if (avgSpeedKmH > 6.8 || maxSpeedKmH > 9.5) {
+        return TransportMode.corsa;
+      }
+      return TransportMode.piedi;
+    }
+
+    // 3. Bicycle (max speed < 38.0 km/h, avg < 22.0 km/h)
+    if (maxSpeedKmH < 38.0 && avgSpeedKmH < 22.0) {
+      return TransportMode.bici;
+    }
+
+    // 4. Motorized: Car vs Motorcycle / Scooter
+    if (preferredMotorVehicle == TransportMode.moto) {
+      return TransportMode.moto;
+    }
+
+    // Sharp acceleration bursts typical of motorcycles & scooters (>= 3.2 m/s²)
+    if (maxAccelerationMs2 >= 3.2) {
+      return TransportMode.moto;
+    }
+
+    return TransportMode.auto;
+  }
+
+  Future<void> updateTripTransportMode(Trip trip, String newMode) async {
+    final updatedTrip = trip.copyWith(transportMode: newMode);
+    await _tripRepository.insertTrip(updatedTrip);
+    notifyListeners();
+  }
+
+  void updateActiveTripMode(String newMode) {
+    if (_activeTrip == null) return;
+    _activeTripManualMode = newMode;
+    _activeTrip = _activeTrip!.copyWith(transportMode: newMode);
     notifyListeners();
   }
 
@@ -261,14 +327,13 @@ class TrackingEngine extends ChangeNotifier {
               ? (_activeTripDistance / 1000.0) / (durationSec / 3600.0)
               : 0.0;
 
-          String finalMode = 'In spostamento';
-          if (avgSpeedKmH > 22.0) {
-            finalMode = 'In auto / Mezzo';
-          } else if (avgSpeedKmH > 7.0) {
-            finalMode = 'In bicicletta';
-          } else {
-            finalMode = 'A piedi';
-          }
+          final finalMode = _activeTripManualMode ??
+              inferTransportMode(
+                avgSpeedKmH: avgSpeedKmH,
+                maxSpeedKmH: _activeTripMaxSpeedKmH,
+                maxAccelerationMs2: _activeTripMaxAcceleration,
+                preferredMotorVehicle: _preferredMotorVehicle,
+              );
 
           final completedTrip = _activeTrip!.copyWith(
             destinationPlaceId: matchedPlace.id,
@@ -302,6 +367,9 @@ class TrackingEngine extends ChangeNotifier {
           _activeRoutePoints = [];
           _activeTripDistance = 0.0;
           _lastTripPointPosition = null;
+          _activeTripMaxSpeedKmH = 0.0;
+          _activeTripMaxAcceleration = 0.0;
+          _activeTripManualMode = null;
         } else {
           // No active trip, standard place entry notification
           if (matchedPlace.notifyOnEntry) {
@@ -349,16 +417,30 @@ class TrackingEngine extends ChangeNotifier {
             timestamp: now,
             speed: position.speed,
           );
+          final spd = position.speed > 0 ? position.speed : 0.0;
+          final spdKmH = spd * 3.6;
+
           _activeRoutePoints = [startPoint];
           _activeTripDistance = 0.0;
           _lastTripPointPosition = position;
           _lastMovementTimestamp = now;
+          _activeTripMaxSpeedKmH = spdKmH;
+          _activeTripMaxAcceleration = 0.0;
+          _activeTripManualMode = null;
+
+          final initialMode = inferTransportMode(
+            avgSpeedKmH: spdKmH,
+            maxSpeedKmH: spdKmH,
+            maxAccelerationMs2: 0.0,
+            preferredMotorVehicle: _preferredMotorVehicle,
+          );
+
           _activeTrip = Trip(
             originPlaceId: leftPlace.id,
             originPlaceName: leftPlace.name,
             startTime: now,
             distanceMeters: 0.0,
-            transportMode: 'In spostamento',
+            transportMode: initialMode,
             routePoints: [startPoint],
           );
         }
@@ -379,31 +461,53 @@ class TrackingEngine extends ChangeNotifier {
           if (delta >= 15.0) {
             // Meaningful displacement: record point & accumulate distance
             _activeTripDistance += delta;
-            _lastTripPointPosition = position;
-            _lastMovementTimestamp = DateTime.now();
 
-            String mode = _activeTrip!.transportMode;
-            if (position.speed > 0) {
-              final spd = position.speed;
-              if (spd > 6.0) {
-                mode = 'In auto / Mezzo';
-              } else if (spd > 2.0) {
-                mode = 'In bicicletta';
-              } else {
-                mode = 'A piedi';
+            final now = DateTime.now();
+            final spd = position.speed > 0 ? position.speed : 0.0;
+            final spdKmH = spd * 3.6;
+
+            if (spdKmH > _activeTripMaxSpeedKmH) {
+              _activeTripMaxSpeedKmH = spdKmH;
+            }
+
+            if (_lastTripPointPosition != null) {
+              final dt = now.difference(_lastMovementTimestamp ?? now).inMilliseconds / 1000.0;
+              if (dt > 0.5) {
+                final lastSpd = (_lastTripPointPosition!.speed > 0) ? _lastTripPointPosition!.speed : 0.0;
+                final dv = (spd - lastSpd).abs();
+                final accel = dv / dt;
+                if (accel > _activeTripMaxAcceleration && accel < 15.0) {
+                  _activeTripMaxAcceleration = accel;
+                }
               }
             }
+
+            _lastTripPointPosition = position;
+            _lastMovementTimestamp = now;
+
+            final durSec = now.difference(_activeTrip!.startTime).inSeconds;
+            final avgSpd = durSec > 10
+                ? (_activeTripDistance / 1000.0) / (durSec / 3600.0)
+                : spdKmH;
+
+            final detectedMode = _activeTripManualMode ??
+                inferTransportMode(
+                  avgSpeedKmH: avgSpd,
+                  maxSpeedKmH: _activeTripMaxSpeedKmH,
+                  maxAccelerationMs2: _activeTripMaxAcceleration,
+                  preferredMotorVehicle: _preferredMotorVehicle,
+                );
 
             _activeRoutePoints.add(TripPoint(
               latitude: position.latitude,
               longitude: position.longitude,
-              timestamp: DateTime.now(),
+              timestamp: now,
               speed: position.speed,
             ));
 
             _activeTrip = _activeTrip!.copyWith(
               distanceMeters: _activeTripDistance,
-              transportMode: mode,
+              transportMode: detectedMode,
               routePoints: List.from(_activeRoutePoints),
             );
 
@@ -434,12 +538,24 @@ class TrackingEngine extends ChangeNotifier {
     if (_activeTrip == null) return;
     final now = DateTime.now();
     final dur = now.difference(_activeTrip!.startTime).inSeconds;
+    final avgSpeedKmH = dur > 10
+        ? (_activeTripDistance / 1000.0) / (dur / 3600.0)
+        : 0.0;
+
+    final finalMode = _activeTripManualMode ??
+        inferTransportMode(
+          avgSpeedKmH: avgSpeedKmH,
+          maxSpeedKmH: _activeTripMaxSpeedKmH,
+          maxAccelerationMs2: _activeTripMaxAcceleration,
+          preferredMotorVehicle: _preferredMotorVehicle,
+        );
 
     final completedTrip = _activeTrip!.copyWith(
       destinationPlaceName: 'Sosta fuori zona',
       endTime: now,
       durationSeconds: dur,
       distanceMeters: _activeTripDistance,
+      transportMode: finalMode,
       routePoints: List.from(_activeRoutePoints),
     );
 
@@ -448,6 +564,9 @@ class TrackingEngine extends ChangeNotifier {
     _activeRoutePoints = [];
     _activeTripDistance = 0.0;
     _lastTripPointPosition = null;
+    _activeTripMaxSpeedKmH = 0.0;
+    _activeTripMaxAcceleration = 0.0;
+    _activeTripManualMode = null;
     _statusMessage = 'Sosta fuori zona';
     notifyListeners();
   }
@@ -457,12 +576,24 @@ class TrackingEngine extends ChangeNotifier {
     if (_activeTrip == null) return;
     final now = DateTime.now();
     final dur = now.difference(_activeTrip!.startTime).inSeconds;
+    final avgSpeedKmH = dur > 10
+        ? (_activeTripDistance / 1000.0) / (dur / 3600.0)
+        : 0.0;
+
+    final finalMode = _activeTripManualMode ??
+        inferTransportMode(
+          avgSpeedKmH: avgSpeedKmH,
+          maxSpeedKmH: _activeTripMaxSpeedKmH,
+          maxAccelerationMs2: _activeTripMaxAcceleration,
+          preferredMotorVehicle: _preferredMotorVehicle,
+        );
 
     final completedTrip = _activeTrip!.copyWith(
       destinationPlaceName: 'Destinazione raggiunta',
       endTime: now,
       durationSeconds: dur,
       distanceMeters: _activeTripDistance,
+      transportMode: finalMode,
       routePoints: List.from(_activeRoutePoints),
     );
 
@@ -474,6 +605,9 @@ class TrackingEngine extends ChangeNotifier {
     _activeRoutePoints = [];
     _activeTripDistance = 0.0;
     _lastTripPointPosition = null;
+    _activeTripMaxSpeedKmH = 0.0;
+    _activeTripMaxAcceleration = 0.0;
+    _activeTripManualMode = null;
     _statusMessage = 'Tragitto completato';
     notifyListeners();
   }
@@ -495,9 +629,12 @@ class TrackingEngine extends ChangeNotifier {
     } catch (_) {}
 
     TripPoint? startPoint;
+    double spdKmH = 0.0;
     if (position != null) {
       _lastKnownPosition = position;
       _lastTripPointPosition = position;
+      final spd = position.speed > 0 ? position.speed : 0.0;
+      spdKmH = spd * 3.6;
       startPoint = TripPoint(
         latitude: position.latitude,
         longitude: position.longitude,
@@ -509,12 +646,23 @@ class TrackingEngine extends ChangeNotifier {
     _activeRoutePoints = startPoint != null ? [startPoint] : [];
     _activeTripDistance = 0.0;
     _lastMovementTimestamp = now;
+    _activeTripMaxSpeedKmH = spdKmH;
+    _activeTripMaxAcceleration = 0.0;
+    _activeTripManualMode = null;
+
+    final initialMode = inferTransportMode(
+      avgSpeedKmH: spdKmH,
+      maxSpeedKmH: spdKmH,
+      maxAccelerationMs2: 0.0,
+      preferredMotorVehicle: _preferredMotorVehicle,
+    );
+
     _activeTrip = Trip(
       originPlaceId: null,
       originPlaceName: originName ?? 'Posizione corrente',
       startTime: now,
       distanceMeters: 0.0,
-      transportMode: 'In spostamento',
+      transportMode: initialMode,
       routePoints: _activeRoutePoints,
     );
 
@@ -552,6 +700,8 @@ class TrackingEngine extends ChangeNotifier {
       // Start trip if leaving
       if (leftPlace != null && _isTripTrackingEnabled && _lastKnownPosition != null) {
         final now = DateTime.now();
+        final spd = _lastKnownPosition!.speed > 0 ? _lastKnownPosition!.speed : 0.0;
+        final spdKmH = spd * 3.6;
         final startPoint = TripPoint(
           latitude: _lastKnownPosition!.latitude,
           longitude: _lastKnownPosition!.longitude,
@@ -562,12 +712,23 @@ class TrackingEngine extends ChangeNotifier {
         _activeTripDistance = 0.0;
         _lastTripPointPosition = _lastKnownPosition;
         _lastMovementTimestamp = now;
+        _activeTripMaxSpeedKmH = spdKmH;
+        _activeTripMaxAcceleration = 0.0;
+        _activeTripManualMode = null;
+
+        final initialMode = inferTransportMode(
+          avgSpeedKmH: spdKmH,
+          maxSpeedKmH: spdKmH,
+          maxAccelerationMs2: 0.0,
+          preferredMotorVehicle: _preferredMotorVehicle,
+        );
+
         _activeTrip = Trip(
           originPlaceId: leftPlace.id,
           originPlaceName: leftPlace.name,
           startTime: now,
           distanceMeters: 0.0,
-          transportMode: 'In spostamento',
+          transportMode: initialMode,
           routePoints: [startPoint],
         );
         _statusMessage = 'In spostamento da ${leftPlace.name}';

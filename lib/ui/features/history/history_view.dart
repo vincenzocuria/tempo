@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../data/models/trip.dart';
 import '../../../data/models/visit_session.dart';
 import '../../../data/repositories/trip_repository.dart';
 import '../../../data/repositories/visit_repository.dart';
+import '../../../data/services/tracking_engine.dart';
 import '../../core/app_colors.dart';
+import '../trips/transport_mode_picker.dart';
 import 'manual_visit_dialog.dart';
 
 enum HistoryFilter { tutto, soste, tragitti }
@@ -431,7 +434,8 @@ class _HistoryViewState extends State<HistoryView> {
                                         ? timeFormat.format(t.endTime!)
                                         : 'In corso';
 
-                                    const tripAccent = Color(0xFF0EA5E9);
+                                    final tripAccent = TransportMode.getColor(t.transportMode);
+                                    final tripIcon = TransportMode.getIcon(t.transportMode);
 
                                     return Dismissible(
                                       key: Key('trip_${t.id}'),
@@ -448,12 +452,11 @@ class _HistoryViewState extends State<HistoryView> {
                                       onDismissed: (_) => _deleteTrip(t.id),
                                       child: Container(
                                         margin: const EdgeInsets.only(bottom: 10),
-                                        padding: const EdgeInsets.all(16),
                                         decoration: BoxDecoration(
                                           color: cardBg,
                                           borderRadius: BorderRadius.circular(20),
                                           border: Border.all(
-                                            color: isDark ? AppColors.darkBorder : const Color(0xFFBAE6FD),
+                                            color: isDark ? AppColors.darkBorder : tripAccent.withValues(alpha: 0.35),
                                           ),
                                           boxShadow: [
                                             BoxShadow(
@@ -463,83 +466,131 @@ class _HistoryViewState extends State<HistoryView> {
                                             ),
                                           ],
                                         ),
-                                        child: Row(
-                                          children: [
-                                            Container(
-                                              width: 44,
-                                              height: 44,
-                                              decoration: BoxDecoration(
-                                                color: tripAccent.withValues(alpha: 0.14),
-                                                borderRadius: BorderRadius.circular(14),
-                                              ),
-                                              child: const Icon(
-                                                Icons.directions_car_rounded,
-                                                color: tripAccent,
-                                                size: 22,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 14),
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                        child: Material(
+                                          color: Colors.transparent,
+                                          borderRadius: BorderRadius.circular(20),
+                                          child: InkWell(
+                                            borderRadius: BorderRadius.circular(20),
+                                            onTap: () async {
+                                              HapticFeedback.selectionClick();
+                                              final newMode = await TransportModePicker.show(
+                                                context,
+                                                currentMode: t.transportMode,
+                                              );
+                                              if (newMode != null && newMode != t.transportMode && context.mounted) {
+                                                final engine = Provider.of<TrackingEngine>(context, listen: false);
+                                                await engine.updateTripTransportMode(t, newMode);
+                                                _loadData();
+                                              }
+                                            },
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(16),
+                                              child: Row(
                                                 children: [
-                                                  Row(
-                                                    children: [
-                                                      Flexible(
-                                                        child: Text(
-                                                          '${t.originPlaceName} ➔ ${t.destinationPlaceName ?? 'In corso'}',
-                                                          style: TextStyle(
-                                                            fontSize: 15,
-                                                            fontWeight: FontWeight.w700,
-                                                            color: textPrimary,
-                                                          ),
-                                                          maxLines: 1,
-                                                          overflow: TextOverflow.ellipsis,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  const SizedBox(height: 2),
-                                                  Text(
-                                                    '$startStr - $endStr • ${t.transportMode}',
-                                                    style: TextStyle(
-                                                      fontSize: 12,
-                                                      fontWeight: FontWeight.w500,
-                                                      color: textMuted,
+                                                  Container(
+                                                    width: 44,
+                                                    height: 44,
+                                                    decoration: BoxDecoration(
+                                                      color: tripAccent.withValues(alpha: 0.14),
+                                                      borderRadius: BorderRadius.circular(14),
                                                     ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                              decoration: BoxDecoration(
-                                                color: tripAccent.withValues(alpha: 0.12),
-                                                borderRadius: BorderRadius.circular(12),
-                                              ),
-                                              child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.end,
-                                                children: [
-                                                  Text(
-                                                    t.formattedDistance,
-                                                    style: const TextStyle(
-                                                      fontSize: 13,
-                                                      fontWeight: FontWeight.w800,
+                                                    child: Icon(
+                                                      tripIcon,
                                                       color: tripAccent,
+                                                      size: 22,
                                                     ),
                                                   ),
-                                                  Text(
-                                                    t.formattedDuration,
-                                                    style: TextStyle(
-                                                      fontSize: 10,
-                                                      fontWeight: FontWeight.w600,
-                                                      color: textMuted,
+                                                  const SizedBox(width: 14),
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        Row(
+                                                          children: [
+                                                            Flexible(
+                                                              child: Text(
+                                                                '${t.originPlaceName} ➔ ${t.destinationPlaceName ?? "In corso"}',
+                                                                style: TextStyle(
+                                                                  fontSize: 15,
+                                                                  fontWeight: FontWeight.w700,
+                                                                  color: textPrimary,
+                                                                ),
+                                                                maxLines: 1,
+                                                                overflow: TextOverflow.ellipsis,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                        const SizedBox(height: 3),
+                                                        Row(
+                                                          children: [
+                                                            Text(
+                                                              '$startStr - $endStr • ',
+                                                              style: TextStyle(
+                                                                fontSize: 12,
+                                                                fontWeight: FontWeight.w500,
+                                                                color: textMuted,
+                                                              ),
+                                                            ),
+                                                            Container(
+                                                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                                              decoration: BoxDecoration(
+                                                                color: tripAccent.withValues(alpha: 0.12),
+                                                                borderRadius: BorderRadius.circular(6),
+                                                              ),
+                                                              child: Row(
+                                                                mainAxisSize: MainAxisSize.min,
+                                                                children: [
+                                                                  Text(
+                                                                    t.transportMode,
+                                                                    style: TextStyle(
+                                                                      fontSize: 10,
+                                                                      fontWeight: FontWeight.w800,
+                                                                      color: tripAccent,
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(width: 3),
+                                                                  Icon(Icons.edit_rounded, size: 9, color: tripAccent),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                                    decoration: BoxDecoration(
+                                                      color: tripAccent.withValues(alpha: 0.12),
+                                                      borderRadius: BorderRadius.circular(12),
+                                                    ),
+                                                    child: Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                                      children: [
+                                                        Text(
+                                                          t.formattedDistance,
+                                                          style: TextStyle(
+                                                            fontSize: 13,
+                                                            fontWeight: FontWeight.w800,
+                                                            color: tripAccent,
+                                                          ),
+                                                        ),
+                                                        Text(
+                                                          t.formattedDuration,
+                                                          style: TextStyle(
+                                                            fontSize: 10,
+                                                            fontWeight: FontWeight.w600,
+                                                            color: textMuted,
+                                                          ),
+                                                        ),
+                                                      ],
                                                     ),
                                                   ),
                                                 ],
                                               ),
                                             ),
-                                          ],
+                                          ),
                                         ),
                                       ),
                                     );
