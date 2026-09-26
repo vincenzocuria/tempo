@@ -213,6 +213,7 @@ class _MainShellState extends State<MainShell> {
         isDarkMode: widget.isDarkMode,
       ),
       MapView(
+        isActive: _currentIndex == 1,
         onThemeToggle: widget.onThemeToggle,
         isDarkMode: widget.isDarkMode,
       ),

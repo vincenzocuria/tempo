@@ -404,27 +404,29 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
                       clipBehavior: Clip.antiAlias,
                       child: Stack(
                         children: [
-                          FlutterMap(
-                            mapController: _mapController,
-                            options: MapOptions(
-                              initialCenter: _selectedPoint,
-                              initialZoom: 15.5,
-                              onTap: (_, point) {
-                                HapticFeedback.selectionClick();
-                                setState(() => _selectedPoint = point);
-                              },
-                            ),
-                            children: [
-                              TileLayer(
-                                urlTemplate: 'https://tile.openstreetmap.de/{z}/{x}/{y}.png',
-                                fallbackUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                userAgentPackageName: 'com.tempo.app.tempo',
-                                tileProvider: NetworkTileProvider(
-                                  headers: const {'User-Agent': 'TempoApp/1.0 (Android; com.tempo.app.tempo)'},
-                                ),
-                                maxZoom: 19,
-                                maxNativeZoom: 19,
+                          Positioned.fill(
+                            child: FlutterMap(
+                              mapController: _mapController,
+                              options: MapOptions(
+                                initialCenter: _selectedPoint,
+                                initialZoom: 15.5,
+                                backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                                onTap: (_, point) {
+                                  HapticFeedback.selectionClick();
+                                  setState(() => _selectedPoint = point);
+                                },
                               ),
+                              children: [
+                                TileLayer(
+                                  urlTemplate: isDark
+                                      ? 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png'
+                                      : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+                                  fallbackUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                  subdomains: const ['a', 'b', 'c', 'd'],
+                                  userAgentPackageName: 'com.tempo.app.tempo',
+                                  maxZoom: 22,
+                                  maxNativeZoom: 19,
+                                ),
                               CircleLayer(
                                 circles: [
                                   CircleMarker(
@@ -469,7 +471,8 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
                               ),
                             ],
                           ),
-                          Positioned(
+                        ),
+                        Positioned(
                             top: 8,
                             left: 8,
                             child: Container(

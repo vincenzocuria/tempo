@@ -16,16 +16,19 @@ import '../places/place_form_dialog.dart';
 import '../places/places_view_model.dart';
 
 enum MapLayerType {
+  voyager,
+  darkMatter,
   osm,
-  osmDark,
   topo;
 
   String get displayName {
     switch (this) {
+      case MapLayerType.voyager:
+        return 'Stradale Dettagliata (CartoDB)';
+      case MapLayerType.darkMatter:
+        return 'Notturna OLED (CartoDB Dark)';
       case MapLayerType.osm:
-        return 'Stradale Dettagliata (OpenStreetMap)';
-      case MapLayerType.osmDark:
-        return 'Notturna Contrasto Elevato';
+        return 'OpenStreetMap Classica';
       case MapLayerType.topo:
         return 'Topografica Rilievi (OpenTopoMap)';
     }
@@ -33,15 +36,40 @@ enum MapLayerType {
 
   String get tileUrl {
     switch (this) {
+      case MapLayerType.voyager:
+        return 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
+      case MapLayerType.darkMatter:
+        return 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png';
       case MapLayerType.osm:
-      case MapLayerType.osmDark:
         return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
       case MapLayerType.topo:
         return 'https://tile.opentopomap.org/{z}/{x}/{y}.png';
     }
   }
 
-  bool get isDark => this == MapLayerType.osmDark;
+  String get fallbackUrl {
+    switch (this) {
+      case MapLayerType.voyager:
+      case MapLayerType.darkMatter:
+        return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+      case MapLayerType.osm:
+      case MapLayerType.topo:
+        return 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
+    }
+  }
+
+  List<String> get subdomains {
+    switch (this) {
+      case MapLayerType.voyager:
+      case MapLayerType.darkMatter:
+        return const ['a', 'b', 'c', 'd'];
+      case MapLayerType.osm:
+      case MapLayerType.topo:
+        return const ['a', 'b', 'c'];
+    }
+  }
+
+  bool get isDark => this == MapLayerType.darkMatter;
 }
 
 enum MapFollowMode {
@@ -53,11 +81,13 @@ enum MapFollowMode {
 class MapView extends StatefulWidget {
   final VoidCallback onThemeToggle;
   final bool isDarkMode;
+  final bool isActive;
 
   const MapView({
     super.key,
     required this.onThemeToggle,
     required this.isDarkMode,
+    this.isActive = true,
   });
 
   @override
@@ -111,6 +141,22 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
   }
 
   @override
+  void didUpdateWidget(MapView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive && !oldWidget.isActive) {
+      // Just became visible in IndexedStack
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _isMapReady) {
+          try {
+            final zoom = _mapController.camera.zoom;
+            _animatedMapMove(_currentLocation, zoom);
+          } catch (_) {}
+        }
+      });
+    }
+  }
+
+  @override
   void dispose() {
     _positionStreamSub?.cancel();
     _beaconController.dispose();
@@ -154,10 +200,11 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
     if (!mounted) return;
 
     final newPoint = LatLng(pos.latitude, pos.longitude);
-    final speedKmh = pos.speed > 0 ? pos.speed * 3.6 : 0.0;
+    final speedKmh = (pos.speed.isNaN || pos.speed <= 0) ? 0.0 : pos.speed * 3.6;
+    final accuracy = (pos.accuracy.isNaN || pos.accuracy <= 0) ? 0.0 : pos.accuracy;
 
-    double heading = pos.heading;
-    if ((heading <= 0.0 || heading.isNaN) && _hasLocatedUser) {
+    double heading = (pos.heading.isNaN || pos.heading < 0) ? 0.0 : pos.heading;
+    if (heading <= 0.0 && _hasLocatedUser) {
       final dist = LocationService.instance.calculateDistance(
         _currentLocation.latitude,
         _currentLocation.longitude,
@@ -189,7 +236,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
       _currentLocation = newPoint;
       _currentHeading = heading;
       _currentSpeedKmh = speedKmh;
-      _currentAccuracy = pos.accuracy;
+      _currentAccuracy = accuracy;
       _hasLocatedUser = true;
     });
 
@@ -212,12 +259,16 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
   Future<void> _fetchUserLocation() async {
     final pos = await LocationService.instance.getCurrentPosition();
     if (pos != null && mounted) {
+      final safeHeading = (pos.heading.isNaN || pos.heading < 0) ? 0.0 : pos.heading;
+      final safeAccuracy = (pos.accuracy.isNaN || pos.accuracy < 0) ? 0.0 : pos.accuracy;
+      final safeSpeed = (pos.speed.isNaN || pos.speed < 0) ? 0.0 : pos.speed * 3.6;
+
       setState(() {
         _currentLocation = LatLng(pos.latitude, pos.longitude);
         _hasLocatedUser = true;
-        _currentSpeedKmh = pos.speed > 0 ? pos.speed * 3.6 : 0.0;
-        _currentHeading = pos.heading;
-        _currentAccuracy = pos.accuracy;
+        _currentSpeedKmh = safeSpeed;
+        _currentHeading = safeHeading;
+        _currentAccuracy = safeAccuracy;
       });
       if (_isMapReady) {
         try {
@@ -378,7 +429,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
   }
 
   void _showLayerSelector(BuildContext context, bool isDark) {
-    final currentType = _customLayerType ?? MapLayerType.osm;
+    final currentType = _customLayerType ?? (isDark ? MapLayerType.darkMatter : MapLayerType.voyager);
     final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
     final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
@@ -436,6 +487,22 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
               const SizedBox(height: 12),
               ...MapLayerType.values.map((layer) {
                 final isSelected = currentType == layer;
+                final IconData layerIcon;
+                switch (layer) {
+                  case MapLayerType.voyager:
+                    layerIcon = Icons.map_rounded;
+                    break;
+                  case MapLayerType.darkMatter:
+                    layerIcon = Icons.dark_mode_rounded;
+                    break;
+                  case MapLayerType.osm:
+                    layerIcon = Icons.public_rounded;
+                    break;
+                  case MapLayerType.topo:
+                    layerIcon = Icons.terrain_rounded;
+                    break;
+                }
+
                 return Container(
                   margin: const EdgeInsets.only(bottom: 10),
                   decoration: BoxDecoration(
@@ -450,9 +517,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
                   ),
                   child: ListTile(
                     leading: Icon(
-                      layer == MapLayerType.osm
-                          ? Icons.map_rounded
-                          : (layer == MapLayerType.topo ? Icons.terrain_rounded : Icons.dark_mode_rounded),
+                      layerIcon,
                       color: isSelected ? AppColors.primary : textMuted,
                     ),
                     title: Text(
@@ -486,8 +551,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
     final placesVm = Provider.of<PlacesViewModel>(context);
     final isDark = widget.isDarkMode;
 
-    final activeLayer = _customLayerType ?? MapLayerType.osm;
-    final tileUrl = activeLayer.tileUrl;
+    final activeLayer = _customLayerType ?? (isDark ? MapLayerType.darkMatter : MapLayerType.voyager);
 
     final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
 
@@ -507,7 +571,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
     }).toList();
 
     // Accuracy halo around user location (Google Maps style)
-    if (_hasLocatedUser && _currentAccuracy > 0) {
+    if (_hasLocatedUser && _currentAccuracy > 0 && !_currentAccuracy.isNaN) {
       circles.add(
         CircleMarker(
           point: _currentLocation,
@@ -763,60 +827,60 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
     return Scaffold(
       body: Stack(
         children: [
-          // Genuine interactive Map Layer (CartoDB / OpenTopoMap)
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: _currentLocation,
-              initialZoom: 15.5,
-              onMapReady: () {
-                if (mounted) {
-                  setState(() {
-                    _isMapReady = true;
-                    try {
-                      _mapRotation = _mapController.camera.rotation;
-                    } catch (_) {}
-                  });
-                  if (_hasLocatedUser) {
-                    _animatedMapMove(_currentLocation, 16.0);
+          // Genuine interactive Map Layer (CartoDB / OpenStreetMap)
+          Positioned.fill(
+            child: FlutterMap(
+              mapController: _mapController,
+              options: MapOptions(
+                initialCenter: _currentLocation,
+                initialZoom: 15.5,
+                backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                onMapReady: () {
+                  if (mounted) {
+                    setState(() {
+                      _isMapReady = true;
+                      try {
+                        _mapRotation = _mapController.camera.rotation;
+                      } catch (_) {}
+                    });
+                    if (_hasLocatedUser) {
+                      _animatedMapMove(_currentLocation, 16.0);
+                    }
                   }
-                }
-              },
-              onPositionChanged: (camera, hasGesture) {
-                // If user drags or pinches map, disengage auto-follow mode
-                if (hasGesture && _followMode != MapFollowMode.none) {
-                  setState(() => _followMode = MapFollowMode.none);
-                }
-                if (camera.rotation != _mapRotation) {
-                  setState(() => _mapRotation = camera.rotation);
-                }
-              },
-              onTap: (_, __) {
-                if (_selectedPlace != null) {
-                  setState(() => _selectedPlace = null);
-                }
-              },
-              onLongPress: (_, point) {
-                HapticFeedback.mediumImpact();
-                PlaceFormDialog.show(context, initialLocation: point);
-              },
-            ),
-            children: [
-              TileLayer(
-                urlTemplate: tileUrl,
-                fallbackUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.tempo.app.tempo',
-                tileProvider: NetworkTileProvider(
-                  headers: const {'User-Agent': 'TempoApp/1.0 (Android; com.tempo.app.tempo)'},
-                ),
-                maxZoom: 19,
-                maxNativeZoom: 19,
-                tileBuilder: activeLayer.isDark ? darkModeTileBuilder : null,
+                },
+                onPositionChanged: (camera, hasGesture) {
+                  // If user drags or pinches map, disengage auto-follow mode
+                  if (hasGesture && _followMode != MapFollowMode.none) {
+                    setState(() => _followMode = MapFollowMode.none);
+                  }
+                  if (camera.rotation != _mapRotation) {
+                    setState(() => _mapRotation = camera.rotation);
+                  }
+                },
+                onTap: (_, __) {
+                  if (_selectedPlace != null) {
+                    setState(() => _selectedPlace = null);
+                  }
+                },
+                onLongPress: (_, point) {
+                  HapticFeedback.mediumImpact();
+                  PlaceFormDialog.show(context, initialLocation: point);
+                },
               ),
-              PolylineLayer(polylines: polylines),
-              CircleLayer(circles: circles),
-              MarkerLayer(markers: markers),
-            ],
+              children: [
+                TileLayer(
+                  urlTemplate: activeLayer.tileUrl,
+                  fallbackUrl: activeLayer.fallbackUrl,
+                  subdomains: activeLayer.subdomains,
+                  userAgentPackageName: 'com.tempo.app.tempo',
+                  maxZoom: 22,
+                  maxNativeZoom: 19,
+                ),
+                PolylineLayer(polylines: polylines),
+                CircleLayer(circles: circles),
+                MarkerLayer(markers: markers),
+              ],
+            ),
           ),
 
           // Top Header overlay
