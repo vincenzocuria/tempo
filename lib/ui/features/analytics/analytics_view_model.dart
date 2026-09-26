@@ -79,9 +79,17 @@ class AnalyticsViewModel extends ChangeNotifier {
           break;
       }
 
-      _durationByPlace = await _visitRepository.getTotalDurationByPlace(from: from, to: to);
-      _durationByCategory = await _visitRepository.getTotalDurationByCategory(from: from, to: to);
+      final rawPlaces = await _visitRepository.getTotalDurationByPlace(from: from, to: to);
+      final rawCategories = await _visitRepository.getTotalDurationByCategory(from: from, to: to);
       _dailyDurations = await _visitRepository.getDailyDurationsForLastDays(7);
+
+      // Filter out zero-duration places and categories so only actual data is shown
+      _durationByPlace = Map.fromEntries(
+        rawPlaces.entries.where((e) => e.value > 0),
+      );
+      _durationByCategory = Map.fromEntries(
+        rawCategories.entries.where((e) => e.value > 0),
+      );
 
       _totalDurationSeconds = _durationByPlace.values.fold(0, (sum, val) => sum + val);
     } finally {
@@ -99,6 +107,21 @@ class AnalyticsViewModel extends ChangeNotifier {
     return '${mins}m';
   }
 
-  int get workSeconds => _durationByCategory[PlaceCategory.lavoro] ?? 0;
-  int get gymSeconds => _durationByCategory[PlaceCategory.palestra] ?? 0;
+  List<MapEntry<String, int>> get sortedPlaces {
+    final list = _durationByPlace.entries.toList();
+    list.sort((a, b) => b.value.compareTo(a.value));
+    return list;
+  }
+
+  MapEntry<String, int>? get topPlace {
+    final list = sortedPlaces;
+    return list.isNotEmpty ? list.first : null;
+  }
+
+  MapEntry<String, int>? get secondTopPlace {
+    final list = sortedPlaces;
+    return list.length > 1 ? list[1] : null;
+  }
+
+  int get placesVisitedCount => _durationByPlace.keys.length;
 }

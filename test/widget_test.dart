@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tempo/data/models/habit_suggestion.dart';
 import 'package:tempo/data/models/place.dart';
 import 'package:tempo/data/models/place_category.dart';
 import 'package:tempo/data/models/visit_session.dart';
@@ -178,6 +179,56 @@ void main() {
       expect(AnalyticsTimeFilter.thisWeek.displayName, 'Settimana');
       expect(AnalyticsTimeFilter.thisMonth.displayName, 'Mese');
       expect(AnalyticsTimeFilter.allTime.displayName, 'Tutto');
+    });
+
+    test('Multi-home and multi-job categories support', () {
+      expect(PlaceCategory.secondaCasa.displayName, 'Seconda Casa');
+      expect(PlaceCategory.secondoLavoro.displayName, 'Secondo Lavoro / Ufficio');
+      expect(PlaceCategory.servizi.displayName, 'Spesa & Servizi');
+
+      final home2 = Place(
+        name: 'Casa al mare',
+        category: PlaceCategory.secondaCasa,
+        latitude: 44.4,
+        longitude: 8.9,
+      );
+      expect(home2.category, PlaceCategory.secondaCasa);
+      expect(home2.name, 'Casa al mare');
+
+      final work2 = Place(
+        name: 'Coworking Torino',
+        category: PlaceCategory.secondoLavoro,
+        latitude: 45.0,
+        longitude: 7.6,
+      );
+      expect(work2.category, PlaceCategory.secondoLavoro);
+      expect(work2.name, 'Coworking Torino');
+    });
+
+    test('HabitSuggestion serialization and duration formatting', () {
+      final suggestion = HabitSuggestion(
+        latitude: 45.4680,
+        longitude: 9.1850,
+        visitCount: 3,
+        totalMinutesSpent: 135,
+        suggestedName: 'Nuovo Luogo',
+        suggestedCategory: PlaceCategory.secondaCasa,
+      );
+
+      expect(suggestion.formattedDuration, '2h 15m');
+      expect(suggestion.visitCount, 3);
+      expect(suggestion.status, HabitStatus.pending);
+
+      final map = suggestion.toMap();
+      final fromMap = HabitSuggestion.fromMap(map);
+
+      expect(fromMap.id, suggestion.id);
+      expect(fromMap.latitude, suggestion.latitude);
+      expect(fromMap.longitude, suggestion.longitude);
+      expect(fromMap.visitCount, 3);
+      expect(fromMap.totalMinutesSpent, 135);
+      expect(fromMap.suggestedCategory, PlaceCategory.secondaCasa);
+      expect(fromMap.status, HabitStatus.pending);
     });
   });
 }

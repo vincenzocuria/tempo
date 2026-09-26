@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../../data/repositories/place_repository.dart';
 import '../../../data/repositories/visit_repository.dart';
 import '../../../data/services/export_service.dart';
+import '../../../data/services/habit_detection_service.dart';
 import '../../../data/services/location_service.dart';
 import '../../../data/services/notification_service.dart';
 import '../../../data/services/tracking_engine.dart';
@@ -512,9 +513,27 @@ class _SettingsViewState extends State<SettingsView> {
                 ),
                 Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
                 ListTile(
+                  leading: const Icon(Icons.auto_awesome_rounded, color: Color(0xFF6366F1)),
+                  title: Text('Simula Rilevamento Luogo Frequente', style: TextStyle(fontWeight: FontWeight.w600, color: textPrimary)),
+                  subtitle: Text('Simula una sosta abituale per testare i suggerimenti smart', style: TextStyle(color: textMuted, fontSize: 13)),
+                  trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
+                  onTap: () async {
+                    await HabitDetectionService.instance.simulateHabitStay();
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Luogo frequente simulato con successo! Controlla la schermata "Oggi".'),
+                          backgroundColor: Color(0xFF6366F1),
+                        ),
+                      );
+                    }
+                  },
+                ),
+                Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
+                ListTile(
                   leading: const Icon(Icons.auto_fix_high_rounded, color: AppColors.warning),
                   title: Text('Carica Dati Demo', style: TextStyle(fontWeight: FontWeight.w600, color: textPrimary)),
-                  subtitle: Text('Popola 5 giorni di test con Lavoro, Palestra e Casa', style: TextStyle(color: textMuted, fontSize: 13)),
+                  subtitle: Text('Popola 5 giorni con Ufficio, Casa Principale e Seconda Casa', style: TextStyle(color: textMuted, fontSize: 13)),
                   trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
                   onTap: _seedDemo,
                 ),

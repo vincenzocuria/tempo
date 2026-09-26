@@ -6,6 +6,7 @@ import '../models/place.dart';
 import '../models/visit_session.dart';
 import '../repositories/place_repository.dart';
 import '../repositories/visit_repository.dart';
+import 'habit_detection_service.dart';
 import 'location_service.dart';
 import 'notification_service.dart';
 
@@ -14,6 +15,7 @@ class TrackingEngine extends ChangeNotifier {
   final VisitRepository _visitRepository;
   final LocationService _locationService;
   final NotificationService _notificationService;
+  final HabitDetectionService _habitService;
 
   StreamSubscription<Position>? _positionSubscription;
   Timer? _tickerTimer;
@@ -37,19 +39,25 @@ class TrackingEngine extends ChangeNotifier {
   String? _statusMessage;
   String? get statusMessage => _statusMessage;
 
+  HabitDetectionService get habitService => _habitService;
+
   TrackingEngine({
     PlaceRepository? placeRepository,
     VisitRepository? visitRepository,
     LocationService? locationService,
     NotificationService? notificationService,
+    HabitDetectionService? habitDetectionService,
   })  : _placeRepository = placeRepository ?? PlaceRepository(),
         _visitRepository = visitRepository ?? VisitRepository(),
         _locationService = locationService ?? LocationService.instance,
-        _notificationService = notificationService ?? NotificationService.instance;
+        _notificationService = notificationService ?? NotificationService.instance,
+        _habitService = habitDetectionService ?? HabitDetectionService.instance;
 
   Future<void> initialize() async {
     final prefs = await SharedPreferences.getInstance();
     _isTrackingEnabled = prefs.getBool('tracking_enabled') ?? true;
+
+    await _habitService.initialize();
 
     // Check existing active visit from DB
     _activeVisit = await _visitRepository.getActiveVisit();
@@ -171,6 +179,7 @@ class TrackingEngine extends ChangeNotifier {
 
     if (matchedPlace != null) {
       // User is inside matchedPlace
+      await _habitService.onEnteredKnownPlace();
       if (_currentPlace?.id != matchedPlace.id) {
         // Just arrived at matchedPlace!
         final previousPlace = _currentPlace;
@@ -199,7 +208,9 @@ class TrackingEngine extends ChangeNotifier {
         }
       }
     } else {
-      // User is outside any known place
+      // User is outside any known place: process habit detection
+      await _habitService.processUnregisteredLocation(position.latitude, position.longitude);
+
       if (_currentPlace != null && _activeVisit != null) {
         // Left the place!
         final leftPlace = _currentPlace!;
@@ -229,6 +240,7 @@ class TrackingEngine extends ChangeNotifier {
       await _visitRepository.endActiveVisit();
     }
 
+    await _habitService.onEnteredKnownPlace();
     _currentPlace = place;
     _activeVisit = await _visitRepository.startVisit(place);
     _statusMessage = 'Check-in manuale a ${place.name}';

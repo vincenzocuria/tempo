@@ -67,12 +67,16 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
   ];
 
   final List<String> _quickSuggestions = [
-    'Ufficio',
-    'Palestra',
-    'Casa',
-    'Studio',
-    'Bar preferito',
+    'Casa Principale',
+    'Seconda Casa',
+    'Ufficio Principale',
+    'Secondo Lavoro',
     'Coworking',
+    'Studio',
+    'Casa al Mare',
+    'Cliente / Cantiere',
+    'Spesa & Servizi',
+    'Sport & Benessere',
   ];
 
   @override
@@ -292,7 +296,7 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
                         color: textPrimary,
                       ),
                       decoration: InputDecoration(
-                        hintText: 'Es. Ufficio, Palestra McFit, Casa...',
+                        hintText: 'Es. Casa Principale, Seconda Casa, Ufficio 2...',
                         prefixIcon: const Icon(Icons.edit_location_alt_rounded),
                         suffixIcon: _nameController.text.isNotEmpty
                             ? IconButton(
@@ -331,16 +335,22 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
                               onPressed: () {
                                 setState(() {
                                   _nameController.text = s;
-                                  if (s == 'Ufficio' || s == 'Coworking') {
-                                    _selectedCategory = PlaceCategory.lavoro;
-                                  } else if (s == 'Palestra') {
-                                    _selectedCategory = PlaceCategory.palestra;
-                                  } else if (s == 'Casa') {
+                                  if (s.contains('Seconda Casa') || s.contains('Casa al Mare')) {
+                                    _selectedCategory = PlaceCategory.secondaCasa;
+                                  } else if (s.contains('Casa')) {
                                     _selectedCategory = PlaceCategory.casa;
-                                  } else if (s == 'Studio') {
+                                  } else if (s.contains('Secondo Lavoro') || s.contains('Coworking') || s.contains('Cliente')) {
+                                    _selectedCategory = PlaceCategory.secondoLavoro;
+                                  } else if (s.contains('Ufficio') || s.contains('Lavoro')) {
+                                    _selectedCategory = PlaceCategory.lavoro;
+                                  } else if (s.contains('Sport') || s.contains('Palestra')) {
+                                    _selectedCategory = PlaceCategory.palestra;
+                                  } else if (s.contains('Studio')) {
                                     _selectedCategory = PlaceCategory.studio;
-                                  } else if (s == 'Bar preferito') {
-                                    _selectedCategory = PlaceCategory.svago;
+                                  } else if (s.contains('Spesa') || s.contains('Servizi')) {
+                                    _selectedCategory = PlaceCategory.servizi;
+                                  } else {
+                                    _selectedCategory = PlaceCategory.altro;
                                   }
                                   _selectedColor = _selectedCategory.defaultColor;
                                 });

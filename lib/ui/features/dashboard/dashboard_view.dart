@@ -5,6 +5,7 @@ import '../../../data/services/tracking_engine.dart';
 import '../../core/app_colors.dart';
 import '../places/place_form_dialog.dart';
 import 'dashboard_view_model.dart';
+import 'widgets/habit_suggestion_card.dart';
 import 'widgets/live_status_card.dart';
 import 'widgets/recent_visits_list.dart';
 import 'widgets/today_summary_row.dart';
@@ -247,6 +248,20 @@ class DashboardView extends StatelessWidget {
               onQuickCheckInTap: () => _showQuickCheckInSheet(context, trackingEngine),
             ),
             const SizedBox(height: 20),
+            ListenableBuilder(
+              listenable: trackingEngine.habitService,
+              builder: (context, _) {
+                final suggestions = trackingEngine.habitService.pendingSuggestions;
+                if (suggestions.isEmpty) return const SizedBox.shrink();
+                return Column(
+                  children: suggestions.map((s) => HabitSuggestionCard(
+                    suggestion: s,
+                    onDismissed: () => viewModel.refresh(),
+                    onSaved: () => viewModel.refresh(),
+                  )).toList(),
+                );
+              },
+            ),
             TodaySummaryRow(
               formattedTotal: viewModel.formattedTotalToday,
               topPlace: viewModel.topPlaceToday,

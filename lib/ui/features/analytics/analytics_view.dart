@@ -56,30 +56,96 @@ class AnalyticsView extends StatelessWidget {
             ),
             const SizedBox(height: 18),
 
-            // Top Spotlight Cards (Lavoro & Palestra focus)
+            // Top Spotlight Cards (Dynamic based on real visited places)
             Row(
               children: [
                 Expanded(
                   child: _HeroMetricCard(
-                    title: 'ORE A LAVORO',
-                    value: viewModel.formatSeconds(viewModel.workSeconds),
-                    icon: Icons.business_center_rounded,
-                    accentColor: const Color(0xFF3B82F6),
+                    title: 'LUOGO PRINCIPALE',
+                    value: viewModel.topPlace?.key ?? 'Nessuno',
+                    subtitle: viewModel.topPlace != null
+                        ? viewModel.formatSeconds(viewModel.topPlace!.value)
+                        : 'In attesa',
+                    icon: Icons.stars_rounded,
+                    accentColor: AppColors.primary,
                     isDark: isDark,
                   ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
-                  child: _HeroMetricCard(
-                    title: 'ORE IN PALESTRA',
-                    value: viewModel.formatSeconds(viewModel.gymSeconds),
-                    icon: Icons.fitness_center_rounded,
-                    accentColor: const Color(0xFF10B981),
-                    isDark: isDark,
-                  ),
+                  child: viewModel.secondTopPlace != null
+                      ? _HeroMetricCard(
+                          title: 'SECONDO LUOGO',
+                          value: viewModel.secondTopPlace!.key,
+                          subtitle: viewModel.formatSeconds(viewModel.secondTopPlace!.value),
+                          icon: Icons.location_city_rounded,
+                          accentColor: const Color(0xFF0284C7),
+                          isDark: isDark,
+                        )
+                      : _HeroMetricCard(
+                          title: 'TEMPO TOTALE',
+                          value: viewModel.formatSeconds(viewModel.totalDurationSeconds),
+                          subtitle: '${viewModel.placesVisitedCount} ${viewModel.placesVisitedCount == 1 ? "luogo" : "luoghi"}',
+                          icon: Icons.hourglass_bottom_rounded,
+                          accentColor: const Color(0xFF10B981),
+                          isDark: isDark,
+                        ),
                 ),
               ],
             ),
+            if (viewModel.sortedPlaces.length > 2) ...[
+              const SizedBox(height: 12),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: viewModel.sortedPlaces.skip(2).map((entry) {
+                    final pct = viewModel.totalDurationSeconds > 0
+                        ? (entry.value / viewModel.totalDurationSeconds * 100).toInt()
+                        : 0;
+                    return Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: borderColor),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.place_rounded, size: 14, color: textMuted),
+                          const SizedBox(width: 6),
+                          Text(
+                            entry.key,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: textPrimary,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '${viewModel.formatSeconds(entry.value)} ($pct%)',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
 
             if (viewModel.isLoading)
@@ -125,14 +191,16 @@ class AnalyticsView extends StatelessWidget {
                 ),
               )
             else ...[
-              // Pie Chart: Distribution by Category
-              _CategoryPieChartSection(
-                categoryDurations: viewModel.durationByCategory,
-                totalSeconds: viewModel.totalDurationSeconds,
-                formatDuration: viewModel.formatSeconds,
-                isDark: isDark,
-              ),
-              const SizedBox(height: 24),
+              // Pie Chart: Distribution by Category (Only active categories)
+              if (viewModel.durationByCategory.isNotEmpty) ...[
+                _CategoryPieChartSection(
+                  categoryDurations: viewModel.durationByCategory,
+                  totalSeconds: viewModel.totalDurationSeconds,
+                  formatDuration: viewModel.formatSeconds,
+                  isDark: isDark,
+                ),
+                const SizedBox(height: 24),
+              ],
 
               // Bar Chart: Daily Trend
               _DailyBarChartSection(
@@ -160,6 +228,7 @@ class AnalyticsView extends StatelessWidget {
 class _HeroMetricCard extends StatelessWidget {
   final String title;
   final String value;
+  final String? subtitle;
   final IconData icon;
   final Color accentColor;
   final bool isDark;
@@ -167,6 +236,7 @@ class _HeroMetricCard extends StatelessWidget {
   const _HeroMetricCard({
     required this.title,
     required this.value,
+    this.subtitle,
     required this.icon,
     required this.accentColor,
     required this.isDark,
@@ -200,13 +270,17 @@ class _HeroMetricCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.1,
-                  color: textMuted,
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.1,
+                    color: textMuted,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               Container(
@@ -219,16 +293,31 @@ class _HeroMetricCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Text(
             value,
             style: TextStyle(
-              fontSize: 22,
+              fontSize: 19,
               fontWeight: FontWeight.w900,
               letterSpacing: -0.5,
               color: accentColor,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 3),
+            Text(
+              subtitle!,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: textMuted,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
         ],
       ),
     );

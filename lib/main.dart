@@ -17,6 +17,7 @@ import 'ui/features/map/map_view.dart';
 import 'ui/features/places/places_view.dart';
 import 'ui/features/places/places_view_model.dart';
 import 'ui/features/settings/settings_view.dart';
+import 'ui/features/splash/splash_view.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -117,9 +118,11 @@ class _TempoAppState extends State<TempoApp> {
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
         themeMode: _isDarkMode ? ThemeMode.dark : ThemeMode.light,
-        home: MainShell(
-          isDarkMode: _isDarkMode,
-          onThemeToggle: _toggleTheme,
+        home: SplashView(
+          nextScreen: MainShell(
+            isDarkMode: _isDarkMode,
+            onThemeToggle: _toggleTheme,
+          ),
         ),
       ),
     );

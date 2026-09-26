@@ -1,5 +1,6 @@
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
+import '../models/habit_suggestion.dart';
 import '../models/place.dart';
 import '../models/place_category.dart';
 import '../models/visit_session.dart';
@@ -12,7 +13,7 @@ class DatabaseService {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('tempo_v1.db');
+    _database = await _initDB('tempo_v2.db');
     return _database!;
   }
 
@@ -22,9 +23,31 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _createDB,
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await _createHabitTable(db);
+        }
+      },
     );
+  }
+
+  static Future<void> _createHabitTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS habit_suggestions (
+        id TEXT PRIMARY KEY,
+        latitude REAL NOT NULL,
+        longitude REAL NOT NULL,
+        firstDetected TEXT NOT NULL,
+        lastDetected TEXT NOT NULL,
+        visitCount INTEGER NOT NULL,
+        totalMinutesSpent INTEGER NOT NULL,
+        suggestedName TEXT,
+        suggestedCategory TEXT NOT NULL,
+        status TEXT NOT NULL
+      )
+    ''');
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -65,6 +88,8 @@ class DatabaseService {
     await db.execute('''
       CREATE INDEX idx_visit_placeId ON visit_sessions(placeId);
     ''');
+
+    await _createHabitTable(db);
   }
 
   // --- PLACES CRUD ---
@@ -258,10 +283,79 @@ class DatabaseService {
     return map;
   }
 
+  // --- HABIT SUGGESTIONS CRUD ---
+
+  Future<int> insertHabitSuggestion(HabitSuggestion suggestion) async {
+    final db = await database;
+    return await db.insert(
+      'habit_suggestions',
+      suggestion.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<int> updateHabitSuggestion(HabitSuggestion suggestion) async {
+    final db = await database;
+    return await db.update(
+      'habit_suggestions',
+      suggestion.toMap(),
+      where: 'id = ?',
+      whereArgs: [suggestion.id],
+    );
+  }
+
+  Future<List<HabitSuggestion>> getPendingHabitSuggestions() async {
+    final db = await database;
+    final maps = await db.query(
+      'habit_suggestions',
+      where: 'status = ?',
+      whereArgs: [HabitStatus.pending.name],
+      orderBy: 'visitCount DESC, totalMinutesSpent DESC',
+    );
+    return maps.map((m) => HabitSuggestion.fromMap(m)).toList();
+  }
+
+  Future<int> dismissHabitSuggestion(String id) async {
+    final db = await database;
+    return await db.update(
+      'habit_suggestions',
+      {'status': HabitStatus.dismissed.name},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<int> markHabitSuggestionSaved(String id) async {
+    final db = await database;
+    return await db.update(
+      'habit_suggestions',
+      {'status': HabitStatus.saved.name},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<HabitSuggestion?> findNearbyHabitSuggestion(double lat, double lng, {double maxDistanceMeters = 120.0}) async {
+    final db = await database;
+    final maps = await db.query('habit_suggestions');
+    for (final map in maps) {
+      final s = HabitSuggestion.fromMap(map);
+      // Simple approximate distance check
+      final dLat = (s.latitude - lat).abs() * 111000;
+      final dLng = (s.longitude - lng).abs() * 111000 * 0.7;
+      final dist = (dLat * dLat + dLng * dLng);
+      if (dist <= maxDistanceMeters * maxDistanceMeters) {
+        return s;
+      }
+    }
+    return null;
+  }
+
   Future<void> clearAllData() async {
     final db = await database;
     await db.delete('visit_sessions');
     await db.delete('places');
+    await db.delete('habit_suggestions');
   }
 
   Future<void> seedDemoData() async {
@@ -272,7 +366,7 @@ class DatabaseService {
     if (count != null && count > 0) return; // Don't overwrite existing data
 
     final p1 = Place(
-      name: 'Ufficio / Lavoro',
+      name: 'Ufficio Principale',
       category: PlaceCategory.lavoro,
       latitude: 45.4642,
       longitude: 9.1900,
@@ -280,20 +374,20 @@ class DatabaseService {
       colorValue: 0xFF3B82F6,
     );
     final p2 = Place(
-      name: 'Palestra GymFit',
-      category: PlaceCategory.palestra,
-      latitude: 45.4700,
-      longitude: 9.1950,
-      radiusInMeters: 80.0,
-      colorValue: 0xFF10B981,
-    );
-    final p3 = Place(
-      name: 'Casa',
+      name: 'Casa Principale',
       category: PlaceCategory.casa,
       latitude: 45.4500,
       longitude: 9.1800,
       radiusInMeters: 100.0,
       colorValue: 0xFFF59E0B,
+    );
+    final p3 = Place(
+      name: 'Seconda Casa',
+      category: PlaceCategory.secondaCasa,
+      latitude: 45.4850,
+      longitude: 9.2100,
+      radiusInMeters: 110.0,
+      colorValue: 0xFFD97706,
     );
 
     await insertPlace(p1);
@@ -305,7 +399,7 @@ class DatabaseService {
     for (int i = 4; i >= 0; i--) {
       final day = DateTime(now.year, now.month, now.day).subtract(Duration(days: i));
 
-      // Work session (e.g. 09:00 to 17:30 or 18:00)
+      // Work session (e.g. 09:00 to 17:30)
       if (day.weekday <= 5) {
         final workStart = day.add(const Duration(hours: 9, minutes: 15));
         final workEnd = day.add(Duration(hours: 17, minutes: 30 + (i * 10 % 30)));
@@ -319,27 +413,27 @@ class DatabaseService {
         ));
       }
 
-      // Gym session (e.g. 18:30 to 20:00 on Mon, Wed, Fri)
-      if (day.weekday == 1 || day.weekday == 3 || day.weekday == 5) {
-        final gymStart = day.add(const Duration(hours: 18, minutes: 45));
-        final gymEnd = day.add(const Duration(hours: 20, minutes: 15));
+      // Second home or weekend
+      if (day.weekday == 6 || day.weekday == 7) {
+        final secStart = day.add(const Duration(hours: 11, minutes: 0));
+        final secEnd = day.add(const Duration(hours: 18, minutes: 30));
         await insertVisit(VisitSession(
-          placeId: p2.id,
-          placeName: p2.name,
-          category: p2.category,
-          startTime: gymStart,
-          endTime: gymEnd,
-          durationSeconds: gymEnd.difference(gymStart).inSeconds,
+          placeId: p3.id,
+          placeName: p3.name,
+          category: p3.category,
+          startTime: secStart,
+          endTime: secEnd,
+          durationSeconds: secEnd.difference(secStart).inSeconds,
         ));
       }
 
       // Home session evening
-      final homeStart = day.add(const Duration(hours: 20, minutes: 30));
-      final homeEnd = day.add(const Duration(hours: 23, minutes: 45));
+      final homeStart = day.add(const Duration(hours: 20, minutes: 0));
+      final homeEnd = day.add(const Duration(hours: 23, minutes: 30));
       await insertVisit(VisitSession(
-        placeId: p3.id,
-        placeName: p3.name,
-        category: p3.category,
+        placeId: p2.id,
+        placeName: p2.name,
+        category: p2.category,
         startTime: homeStart,
         endTime: homeEnd,
         durationSeconds: homeEnd.difference(homeStart).inSeconds,

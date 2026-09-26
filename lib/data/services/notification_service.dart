@@ -131,4 +131,43 @@ class NotificationService {
       debugPrint('Error showing exit notification: $e');
     }
   }
+
+  Future<void> showLocalNotification({
+    required String title,
+    required String body,
+    int id = 1003,
+  }) async {
+    if (!_isInitialized) await initialize();
+
+    const androidDetails = AndroidNotificationDetails(
+      'tempo_habits_channel',
+      'Luoghi e Abitudini',
+      channelDescription: 'Suggerimenti su soste prolungate e luoghi frequenti',
+      importance: Importance.high,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
+    );
+
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    const details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    try {
+      await _notificationsPlugin.show(
+        id: id,
+        title: title,
+        body: body,
+        notificationDetails: details,
+      );
+    } catch (e) {
+      debugPrint('Error showing local notification: $e');
+    }
+  }
 }
