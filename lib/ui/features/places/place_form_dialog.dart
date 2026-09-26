@@ -7,6 +7,7 @@ import '../../../data/models/place.dart';
 import '../../../data/models/place_category.dart';
 import '../../../data/repositories/category_repository.dart';
 import '../../../data/services/location_service.dart';
+import '../../../data/services/tracking_engine.dart';
 import '../../core/app_colors.dart';
 import '../categories/categories_view.dart';
 import 'places_view_model.dart';
@@ -97,8 +98,18 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
     } else if (widget.initialLocation != null) {
       _selectedPoint = widget.initialLocation!;
     } else {
-      // Default to Rome coordinates as safe fallback
-      _selectedPoint = const LatLng(41.9028, 12.4964);
+      // Default to last known position if available, else Rome coordinates as safe fallback
+      LatLng fallbackPoint = const LatLng(41.9028, 12.4964);
+      try {
+        final engine = Provider.of<TrackingEngine>(context, listen: false);
+        if (engine.lastKnownPosition != null) {
+          fallbackPoint = LatLng(
+            engine.lastKnownPosition!.latitude,
+            engine.lastKnownPosition!.longitude,
+          );
+        }
+      } catch (_) {}
+      _selectedPoint = fallbackPoint;
       // Auto-fetch GPS silently
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _getCurrentGps(showFeedback: false);
@@ -418,14 +429,13 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
                               ),
                               children: [
                                 TileLayer(
-                                  urlTemplate: isDark
-                                      ? 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png'
-                                      : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-                                  fallbackUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                  subdomains: const ['a', 'b', 'c', 'd'],
+                                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                  fallbackUrl: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+                                  subdomains: const ['a', 'b', 'c'],
                                   userAgentPackageName: 'com.tempo.app.tempo',
-                                  maxZoom: 22,
+                                  maxZoom: 20,
                                   maxNativeZoom: 19,
+                                  tileBuilder: isDark ? darkModeTileBuilder : null,
                                 ),
                               CircleLayer(
                                 circles: [

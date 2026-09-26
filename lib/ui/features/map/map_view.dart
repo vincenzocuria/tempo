@@ -16,19 +16,19 @@ import '../places/place_form_dialog.dart';
 import '../places/places_view_model.dart';
 
 enum MapLayerType {
-  voyager,
-  darkMatter,
   osm,
+  hot,
+  dark,
   topo;
 
   String get displayName {
     switch (this) {
-      case MapLayerType.voyager:
-        return 'Stradale Dettagliata (CartoDB)';
-      case MapLayerType.darkMatter:
-        return 'Notturna OLED (CartoDB Dark)';
       case MapLayerType.osm:
         return 'OpenStreetMap Classica';
+      case MapLayerType.hot:
+        return 'Stradale Dettagliata (OSM HOT)';
+      case MapLayerType.dark:
+        return 'Notturna OLED (Ad alto contrasto)';
       case MapLayerType.topo:
         return 'Topografica Rilievi (OpenTopoMap)';
     }
@@ -36,40 +36,39 @@ enum MapLayerType {
 
   String get tileUrl {
     switch (this) {
-      case MapLayerType.voyager:
-        return 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
-      case MapLayerType.darkMatter:
-        return 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png';
       case MapLayerType.osm:
+      case MapLayerType.dark:
         return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+      case MapLayerType.hot:
+        return 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png';
       case MapLayerType.topo:
-        return 'https://tile.opentopomap.org/{z}/{x}/{y}.png';
+        return 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png';
     }
   }
 
   String get fallbackUrl {
     switch (this) {
-      case MapLayerType.voyager:
-      case MapLayerType.darkMatter:
-        return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
       case MapLayerType.osm:
+      case MapLayerType.dark:
+        return 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png';
+      case MapLayerType.hot:
       case MapLayerType.topo:
-        return 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
+        return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
     }
   }
 
   List<String> get subdomains {
     switch (this) {
-      case MapLayerType.voyager:
-      case MapLayerType.darkMatter:
-        return const ['a', 'b', 'c', 'd'];
       case MapLayerType.osm:
+      case MapLayerType.dark:
+        return const ['a', 'b', 'c'];
+      case MapLayerType.hot:
       case MapLayerType.topo:
         return const ['a', 'b', 'c'];
     }
   }
 
-  bool get isDark => this == MapLayerType.darkMatter;
+  bool get isDark => this == MapLayerType.dark;
 }
 
 enum MapFollowMode {
@@ -97,9 +96,8 @@ class MapView extends StatefulWidget {
 class _MapViewState extends State<MapView> with TickerProviderStateMixin {
   final MapController _mapController = MapController();
   Place? _selectedPlace;
-  LatLng _currentLocation = const LatLng(41.9028, 12.4964); // Default Italia (Roma)
+  LatLng _currentLocation = const LatLng(41.9028, 12.4964); // Fallback iniziale
   bool _hasLocatedUser = false;
-  bool _isMapReady = false;
   double _mapRotation = 0.0;
   MapLayerType? _customLayerType;
   List<Trip> _todayTrips = [];
@@ -121,6 +119,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    _initInitialLocation();
     _fetchUserLocation();
     _startForegroundLocationStream();
     _loadTrips();
@@ -140,18 +139,46 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
     );
   }
 
+  void _initInitialLocation() {
+    try {
+      final engine = Provider.of<TrackingEngine>(context, listen: false);
+      if (engine.lastKnownPosition != null) {
+        _currentLocation = LatLng(
+          engine.lastKnownPosition!.latitude,
+          engine.lastKnownPosition!.longitude,
+        );
+        _hasLocatedUser = true;
+        return;
+      }
+    } catch (_) {}
+
+    try {
+      final placesVm = Provider.of<PlacesViewModel>(context, listen: false);
+      if (placesVm.places.isNotEmpty) {
+        _currentLocation = LatLng(
+          placesVm.places.first.latitude,
+          placesVm.places.first.longitude,
+        );
+      }
+    } catch (_) {}
+  }
+
   @override
   void didUpdateWidget(MapView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.isActive && !oldWidget.isActive) {
       // Just became visible in IndexedStack
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _isMapReady) {
-          try {
-            final zoom = _mapController.camera.zoom;
-            _animatedMapMove(_currentLocation, zoom);
-          } catch (_) {}
-        }
+        if (!mounted) return;
+        final target = _hasLocatedUser
+            ? _currentLocation
+            : (context.read<PlacesViewModel>().places.isNotEmpty
+                ? LatLng(
+                    context.read<PlacesViewModel>().places.first.latitude,
+                    context.read<PlacesViewModel>().places.first.longitude,
+                  )
+                : _currentLocation);
+        _safeMove(target, 16.0);
       });
     }
   }
@@ -241,18 +268,16 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
     });
 
     // Auto-glide camera if follow mode is active
-    if (_isMapReady) {
-      double zoom = 16.0;
-      try {
-        zoom = _mapController.camera.zoom;
-      } catch (_) {}
+    double zoom = 16.0;
+    try {
+      zoom = _mapController.camera.zoom;
+    } catch (_) {}
 
-      if (_followMode == MapFollowMode.follow) {
-        _animatedMapMove(newPoint, zoom);
-      } else if (_followMode == MapFollowMode.followAndRotate) {
-        final targetRot = heading > 0 ? (360.0 - heading) % 360.0 : 0.0;
-        _animatedMapMove(newPoint, zoom, destRotation: targetRot);
-      }
+    if (_followMode == MapFollowMode.follow) {
+      _safeMove(newPoint, zoom);
+    } else if (_followMode == MapFollowMode.followAndRotate) {
+      final targetRot = heading > 0 ? (360.0 - heading) % 360.0 : 0.0;
+      _safeMove(newPoint, zoom, destRotation: targetRot);
     }
   }
 
@@ -262,19 +287,16 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
       final safeHeading = (pos.heading.isNaN || pos.heading < 0) ? 0.0 : pos.heading;
       final safeAccuracy = (pos.accuracy.isNaN || pos.accuracy < 0) ? 0.0 : pos.accuracy;
       final safeSpeed = (pos.speed.isNaN || pos.speed < 0) ? 0.0 : pos.speed * 3.6;
+      final newLoc = LatLng(pos.latitude, pos.longitude);
 
       setState(() {
-        _currentLocation = LatLng(pos.latitude, pos.longitude);
+        _currentLocation = newLoc;
         _hasLocatedUser = true;
         _currentSpeedKmh = safeSpeed;
         _currentHeading = safeHeading;
         _currentAccuracy = safeAccuracy;
       });
-      if (_isMapReady) {
-        try {
-          _animatedMapMove(_currentLocation, 16.0);
-        } catch (_) {}
-      }
+      _safeMove(newLoc, 16.0);
     }
   }
 
@@ -288,11 +310,21 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
     } catch (_) {}
   }
 
-  void _animatedMapMove(LatLng destLocation, double destZoom, {double? destRotation}) {
-    if (!mounted || !_isMapReady) return;
-    _moveAnimController?.dispose();
+  void _safeMove(LatLng destLocation, double destZoom, {double? destRotation, bool animate = true}) {
+    if (!mounted) return;
 
     try {
+      if (!animate || !widget.isActive) {
+        _mapController.move(destLocation, destZoom);
+        if (destRotation != null) {
+          _mapController.rotate(destRotation);
+        }
+        return;
+      }
+
+      _moveAnimController?.dispose();
+      _moveAnimController = null;
+
       final camera = _mapController.camera;
       final latTween = Tween<double>(begin: camera.center.latitude, end: destLocation.latitude);
       final lngTween = Tween<double>(begin: camera.center.longitude, end: destLocation.longitude);
@@ -302,7 +334,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
           : null;
 
       final controller = AnimationController(
-        duration: const Duration(milliseconds: 550),
+        duration: const Duration(milliseconds: 380),
         vsync: this,
       );
       _moveAnimController = controller;
@@ -310,7 +342,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
       final animation = CurvedAnimation(parent: controller, curve: Curves.easeOutCubic);
 
       controller.addListener(() {
-        if (!mounted || !_isMapReady) return;
+        if (!mounted) return;
         try {
           final rot = rotTween?.evaluate(animation);
           _mapController.move(
@@ -324,7 +356,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
       });
 
       controller.addStatusListener((status) {
-        if (status == AnimationStatus.completed) {
+        if (status == AnimationStatus.completed || status == AnimationStatus.dismissed) {
           controller.dispose();
           if (_moveAnimController == controller) {
             _moveAnimController = null;
@@ -334,7 +366,13 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
 
       controller.forward();
     } catch (e) {
-      debugPrint('Error animating map: $e');
+      // Direct move fallback if animation controller or camera throws
+      try {
+        _mapController.move(destLocation, destZoom);
+        if (destRotation != null) {
+          _mapController.rotate(destRotation);
+        }
+      } catch (_) {}
     }
   }
 
@@ -343,12 +381,12 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
     if (_followMode == MapFollowMode.none) {
       // Re-center and engage follow
       setState(() => _followMode = MapFollowMode.follow);
-      _animatedMapMove(_currentLocation, 16.5);
+      _safeMove(_currentLocation, 16.5);
     } else if (_followMode == MapFollowMode.follow) {
       // Engage Follow + Compass rotation
       setState(() => _followMode = MapFollowMode.followAndRotate);
       if (_currentHeading > 0) {
-        _animatedMapMove(_currentLocation, 16.5, destRotation: (360.0 - _currentHeading) % 360.0);
+        _safeMove(_currentLocation, 16.5, destRotation: (360.0 - _currentHeading) % 360.0);
       }
     } else {
       // Reset rotation and go back to North-up follow
@@ -359,11 +397,11 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
 
   void _resetNorth() {
     HapticFeedback.lightImpact();
-    if (!_isMapReady) return;
     try {
       final camera = _mapController.camera;
-      if (camera.rotation == 0.0) return;
-      _animatedMapMove(camera.center, camera.zoom, destRotation: 0.0);
+      if (camera.rotation != 0.0) {
+        _safeMove(camera.center, camera.zoom, destRotation: 0.0);
+      }
       setState(() {
         _mapRotation = 0.0;
         if (_followMode == MapFollowMode.followAndRotate) {
@@ -380,7 +418,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
     setState(() => _followMode = MapFollowMode.none);
 
     if (places.length == 1) {
-      _animatedMapMove(
+      _safeMove(
         LatLng(places.first.latitude, places.first.longitude),
         16.0,
       );
@@ -400,7 +438,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
     }
 
     final center = LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
-    _animatedMapMove(center, 13.5);
+    _safeMove(center, 13.5);
   }
 
   void _fitTripOnMap(Trip trip) {
@@ -424,12 +462,12 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
     }
 
     final center = LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
-    _animatedMapMove(center, 14.5);
+    _safeMove(center, 14.5);
     setState(() => _followMode = MapFollowMode.none);
   }
 
   void _showLayerSelector(BuildContext context, bool isDark) {
-    final currentType = _customLayerType ?? (isDark ? MapLayerType.darkMatter : MapLayerType.voyager);
+    final currentType = _customLayerType ?? (isDark ? MapLayerType.dark : MapLayerType.osm);
     final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
     final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
@@ -489,14 +527,14 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
                 final isSelected = currentType == layer;
                 final IconData layerIcon;
                 switch (layer) {
-                  case MapLayerType.voyager:
-                    layerIcon = Icons.map_rounded;
-                    break;
-                  case MapLayerType.darkMatter:
-                    layerIcon = Icons.dark_mode_rounded;
-                    break;
                   case MapLayerType.osm:
                     layerIcon = Icons.public_rounded;
+                    break;
+                  case MapLayerType.hot:
+                    layerIcon = Icons.map_rounded;
+                    break;
+                  case MapLayerType.dark:
+                    layerIcon = Icons.dark_mode_rounded;
                     break;
                   case MapLayerType.topo:
                     layerIcon = Icons.terrain_rounded;
@@ -551,7 +589,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
     final placesVm = Provider.of<PlacesViewModel>(context);
     final isDark = widget.isDarkMode;
 
-    final activeLayer = _customLayerType ?? (isDark ? MapLayerType.darkMatter : MapLayerType.voyager);
+    final activeLayer = _customLayerType ?? (isDark ? MapLayerType.dark : MapLayerType.osm);
 
     final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
 
@@ -757,13 +795,14 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
           height: 54,
           alignment: Alignment.topCenter,
           child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
             onTap: () {
               HapticFeedback.selectionClick();
               setState(() {
                 _selectedPlace = place;
                 _followMode = MapFollowMode.none;
               });
-              _animatedMapMove(
+              _safeMove(
                 LatLng(place.latitude, place.longitude),
                 16.0,
               );
@@ -824,67 +863,76 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
       );
     }
 
-    return Scaffold(
-      body: Stack(
-        children: [
-          // Genuine interactive Map Layer (CartoDB / OpenStreetMap)
-          Positioned.fill(
-            child: FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: _currentLocation,
-                initialZoom: 15.5,
-                backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-                onMapReady: () {
-                  if (mounted) {
+    return Stack(
+      children: [
+        // 1. Genuine interactive Map Layer (OpenStreetMap / OSM HOT / Topo)
+        Positioned.fill(
+          child: FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: _currentLocation,
+              initialZoom: 15.5,
+              backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+              onMapReady: () {
+                if (mounted) {
+                  try {
                     setState(() {
-                      _isMapReady = true;
-                      try {
-                        _mapRotation = _mapController.camera.rotation;
-                      } catch (_) {}
+                      _mapRotation = _mapController.camera.rotation;
                     });
-                    if (_hasLocatedUser) {
-                      _animatedMapMove(_currentLocation, 16.0);
-                    }
+                  } catch (_) {}
+                  if (_hasLocatedUser) {
+                    _safeMove(_currentLocation, 16.0);
+                  } else if (placesVm.places.isNotEmpty) {
+                    _safeMove(
+                      LatLng(placesVm.places.first.latitude, placesVm.places.first.longitude),
+                      15.5,
+                    );
                   }
-                },
-                onPositionChanged: (camera, hasGesture) {
-                  // If user drags or pinches map, disengage auto-follow mode
-                  if (hasGesture && _followMode != MapFollowMode.none) {
-                    setState(() => _followMode = MapFollowMode.none);
-                  }
-                  if (camera.rotation != _mapRotation) {
-                    setState(() => _mapRotation = camera.rotation);
-                  }
-                },
-                onTap: (_, __) {
-                  if (_selectedPlace != null) {
-                    setState(() => _selectedPlace = null);
-                  }
-                },
-                onLongPress: (_, point) {
-                  HapticFeedback.mediumImpact();
-                  PlaceFormDialog.show(context, initialLocation: point);
-                },
-              ),
-              children: [
-                TileLayer(
-                  urlTemplate: activeLayer.tileUrl,
-                  fallbackUrl: activeLayer.fallbackUrl,
-                  subdomains: activeLayer.subdomains,
-                  userAgentPackageName: 'com.tempo.app.tempo',
-                  maxZoom: 22,
-                  maxNativeZoom: 19,
-                ),
-                PolylineLayer(polylines: polylines),
-                CircleLayer(circles: circles),
-                MarkerLayer(markers: markers),
-              ],
+                }
+              },
+              onPositionChanged: (camera, hasGesture) {
+                // If user drags or pinches map, disengage auto-follow mode
+                if (hasGesture && _followMode != MapFollowMode.none) {
+                  setState(() => _followMode = MapFollowMode.none);
+                }
+                if (camera.rotation != _mapRotation) {
+                  setState(() => _mapRotation = camera.rotation);
+                }
+              },
+              onTap: (_, __) {
+                if (_selectedPlace != null) {
+                  setState(() => _selectedPlace = null);
+                }
+              },
+              onLongPress: (_, point) {
+                HapticFeedback.mediumImpact();
+                PlaceFormDialog.show(context, initialLocation: point);
+              },
             ),
+            children: [
+              TileLayer(
+                urlTemplate: activeLayer.tileUrl,
+                fallbackUrl: activeLayer.fallbackUrl,
+                subdomains: activeLayer.subdomains,
+                userAgentPackageName: 'com.tempo.app.tempo',
+                maxZoom: 20,
+                maxNativeZoom: 19,
+                tileBuilder: activeLayer.isDark ? darkModeTileBuilder : null,
+              ),
+              PolylineLayer(polylines: polylines),
+              CircleLayer(circles: circles),
+              MarkerLayer(markers: markers),
+            ],
           ),
+        ),
 
-          // Top Header overlay
-          SafeArea(
+        // 2. Top Header overlay
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: SafeArea(
+            bottom: false,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
@@ -938,7 +986,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
                         backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
                         foregroundColor: AppColors.primary,
                         elevation: 3,
-                        tooltip: 'Stile Mappa (Stradale / Scura)',
+                        tooltip: 'Stile Mappa (Classica / Scura / Rilievi)',
                         onPressed: () => _showLayerSelector(context, isDark),
                         child: const Icon(Icons.layers_rounded),
                       ),
@@ -961,79 +1009,60 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
               ),
             ),
           ),
+        ),
 
-          // Live Displacement / Movement Navigation HUD (Google Maps style)
-          if (trackingEngine.isInTransit || activeTrip != null || (_currentSpeedKmh > 3.5 && trackingEngine.currentPlace == null))
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 60, left: 16, right: 16),
-                child: _LiveMovementHud(
-                  isDark: isDark,
-                  speedKmh: _currentSpeedKmh,
-                  activeTrip: activeTrip,
-                  currentPlace: trackingEngine.currentPlace,
-                  isFollowing: _followMode != MapFollowMode.none,
-                  onToggleFollow: _toggleFollowMode,
-                  onFitTrip: activeTrip != null && activeTrip.routePoints.isNotEmpty
-                      ? () => _fitTripOnMap(activeTrip)
-                      : null,
-                ),
-              ),
-            ),
-
-          // Floating Controls Column on Right (Compass, Zoom In/Out, Google Maps Recenter FAB)
+        // 3. Live Displacement / Movement Navigation HUD (Google Maps style)
+        if (trackingEngine.isInTransit || activeTrip != null || (_currentSpeedKmh > 3.5 && trackingEngine.currentPlace == null))
           Positioned(
+            top: 64,
+            left: 16,
             right: 16,
-            bottom: _selectedPlace != null ? 240 : 96,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                // Compass Needle button (visible when rotation != 0)
-                if (_isMapReady && _mapRotation.abs() > 1.0) ...[
-                  _buildCompassButton(isDark, _mapRotation),
-                  const SizedBox(height: 12),
-                ],
-
-                // Zoom controls container
-                _buildZoomControls(isDark),
-                const SizedBox(height: 14),
-
-                // Dedicated Google Maps Recenter & Follow FAB
-                _buildRecenterFollowFab(isDark),
-              ],
+            child: SafeArea(
+              bottom: false,
+              child: _LiveMovementHud(
+                isDark: isDark,
+                speedKmh: _currentSpeedKmh,
+                activeTrip: activeTrip,
+                currentPlace: trackingEngine.currentPlace,
+                isFollowing: _followMode != MapFollowMode.none,
+                onToggleFollow: _toggleFollowMode,
+                onFitTrip: activeTrip != null && activeTrip.routePoints.isNotEmpty
+                    ? () => _fitTripOnMap(activeTrip)
+                    : null,
+              ),
             ),
           ),
 
-          // Selected Place Card Bottom Sheet
-          if (_selectedPlace != null)
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: 24,
-              child: _PlaceDetailCard(
-                place: _selectedPlace!,
-                isDark: isDark,
-                isCurrentPlace: trackingEngine.currentPlace?.id == _selectedPlace!.id,
-                totalTimeStr: placesVm.formatPlaceDuration(_selectedPlace!.name),
-                onCheckIn: () {
-                  HapticFeedback.mediumImpact();
-                  trackingEngine.manualCheckIn(_selectedPlace!);
-                  setState(() => _selectedPlace = null);
-                },
-                onEdit: () {
-                  final p = _selectedPlace!;
-                  setState(() => _selectedPlace = null);
-                  PlaceFormDialog.show(context, placeToEdit: p);
-                },
-                onClose: () => setState(() => _selectedPlace = null),
-              ),
-            ),
-        ],
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
-      floatingActionButton: _selectedPlace == null
-          ? FloatingActionButton.extended(
+        // 4. Floating Controls Column on Right (Compass, Zoom In/Out, Google Maps Recenter FAB)
+        Positioned(
+          right: 16,
+          bottom: _selectedPlace != null ? 240 : 24,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // Compass Needle button (visible when rotation != 0)
+              if (_mapRotation.abs() > 1.0) ...[
+                _buildCompassButton(isDark, _mapRotation),
+                const SizedBox(height: 12),
+              ],
+
+              // Zoom controls container
+              _buildZoomControls(isDark),
+              const SizedBox(height: 14),
+
+              // Dedicated Google Maps Recenter & Follow FAB
+              _buildRecenterFollowFab(isDark),
+            ],
+          ),
+        ),
+
+        // 5. FAB: Nuovo Luogo (on bottom-left, when no place is selected)
+        if (_selectedPlace == null)
+          Positioned(
+            left: 16,
+            bottom: 24,
+            child: FloatingActionButton.extended(
               heroTag: 'map_add_place_fab',
               onPressed: () {
                 HapticFeedback.lightImpact();
@@ -1046,8 +1075,34 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
               foregroundColor: Colors.white,
               icon: const Icon(Icons.add_location_alt_rounded),
               label: const Text('Nuovo Luogo', style: TextStyle(fontWeight: FontWeight.w700)),
-            )
-          : null,
+            ),
+          ),
+
+        // 6. Selected Place Card Bottom Sheet
+        if (_selectedPlace != null)
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 24,
+            child: _PlaceDetailCard(
+              place: _selectedPlace!,
+              isDark: isDark,
+              isCurrentPlace: trackingEngine.currentPlace?.id == _selectedPlace!.id,
+              totalTimeStr: placesVm.formatPlaceDuration(_selectedPlace!.name),
+              onCheckIn: () {
+                HapticFeedback.mediumImpact();
+                trackingEngine.manualCheckIn(_selectedPlace!);
+                setState(() => _selectedPlace = null);
+              },
+              onEdit: () {
+                final p = _selectedPlace!;
+                setState(() => _selectedPlace = null);
+                PlaceFormDialog.show(context, placeToEdit: p);
+              },
+              onClose: () => setState(() => _selectedPlace = null),
+            ),
+          ),
+      ],
     );
   }
 
@@ -1097,13 +1152,11 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
             icon: const Icon(Icons.add, size: 20),
             tooltip: 'Zoom avanti',
             onPressed: () {
-              if (!_isMapReady) return;
               HapticFeedback.selectionClick();
               try {
-                _animatedMapMove(
-                  _mapController.camera.center,
-                  _mapController.camera.zoom + 1,
-                );
+                final currentZoom = _mapController.camera.zoom;
+                final center = _mapController.camera.center;
+                _mapController.move(center, (currentZoom + 1).clamp(1.0, 20.0));
               } catch (_) {}
             },
           ),
@@ -1116,13 +1169,11 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin {
             icon: const Icon(Icons.remove, size: 20),
             tooltip: 'Zoom indietro',
             onPressed: () {
-              if (!_isMapReady) return;
               HapticFeedback.selectionClick();
               try {
-                _animatedMapMove(
-                  _mapController.camera.center,
-                  _mapController.camera.zoom - 1,
-                );
+                final currentZoom = _mapController.camera.zoom;
+                final center = _mapController.camera.center;
+                _mapController.move(center, (currentZoom - 1).clamp(1.0, 20.0));
               } catch (_) {}
             },
           ),
