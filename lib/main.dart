@@ -6,6 +6,7 @@ import 'data/repositories/place_repository.dart';
 import 'data/repositories/visit_repository.dart';
 import 'data/services/database_service.dart';
 import 'data/services/notification_service.dart';
+import 'data/services/permission_manager.dart';
 import 'data/services/tracking_engine.dart';
 import 'ui/core/app_theme.dart';
 import 'ui/features/analytics/analytics_view.dart';
@@ -157,6 +158,22 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkProactivePermissions();
+  }
+
+  Future<void> _checkProactivePermissions() async {
+    final status = await PermissionManager.instance.checkAllStatus();
+    if (!status.locationGranted) {
+      await PermissionManager.instance.requestForegroundLocation();
+    }
+    if (!status.notificationGranted) {
+      await PermissionManager.instance.requestNotifications();
+    }
+  }
 
   void _navigateToHistory() {
     Navigator.push(

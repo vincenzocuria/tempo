@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../data/services/location_service.dart';
-import '../../../data/services/notification_service.dart';
+import '../../../data/services/permission_manager.dart';
 import '../../core/app_colors.dart';
 
 class OnboardingView extends StatefulWidget {
@@ -18,26 +16,44 @@ class OnboardingView extends StatefulWidget {
   State<OnboardingView> createState() => _OnboardingViewState();
 }
 
-class _OnboardingViewState extends State<OnboardingView> {
+class _OnboardingViewState extends State<OnboardingView> with WidgetsBindingObserver {
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
   bool _isLocationGranted = false;
+  bool _isBackgroundGranted = false;
   bool _isNotificationGranted = false;
+  bool _isBatteryIgnored = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _checkInitialPermissions();
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkInitialPermissions();
+    }
+  }
+
   Future<void> _checkInitialPermissions() async {
-    final loc = await Permission.location.status;
-    final notif = await Permission.notification.status;
+    final status = await PermissionManager.instance.checkAllStatus();
     if (mounted) {
       setState(() {
-        _isLocationGranted = loc.isGranted;
-        _isNotificationGranted = notif.isGranted;
+        _isLocationGranted = status.locationGranted;
+        _isBackgroundGranted = status.backgroundLocationGranted;
+        _isNotificationGranted = status.notificationGranted;
+        _isBatteryIgnored = status.batteryOptimizationIgnored;
       });
     }
   }
@@ -62,29 +78,34 @@ class _OnboardingViewState extends State<OnboardingView> {
     }
   }
 
+  Future<void> _runFullWizard() async {
+    HapticFeedback.lightImpact();
+    await PermissionManager.instance.runFullSetupWizard(context);
+    await _checkInitialPermissions();
+  }
+
   Future<void> _requestLocationPermission() async {
     HapticFeedback.lightImpact();
-    await LocationService.instance.requestLocationPermission();
-    await LocationService.instance.requestBackgroundLocation();
-    final status = await Permission.location.status;
-    if (mounted) {
-      setState(() => _isLocationGranted = status.isGranted);
-    }
+    await PermissionManager.instance.requestForegroundLocation();
+    await _checkInitialPermissions();
+  }
+
+  Future<void> _requestBackgroundLocation() async {
+    HapticFeedback.lightImpact();
+    await PermissionManager.instance.requestBackgroundLocation(context);
+    await _checkInitialPermissions();
   }
 
   Future<void> _requestNotificationPermission() async {
     HapticFeedback.lightImpact();
-    await NotificationService.instance.requestPermission();
-    final status = await Permission.notification.status;
-    if (mounted) {
-      setState(() => _isNotificationGranted = status.isGranted);
-    }
+    await PermissionManager.instance.requestNotifications();
+    await _checkInitialPermissions();
   }
 
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
+  Future<void> _requestBatteryOptimization() async {
+    HapticFeedback.lightImpact();
+    await PermissionManager.instance.requestBatteryOptimization();
+    await _checkInitialPermissions();
   }
 
   @override
@@ -190,35 +211,81 @@ class _OnboardingViewState extends State<OnboardingView> {
                       ],
                     ),
 
-                    // Slide 2: Smart GPS & Permissions
+                    // Slide 2: Smart GPS & Comprehensive Android / Samsung Permissions
                     _buildSlide(
                       isDark: isDark,
                       textPrimary: textPrimary,
                       textMuted: textMuted,
-                      badge: 'ALGORITMO INTELLIGENTE',
+                      badge: 'CONFIGURAZIONE SAMSUNG & ANDROID',
                       badgeColor: AppColors.primary,
-                      title: 'GPS a bassissimo consumo',
-                      subtitle: 'Utilizziamo un algoritmo geofence con isteresi intelligente che attiva la localizzazione solo durante i veri cambi di zona.',
+                      title: 'Autorizzazioni Essenziali',
+                      subtitle: 'Per garantire che il conteggio funzioni anche a schermo spento, su Android e Samsung sono necessari questi permessi di sistema.',
                       iconWidget: _buildGlowingIcon(
-                        icon: Icons.explore_rounded,
+                        icon: Icons.security_rounded,
                         gradient: const [Color(0xFF6366F1), Color(0xFF8B5CF6)],
                       ),
                       customBody: Column(
                         children: [
+                          // 1-Tap Auto Setup Wizard Button
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size.fromHeight(46),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              elevation: 0,
+                            ),
+                            onPressed: _runFullWizard,
+                            icon: const Icon(Icons.auto_fix_high_rounded, size: 18),
+                            label: const Text(
+                              'Abilita Tutto con 1 Tocco',
+                              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+
                           _PermissionCard(
-                            title: 'Posizione e Background',
-                            subtitle: 'Necessario per rilevare gli ingressi e le uscite',
+                            title: 'Posizione (In primo piano)',
+                            subtitle: 'Per rilevare le coordinate dei tuoi luoghi',
                             isGranted: _isLocationGranted,
                             onTap: _requestLocationPermission,
                             isDark: isDark,
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 8),
+                          _PermissionCard(
+                            title: 'Posizione "Consenti sempre"',
+                            subtitle: 'Consente il conteggio a schermo spento',
+                            isGranted: _isBackgroundGranted,
+                            onTap: _requestBackgroundLocation,
+                            isDark: isDark,
+                          ),
+                          const SizedBox(height: 8),
                           _PermissionCard(
                             title: 'Notifiche di Presenza',
-                            subtitle: 'Notifiche discrete di arrivo e riassunto durata',
+                            subtitle: 'Avvisi discreti di arrivo e riepilogo durata',
                             isGranted: _isNotificationGranted,
                             onTap: _requestNotificationPermission,
                             isDark: isDark,
+                          ),
+                          const SizedBox(height: 8),
+                          _PermissionCard(
+                            title: 'Nessuna Restrizione Batteria',
+                            subtitle: 'Essenziale per Samsung / OneUI per non fermare l\'app',
+                            isGranted: _isBatteryIgnored,
+                            onTap: _requestBatteryOptimization,
+                            isDark: isDark,
+                          ),
+                          const SizedBox(height: 10),
+
+                          TextButton.icon(
+                            onPressed: () => PermissionManager.instance.openSystemSettings(),
+                            icon: const Icon(Icons.settings_outlined, size: 15),
+                            label: const Text(
+                              'Apri Impostazioni App di Android',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                            ),
                           ),
                         ],
                       ),
@@ -313,7 +380,9 @@ class _OnboardingViewState extends State<OnboardingView> {
                           ),
                           const SizedBox(width: 8),
                           Icon(
-                            _currentPage == 2 ? Icons.rocket_launch_rounded : Icons.arrow_forward_rounded,
+                            _currentPage == 2
+                                ? Icons.check_circle_rounded
+                                : Icons.arrow_forward_rounded,
                             size: 18,
                           ),
                         ],
@@ -329,22 +398,29 @@ class _OnboardingViewState extends State<OnboardingView> {
     );
   }
 
-  Widget _buildGlowingIcon({required IconData icon, required List<Color> gradient}) {
+  Widget _buildGlowingIcon({
+    required IconData icon,
+    required List<Color> gradient,
+  }) {
     return Container(
       width: 88,
       height: 88,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: LinearGradient(colors: gradient),
+        gradient: LinearGradient(
+          colors: gradient,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         boxShadow: [
           BoxShadow(
             color: gradient.first.withValues(alpha: 0.35),
-            blurRadius: 28,
-            offset: const Offset(0, 10),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
-      child: Icon(icon, size: 44, color: Colors.white),
+      child: Icon(icon, color: Colors.white, size: 44),
     );
   }
 
@@ -357,30 +433,30 @@ class _OnboardingViewState extends State<OnboardingView> {
     required String title,
     required String subtitle,
     required Widget iconWidget,
-    List<_FeatureRow>? features,
+    List<Widget>? features,
     Widget? customBody,
   }) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       child: Column(
         children: [
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           iconWidget,
-          const SizedBox(height: 22),
+          const SizedBox(height: 20),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3.5),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
-              color: badgeColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
+              color: badgeColor.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(color: badgeColor.withValues(alpha: 0.3)),
             ),
             child: Text(
               badge,
               style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.9,
                 color: badgeColor,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.1,
               ),
             ),
           ),
@@ -389,7 +465,7 @@ class _OnboardingViewState extends State<OnboardingView> {
             title,
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 24,
+              fontSize: 22,
               fontWeight: FontWeight.w900,
               letterSpacing: -0.5,
               color: textPrimary,
@@ -400,12 +476,12 @@ class _OnboardingViewState extends State<OnboardingView> {
             subtitle,
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 13.5,
-              height: 1.45,
+              fontSize: 13,
+              height: 1.4,
               color: textMuted,
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 18),
           ...?features,
           ?customBody,
         ],
@@ -440,19 +516,25 @@ class _FeatureRow extends StatelessWidget {
         color: cardBg,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: AppColors.primary.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, size: 18, color: AppColors.primary),
+            child: Icon(icon, color: AppColors.primary, size: 22),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -468,7 +550,11 @@ class _FeatureRow extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   description,
-                  style: TextStyle(fontSize: 12, color: textMuted, height: 1.35),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: textMuted,
+                    height: 1.3,
+                  ),
                 ),
               ],
             ),
@@ -502,19 +588,19 @@ class _PermissionCard extends StatelessWidget {
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
       decoration: BoxDecoration(
         color: cardBg,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isGranted ? AppColors.success.withValues(alpha: 0.5) : borderColor,
-          width: isGranted ? 1.5 : 1.0,
+          width: isGranted ? 1.4 : 1.0,
         ),
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: isGranted
                   ? AppColors.success.withValues(alpha: 0.15)
@@ -523,7 +609,7 @@ class _PermissionCard extends StatelessWidget {
             ),
             child: Icon(
               isGranted ? Icons.check_circle_rounded : Icons.shield_outlined,
-              size: 20,
+              size: 18,
               color: isGranted ? AppColors.success : AppColors.primary,
             ),
           ),
@@ -535,7 +621,7 @@ class _PermissionCard extends StatelessWidget {
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 13.5,
                     fontWeight: FontWeight.w800,
                     color: textPrimary,
                   ),
@@ -543,7 +629,7 @@ class _PermissionCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: TextStyle(fontSize: 11.5, color: textMuted),
+                  style: TextStyle(fontSize: 11, color: textMuted),
                 ),
               ],
             ),
@@ -556,16 +642,17 @@ class _PermissionCard extends StatelessWidget {
                   : AppColors.primary,
               foregroundColor: isGranted ? AppColors.success : Colors.white,
               elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              visualDensity: VisualDensity.compact,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(10),
               ),
             ),
             onPressed: isGranted ? null : onTap,
             child: Text(
               isGranted ? 'Attivo' : 'Consenti',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: FontWeight.w800,
                 color: isGranted ? AppColors.success : Colors.white,
               ),

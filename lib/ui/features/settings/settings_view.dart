@@ -6,12 +6,11 @@ import '../../../data/repositories/place_repository.dart';
 import '../../../data/repositories/visit_repository.dart';
 import '../../../data/services/export_service.dart';
 import '../../../data/services/habit_detection_service.dart';
-import '../../../data/services/location_service.dart';
-import '../../../data/services/notification_service.dart';
 import '../../../data/services/tracking_engine.dart';
 import '../../core/app_colors.dart';
 import '../analytics/analytics_view_model.dart';
 import '../dashboard/dashboard_view_model.dart';
+import '../../../data/services/permission_manager.dart';
 import '../history/history_view.dart';
 import '../onboarding/onboarding_view.dart';
 import '../places/places_view_model.dart';
@@ -30,43 +29,62 @@ class SettingsView extends StatefulWidget {
   State<SettingsView> createState() => _SettingsViewState();
 }
 
-class _SettingsViewState extends State<SettingsView> {
+class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver {
   PermissionStatus _locationStatus = PermissionStatus.denied;
   PermissionStatus _bgLocationStatus = PermissionStatus.denied;
   PermissionStatus _notificationStatus = PermissionStatus.denied;
+  bool _batteryOptimizationIgnored = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _checkPermissions();
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkPermissions();
+    }
+  }
+
   Future<void> _checkPermissions() async {
-    final loc = await Permission.location.status;
-    final bg = await Permission.locationAlways.status;
-    final notif = await Permission.notification.status;
+    final status = await PermissionManager.instance.checkAllStatus();
 
     if (mounted) {
       setState(() {
-        _locationStatus = loc;
-        _bgLocationStatus = bg;
-        _notificationStatus = notif;
+        _locationStatus = status.locationGranted ? PermissionStatus.granted : PermissionStatus.denied;
+        _bgLocationStatus = status.backgroundLocationGranted ? PermissionStatus.granted : PermissionStatus.denied;
+        _notificationStatus = status.notificationGranted ? PermissionStatus.granted : PermissionStatus.denied;
+        _batteryOptimizationIgnored = status.batteryOptimizationIgnored;
       });
     }
   }
 
   Future<void> _requestLocation() async {
-    await LocationService.instance.requestLocationPermission();
+    await PermissionManager.instance.requestForegroundLocation();
     await _checkPermissions();
   }
 
   Future<void> _requestBgLocation() async {
-    await LocationService.instance.requestBackgroundLocation();
+    await PermissionManager.instance.requestBackgroundLocation(context);
     await _checkPermissions();
   }
 
   Future<void> _requestNotification() async {
-    await NotificationService.instance.requestPermission();
+    await PermissionManager.instance.requestNotifications();
+    await _checkPermissions();
+  }
+
+  Future<void> _requestBatteryOptimization() async {
+    await PermissionManager.instance.requestBatteryOptimization();
     await _checkPermissions();
   }
 
@@ -447,6 +465,27 @@ class _SettingsViewState extends State<SettingsView> {
                   subtitle: 'Avvisi di ingresso e riepilogo uscita',
                   isGranted: _notificationStatus.isGranted,
                   onTap: _requestNotification,
+                ),
+                Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
+                _PermissionTile(
+                  title: 'Nessuna Restrizione Batteria',
+                  subtitle: 'Essenziale per Samsung / OneUI per non chiudere il servizio',
+                  isGranted: _batteryOptimizationIgnored,
+                  onTap: _requestBatteryOptimization,
+                ),
+                Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
+                ListTile(
+                  leading: const Icon(Icons.settings_suggest_rounded, color: AppColors.primary),
+                  title: Text(
+                    'Apri Impostazioni App di Sistema',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: textPrimary),
+                  ),
+                  subtitle: Text(
+                    'Gestisci manualmente tutti i permessi nelle impostazioni Android',
+                    style: TextStyle(fontSize: 12, color: textMuted),
+                  ),
+                  trailing: const Icon(Icons.open_in_new_rounded, size: 18),
+                  onTap: () => PermissionManager.instance.openSystemSettings(),
                 ),
               ],
             ),
