@@ -13,6 +13,7 @@ import '../../../data/services/tracking_engine.dart';
 import '../../core/app_colors.dart';
 import '../places/places_view_model.dart';
 import '../trips/transport_mode_picker.dart';
+import '../trips/day_timeline_view.dart';
 import 'manual_visit_dialog.dart';
 
 enum HistoryFilter { tutto, soste, tragitti }
@@ -511,6 +512,19 @@ class _HistoryViewState extends State<HistoryView> {
         title: const Text('Cronologia'),
         actions: [
           IconButton(
+            tooltip: 'La mia giornata (Timeline Mappa)',
+            icon: const Icon(Icons.timeline_rounded),
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const DayTimelineView(),
+                ),
+              );
+            },
+          ),
+          IconButton(
             tooltip: 'Aggiungi visita manuale',
             icon: const Icon(Icons.add_circle_outline_rounded),
             onPressed: () => ManualVisitDialog.show(context, onVisitAdded: _loadData),
@@ -603,15 +617,58 @@ class _HistoryViewState extends State<HistoryView> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
-                                  child: Text(
-                                    dayKey,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 0.6,
-                                      color: isDark ? AppColors.primaryLight : AppColors.primary,
-                                    ),
+                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        dayKey,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 0.6,
+                                          color: isDark ? AppColors.primaryLight : AppColors.primary,
+                                        ),
+                                      ),
+                                      if (dayItems.isNotEmpty)
+                                        Material(
+                                          color: Colors.transparent,
+                                          child: InkWell(
+                                            borderRadius: BorderRadius.circular(10),
+                                            onTap: () {
+                                              HapticFeedback.selectionClick();
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (_) => DayTimelineView(initialDate: dayItems.first.time),
+                                                ),
+                                              );
+                                            },
+                                            child: Padding(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    Icons.timeline_rounded,
+                                                    size: 14,
+                                                    color: isDark ? AppColors.primaryLight : AppColors.primary,
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  Text(
+                                                    'Mappa Giornata',
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.w700,
+                                                      color: isDark ? AppColors.primaryLight : AppColors.primary,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
                                   ),
                                 ),
                                 ...dayItems.map((item) {

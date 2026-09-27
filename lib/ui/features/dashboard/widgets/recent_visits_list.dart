@@ -322,14 +322,26 @@ class RecentVisitsList extends StatelessWidget {
                 final endStr = trip.endTime != null
                     ? timeFormat.format(trip.endTime!)
                     : 'In corso';
-
                 const tripAccent = Color(0xFF0EA5E9);
 
-                return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: cardBg,
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
                     borderRadius: BorderRadius.circular(20),
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => DayTimelineView(initialDate: trip.startTime),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                       color: trip.isOngoing
                           ? tripAccent.withValues(alpha: 0.6)
@@ -449,7 +461,9 @@ class RecentVisitsList extends StatelessWidget {
                       ),
                     ],
                   ),
-                );
+                ),
+              ),
+            );
               }
               return const SizedBox.shrink();
             },

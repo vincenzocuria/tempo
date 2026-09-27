@@ -15,6 +15,7 @@ import '../../../data/services/tracking_engine.dart';
 import '../../core/app_colors.dart';
 import '../places/place_form_dialog.dart';
 import '../places/places_view_model.dart';
+import '../trips/day_timeline_view.dart';
 
 enum TripPeriodFilter {
   today,
@@ -809,6 +810,87 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                           onPressed: () => Navigator.pop(ctx),
                         ),
                       ],
+                    ),
+                  ),
+
+                  // Direct shortcut to "La mia giornata" Timeline
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        final targetDate = _tripFilter == TripPeriodFilter.custom && _customSelectedDate != null
+                            ? _customSelectedDate!
+                            : (_tripFilter == TripPeriodFilter.yesterday
+                                ? DateTime.now().subtract(const Duration(days: 1))
+                                : DateTime.now());
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => DayTimelineView(initialDate: targetDate),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0EA5E9).withValues(alpha: isDark ? 0.16 : 0.08),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: const Color(0xFF0EA5E9).withValues(alpha: 0.35),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.timeline_rounded, color: Color(0xFF0EA5E9), size: 20),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        'Apri Timeline "La mia giornata"',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 13,
+                                          color: isDark ? Colors.white : const Color(0xFF0369A1),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF0EA5E9).withValues(alpha: 0.2),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: const Text(
+                                          'NEW',
+                                          style: TextStyle(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.w800,
+                                            color: Color(0xFF0EA5E9),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Text(
+                                    'Visualizza percorsi e soste con mappa ed elenco cronologico',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: textMuted,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.arrow_forward_ios_rounded, size: 13, color: Color(0xFF0EA5E9)),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
 
@@ -1736,6 +1818,30 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                   ),
                   Row(
                     children: [
+                      // "La mia giornata" Timeline Screen Button
+                      FloatingActionButton.small(
+                        heroTag: 'map_timeline_button',
+                        backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
+                        foregroundColor: const Color(0xFF0EA5E9),
+                        elevation: 3,
+                        tooltip: 'La mia giornata (Timeline Google Maps)',
+                        onPressed: () {
+                          HapticFeedback.selectionClick();
+                          final targetDate = _tripFilter == TripPeriodFilter.custom && _customSelectedDate != null
+                              ? _customSelectedDate!
+                              : (_tripFilter == TripPeriodFilter.yesterday
+                                  ? DateTime.now().subtract(const Duration(days: 1))
+                                  : DateTime.now());
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => DayTimelineView(initialDate: targetDate),
+                            ),
+                          );
+                        },
+                        child: const Icon(Icons.timeline_rounded),
+                      ),
+                      const SizedBox(width: 8),
                       // Toggle Routes & Period Selector on map
                       FloatingActionButton.small(
                         heroTag: 'map_toggle_trips',
