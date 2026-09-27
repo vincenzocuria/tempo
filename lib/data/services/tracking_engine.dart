@@ -45,6 +45,9 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
   double _activeTripMaxSpeedKmH = 0.0;
   double _activeTripMaxAcceleration = 0.0;
   String? _activeTripManualMode;
+  double _activeTripMaxDistanceFromOrigin = 0.0;
+  String? _candidatePlaceId;
+  int _candidatePlaceHits = 0;
 
   Place? _currentPlace;
   Place? get currentPlace => _currentPlace;
@@ -343,6 +346,13 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> _processNewPosition(Position position) async {
     _lastKnownPosition = position;
+
+    // Filter out GPS fixes with poor accuracy (> 38m) to avoid false geofence triggers
+    if (position.accuracy > 38.0) {
+      debugPrint('TrackingEngine: Posizione con accuratezza insufficiente (${position.accuracy.toStringAsFixed(1)}m). Scartata per verifica luoghi.');
+      return;
+    }
+
     final places = await _placeRepository.getAllPlaces();
     final activePlaces = places.where((p) => p.isTrackingEnabled).toList();
 
@@ -371,6 +381,22 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
 
+    // Protection against immediate false return to the origin place:
+    if (matchedPlace != null && _currentPlace?.id != matchedPlace.id) {
+      if (_activeTrip != null && matchedPlace.id == _activeTrip!.originPlaceId) {
+        final elapsedTripSec = DateTime.now().difference(_activeTrip!.startTime).inSeconds;
+        // User must have either reached beyond the outer perimeter buffer, traveled >= 180m, or been in transit >= 4 min
+        final hasLeftPerimeter = _activeTripMaxDistanceFromOrigin >= (matchedPlace.radiusInMeters + 60.0) ||
+            _activeTripDistance >= 180.0 ||
+            elapsedTripSec >= 240;
+
+        if (!hasLeftPerimeter) {
+          // Still walking in vicinity of departure point: treat as transit, do NOT falsely conclude trip
+          matchedPlace = null;
+        }
+      }
+    }
+
     if (matchedPlace != null) {
       // -------------------------------------------------------------
       // USER IS INSIDE A REGISTERED PLACE AREA
@@ -378,6 +404,27 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
       await _habitService.onEnteredKnownPlace();
 
       if (_currentPlace?.id != matchedPlace.id) {
+        // Debounce: require at least 2 consecutive stable GPS readings inside place before confirming arrival
+        if (_candidatePlaceId == matchedPlace.id) {
+          _candidatePlaceHits++;
+        } else {
+          _candidatePlaceId = matchedPlace.id;
+          _candidatePlaceHits = 1;
+        }
+
+        if (_candidatePlaceHits < 2) {
+          // Record ongoing movement on active trip while waiting for confirmation
+          if (_activeTrip != null) {
+            await _updateActiveTripProgress(position, places: places);
+          }
+          notifyListeners();
+          return;
+        }
+
+        // Reset debounce counters upon confirmed arrival
+        _candidatePlaceId = null;
+        _candidatePlaceHits = 0;
+
         // User just arrived at matchedPlace from outside or from another place!
         final previousPlace = _currentPlace;
         final previousVisit = _activeVisit;
@@ -446,6 +493,7 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
           _activeTripMaxSpeedKmH = 0.0;
           _activeTripMaxAcceleration = 0.0;
           _activeTripManualMode = null;
+          _activeTripMaxDistanceFromOrigin = 0.0;
         } else {
           // No active trip, standard place entry notification
           if (matchedPlace.notifyOnEntry) {
@@ -463,13 +511,17 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
         _applyAdaptiveTrackingSettings();
       } else {
         // User is still within their current place: walking inside house or office!
-        // No trip is recorded, no notifications are triggered.
+        _candidatePlaceId = null;
+        _candidatePlaceHits = 0;
         _statusMessage = 'Sei a ${matchedPlace.name}';
       }
     } else {
       // -------------------------------------------------------------
       // USER IS OUTSIDE ANY KNOWN REGISTERED PLACE AREA
       // -------------------------------------------------------------
+      _candidatePlaceId = null;
+      _candidatePlaceHits = 0;
+
       await _habitService.processUnregisteredLocation(position.latitude, position.longitude);
 
       if (_currentPlace != null && _activeVisit != null) {
@@ -504,6 +556,7 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
           _activeTripMaxSpeedKmH = spdKmH;
           _activeTripMaxAcceleration = 0.0;
           _activeTripManualMode = null;
+          _activeTripMaxDistanceFromOrigin = 0.0;
 
           final initialMode = inferTransportMode(
             avgSpeedKmH: spdKmH,
@@ -528,81 +581,7 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
         _applyAdaptiveTrackingSettings();
       } else if (_activeTrip != null) {
         // USER IS CURRENTLY TRAVELING ON AN ACTIVE TRIP
-        if (_lastTripPointPosition != null) {
-          final delta = _locationService.calculateDistance(
-            _lastTripPointPosition!.latitude,
-            _lastTripPointPosition!.longitude,
-            position.latitude,
-            position.longitude,
-          );
-
-          if (delta >= 15.0) {
-            // Meaningful displacement: record point & accumulate distance
-            _activeTripDistance += delta;
-
-            final now = DateTime.now();
-            final spd = position.speed > 0 ? position.speed : 0.0;
-            final spdKmH = spd * 3.6;
-
-            if (spdKmH > _activeTripMaxSpeedKmH) {
-              _activeTripMaxSpeedKmH = spdKmH;
-            }
-
-            if (_lastTripPointPosition != null) {
-              final dt = now.difference(_lastMovementTimestamp ?? now).inMilliseconds / 1000.0;
-              if (dt > 0.5) {
-                final lastSpd = (_lastTripPointPosition!.speed > 0) ? _lastTripPointPosition!.speed : 0.0;
-                final dv = (spd - lastSpd).abs();
-                final accel = dv / dt;
-                if (accel > _activeTripMaxAcceleration && accel < 15.0) {
-                  _activeTripMaxAcceleration = accel;
-                }
-              }
-            }
-
-            _lastTripPointPosition = position;
-            _lastMovementTimestamp = now;
-
-            final durSec = now.difference(_activeTrip!.startTime).inSeconds;
-            final avgSpd = durSec > 10
-                ? (_activeTripDistance / 1000.0) / (durSec / 3600.0)
-                : spdKmH;
-
-            final detectedMode = _activeTripManualMode ??
-                inferTransportMode(
-                  avgSpeedKmH: avgSpd,
-                  maxSpeedKmH: _activeTripMaxSpeedKmH,
-                  maxAccelerationMs2: _activeTripMaxAcceleration,
-                  preferredMotorVehicle: _preferredMotorVehicle,
-                );
-
-            _activeRoutePoints.add(TripPoint(
-              latitude: position.latitude,
-              longitude: position.longitude,
-              timestamp: now,
-              speed: position.speed,
-            ));
-
-            _activeTrip = _activeTrip!.copyWith(
-              distanceMeters: _activeTripDistance,
-              transportMode: detectedMode,
-              routePoints: List.from(_activeRoutePoints),
-            );
-
-            _statusMessage = 'In spostamento (${_activeTrip!.formattedDistance})';
-          } else {
-            // Stationary check outside registered places
-            final now = DateTime.now();
-            if (_lastMovementTimestamp != null &&
-                now.difference(_lastMovementTimestamp!).inMinutes >= 7 &&
-                _activeTripDistance >= 80.0) {
-              await _finalizeOngoingTripToIntermediateSpot(position);
-            }
-          }
-        } else {
-          _lastTripPointPosition = position;
-          _lastMovementTimestamp = DateTime.now();
-        }
+        await _updateActiveTripProgress(position, places: places);
       } else {
         // Outside without an active trip
         _statusMessage = 'In movimento / Fuori zona';
@@ -610,6 +589,102 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
     }
 
     notifyListeners();
+  }
+
+  Future<void> _updateActiveTripProgress(Position position, {List<Place>? places}) async {
+    if (_activeTrip == null) return;
+
+    // Track max displacement away from origin place
+    if (_activeTrip!.originPlaceId != null && places != null) {
+      final originPlace = places.where((p) => p.id == _activeTrip!.originPlaceId).firstOrNull;
+      if (originPlace != null) {
+        final dist = _locationService.calculateDistance(
+          originPlace.latitude,
+          originPlace.longitude,
+          position.latitude,
+          position.longitude,
+        );
+        if (dist > _activeTripMaxDistanceFromOrigin) {
+          _activeTripMaxDistanceFromOrigin = dist;
+        }
+      }
+    }
+
+    if (_lastTripPointPosition != null) {
+      final delta = _locationService.calculateDistance(
+        _lastTripPointPosition!.latitude,
+        _lastTripPointPosition!.longitude,
+        position.latitude,
+        position.longitude,
+      );
+
+      if (delta >= 15.0) {
+        // Meaningful displacement: record point & accumulate distance
+        _activeTripDistance += delta;
+
+        final now = DateTime.now();
+        final spd = position.speed > 0 ? position.speed : 0.0;
+        final spdKmH = spd * 3.6;
+
+        if (spdKmH > _activeTripMaxSpeedKmH) {
+          _activeTripMaxSpeedKmH = spdKmH;
+        }
+
+        if (_lastTripPointPosition != null) {
+          final dt = now.difference(_lastMovementTimestamp ?? now).inMilliseconds / 1000.0;
+          if (dt > 0.5) {
+            final lastSpd = (_lastTripPointPosition!.speed > 0) ? _lastTripPointPosition!.speed : 0.0;
+            final dv = (spd - lastSpd).abs();
+            final accel = dv / dt;
+            if (accel > _activeTripMaxAcceleration && accel < 15.0) {
+              _activeTripMaxAcceleration = accel;
+            }
+          }
+        }
+
+        _lastTripPointPosition = position;
+        _lastMovementTimestamp = now;
+
+        final durSec = now.difference(_activeTrip!.startTime).inSeconds;
+        final avgSpd = durSec > 10
+            ? (_activeTripDistance / 1000.0) / (durSec / 3600.0)
+            : spdKmH;
+
+        final detectedMode = _activeTripManualMode ??
+            inferTransportMode(
+              avgSpeedKmH: avgSpd,
+              maxSpeedKmH: _activeTripMaxSpeedKmH,
+              maxAccelerationMs2: _activeTripMaxAcceleration,
+              preferredMotorVehicle: _preferredMotorVehicle,
+            );
+
+        _activeRoutePoints.add(TripPoint(
+          latitude: position.latitude,
+          longitude: position.longitude,
+          timestamp: now,
+          speed: position.speed,
+        ));
+
+        _activeTrip = _activeTrip!.copyWith(
+          distanceMeters: _activeTripDistance,
+          transportMode: detectedMode,
+          routePoints: List.from(_activeRoutePoints),
+        );
+
+        _statusMessage = 'In spostamento (${_activeTrip!.formattedDistance})';
+      } else {
+        // Stationary check outside registered places
+        final now = DateTime.now();
+        if (_lastMovementTimestamp != null &&
+            now.difference(_lastMovementTimestamp!).inMinutes >= 7 &&
+            _activeTripDistance >= 80.0) {
+          await _finalizeOngoingTripToIntermediateSpot(position);
+        }
+      }
+    } else {
+      _lastTripPointPosition = position;
+      _lastMovementTimestamp = DateTime.now();
+    }
   }
 
   Future<void> _finalizeOngoingTripToIntermediateSpot(Position position) async {
@@ -645,6 +720,7 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
     _activeTripMaxSpeedKmH = 0.0;
     _activeTripMaxAcceleration = 0.0;
     _activeTripManualMode = null;
+    _activeTripMaxDistanceFromOrigin = 0.0;
     _statusMessage = 'Sosta fuori zona';
     _applyAdaptiveTrackingSettings();
     notifyListeners();
@@ -687,6 +763,7 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
     _activeTripMaxSpeedKmH = 0.0;
     _activeTripMaxAcceleration = 0.0;
     _activeTripManualMode = null;
+    _activeTripMaxDistanceFromOrigin = 0.0;
     _statusMessage = 'Tragitto completato';
     _applyAdaptiveTrackingSettings();
     notifyListeners();
@@ -729,6 +806,7 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
     _activeTripMaxSpeedKmH = spdKmH;
     _activeTripMaxAcceleration = 0.0;
     _activeTripManualMode = null;
+    _activeTripMaxDistanceFromOrigin = 0.0;
 
     final initialMode = inferTransportMode(
       avgSpeedKmH: spdKmH,
@@ -797,6 +875,7 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
         _activeTripMaxSpeedKmH = spdKmH;
         _activeTripMaxAcceleration = 0.0;
         _activeTripManualMode = null;
+        _activeTripMaxDistanceFromOrigin = 0.0;
 
         final initialMode = inferTransportMode(
           avgSpeedKmH: spdKmH,
