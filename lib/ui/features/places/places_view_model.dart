@@ -49,6 +49,7 @@ class PlacesViewModel extends ChangeNotifier {
 
   Future<void> updatePlace(Place place) async {
     await _placeRepository.updatePlace(place);
+    _trackingEngine.onPlaceUpdated(place);
     await loadPlaces();
     await _trackingEngine.checkCurrentLocation();
   }

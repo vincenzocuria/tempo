@@ -33,7 +33,18 @@ class LocationService {
     return bgStatus.isGranted;
   }
 
-  Future<Position?> getCurrentPosition() async {
+  Future<Position?> getLastKnownPosition() async {
+    try {
+      return await Geolocator.getLastKnownPosition();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<Position?> getCurrentPosition({
+    LocationAccuracy accuracy = LocationAccuracy.high,
+    Duration timeLimit = const Duration(seconds: 5),
+  }) async {
     try {
       final serviceEnabled = await isLocationServiceEnabled();
       if (!serviceEnabled) {
@@ -50,9 +61,9 @@ class LocationService {
 
       try {
         final pos = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.high,
-            timeLimit: Duration(seconds: 5),
+          locationSettings: LocationSettings(
+            accuracy: accuracy,
+            timeLimit: timeLimit,
           ),
         );
         return pos;

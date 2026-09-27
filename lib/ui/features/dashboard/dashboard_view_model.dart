@@ -45,18 +45,22 @@ class DashboardViewModel extends ChangeNotifier {
   String? _lastPlaceId;
   String? _lastVisitId;
   String? _lastTripId;
+  int _lastPlacesVersion = 0;
 
   void _onTrackingEngineUpdated() async {
     final currentPlaceId = _trackingEngine.currentPlace?.id;
     final currentVisitId = _trackingEngine.activeVisit?.id;
     final currentTripId = _trackingEngine.activeTrip?.id;
+    final currentPlacesVersion = _trackingEngine.placesVersion;
 
     if (currentPlaceId != _lastPlaceId ||
         currentVisitId != _lastVisitId ||
-        currentTripId != _lastTripId) {
+        currentTripId != _lastTripId ||
+        currentPlacesVersion != _lastPlacesVersion) {
       _lastPlaceId = currentPlaceId;
       _lastVisitId = currentVisitId;
       _lastTripId = currentTripId;
+      _lastPlacesVersion = currentPlacesVersion;
       _todayVisits = await _visitRepository.getTodayVisits();
       _todayTrips = await _tripRepository.getTodayTrips();
     }

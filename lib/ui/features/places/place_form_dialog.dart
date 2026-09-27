@@ -9,7 +9,9 @@ import '../../../data/repositories/category_repository.dart';
 import '../../../data/services/location_service.dart';
 import '../../../data/services/tracking_engine.dart';
 import '../../core/app_colors.dart';
+import '../analytics/analytics_view_model.dart';
 import '../categories/categories_view.dart';
+import '../dashboard/dashboard_view_model.dart';
 import 'places_view_model.dart';
 
 class PlaceFormDialog extends StatefulWidget {
@@ -148,14 +150,18 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
     }
   }
 
-  void _savePlace() {
+  void _savePlace() async {
     if (!_formKey.currentState!.validate()) return;
 
     final vm = Provider.of<PlacesViewModel>(context, listen: false);
+    final dashboardVm = Provider.of<DashboardViewModel>(context, listen: false);
+    final analyticsVm = Provider.of<AnalyticsViewModel>(context, listen: false);
+
+    final placeName = _nameController.text.trim();
 
     if (widget.placeToEdit != null) {
       final updated = widget.placeToEdit!.copyWith(
-        name: _nameController.text.trim(),
+        name: placeName,
         category: _selectedCategory,
         latitude: _selectedPoint.latitude,
         longitude: _selectedPoint.longitude,
@@ -164,10 +170,12 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
         notifyOnEntry: _notifyOnEntry,
         notifyOnExit: _notifyOnExit,
       );
-      vm.updatePlace(updated);
+      await vm.updatePlace(updated);
+      await dashboardVm.loadData();
+      await analyticsVm.loadAnalytics();
     } else {
       final newPlace = Place(
-        name: _nameController.text.trim(),
+        name: placeName,
         category: _selectedCategory,
         latitude: _selectedPoint.latitude,
         longitude: _selectedPoint.longitude,
@@ -176,11 +184,11 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
         notifyOnEntry: _notifyOnEntry,
         notifyOnExit: _notifyOnExit,
       );
-      vm.addPlace(newPlace);
+      await vm.addPlace(newPlace);
     }
 
+    if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
-    final placeName = _nameController.text.trim();
     HapticFeedback.mediumImpact();
     Navigator.pop(context);
     messenger.showSnackBar(

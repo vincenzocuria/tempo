@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../../../../data/models/trip.dart';
 import '../../../../data/models/visit_session.dart';
 import '../../../core/app_colors.dart';
+import '../../trips/day_timeline_view.dart';
 
 abstract class TimelineItem {
   DateTime get time;
@@ -83,17 +85,42 @@ class RecentVisitsList extends StatelessWidget {
               ],
             ),
             if (displayItems.isNotEmpty)
-              TextButton.icon(
-                style: TextButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                ),
-                onPressed: onViewAllTap,
-                icon: const Icon(Icons.arrow_forward_rounded, size: 14),
-                label: const Text(
-                  'Cronologia',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    ),
+                    onPressed: () {
+                      HapticFeedback.selectionClick();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const DayTimelineView(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.timeline_rounded, size: 14),
+                    label: const Text(
+                      'Timeline',
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                    ),
+                  ),
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    ),
+                    onPressed: onViewAllTap,
+                    icon: const Icon(Icons.arrow_forward_rounded, size: 14),
+                    label: const Text(
+                      'Cronologia',
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                    ),
+                  ),
+                ],
               ),
           ],
         ),

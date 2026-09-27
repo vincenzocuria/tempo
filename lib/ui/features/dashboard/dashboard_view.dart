@@ -13,6 +13,7 @@ import 'widgets/habit_suggestion_card.dart';
 import 'widgets/live_status_card.dart';
 import 'widgets/recent_visits_list.dart';
 import 'widgets/today_summary_row.dart';
+import '../trips/day_timeline_view.dart';
 
 class DashboardView extends StatelessWidget {
   final VoidCallback onNavigateToHistory;
@@ -529,6 +530,15 @@ class DashboardView extends StatelessWidget {
                 tripCount: viewModel.todayTrips.length,
                 formattedDistance: viewModel.formattedTotalDistanceToday,
                 formattedTripDuration: viewModel.formattedTotalTripDurationToday,
+                onTapTrips: () {
+                  HapticFeedback.selectionClick();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const DayTimelineView(),
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 20),
 
@@ -566,7 +576,115 @@ class DashboardView extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 26),
+              const SizedBox(height: 20),
+
+              // "La mia giornata" Google Maps Timeline Banner
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: isDark
+                        ? [const Color(0xFF0C2138), const Color(0xFF1E293B)]
+                        : [const Color(0xFFE0F2FE), const Color(0xFFF8FAFC)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF1E3A8A) : const Color(0xFFBAE6FD),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const DayTimelineView(),
+                        ),
+                      );
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0EA5E9).withValues(alpha: 0.18),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.timeline_rounded,
+                              color: Color(0xFF0EA5E9),
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      'La mia giornata',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w800,
+                                        color: textPrimary,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF0EA5E9).withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Text(
+                                        'TIMELINE',
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w800,
+                                          color: Color(0xFF0EA5E9),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Guarda spostamenti e soste su mappa e in elenco stile Google Maps',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: textMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            size: 14,
+                            color: Color(0xFF0EA5E9),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
 
               // Recent Activity Feed (Visits & Trips)
               RecentVisitsList(

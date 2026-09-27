@@ -8,6 +8,7 @@ class TodaySummaryRow extends StatelessWidget {
   final int tripCount;
   final String formattedDistance;
   final String formattedTripDuration;
+  final VoidCallback? onTapTrips;
 
   const TodaySummaryRow({
     super.key,
@@ -17,6 +18,7 @@ class TodaySummaryRow extends StatelessWidget {
     this.tripCount = 0,
     this.formattedDistance = '0 m',
     this.formattedTripDuration = '0m',
+    this.onTapTrips,
   });
 
   @override
@@ -56,77 +58,116 @@ class TodaySummaryRow extends StatelessWidget {
         ),
         if (tripCount > 0) ...[
           const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              color: cardBg,
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: isDark ? AppColors.darkBorder : const Color(0xFFBAE6FD),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.16 : 0.03),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0EA5E9).withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
+              onTap: onTapTrips,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: cardBg,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isDark ? AppColors.darkBorder : const Color(0xFFBAE6FD),
                   ),
-                  child: const Icon(
-                    Icons.route_rounded,
-                    color: Color(0xFF0EA5E9),
-                    size: 22,
-                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.16 : 0.03),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'SPOSTAMENTI DI OGGI',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.9,
-                          color: textMuted,
-                        ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0EA5E9).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      const SizedBox(height: 2),
-                      Row(
+                      child: const Icon(
+                        Icons.route_rounded,
+                        color: Color(0xFF0EA5E9),
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            formattedDistance,
+                            'SPOSTAMENTI DI OGGI',
                             style: TextStyle(
-                              fontSize: 16,
+                              fontSize: 10,
                               fontWeight: FontWeight.w800,
-                              color: textPrimary,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '• $tripCount ${tripCount == 1 ? 'tragitto' : 'tragitti'} ($formattedTripDuration)',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.9,
                               color: textMuted,
                             ),
                           ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Text(
+                                formattedDistance,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: textPrimary,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  '• $tripCount ${tripCount == 1 ? 'tragitto' : 'tragitti'} ($formattedTripDuration)',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: textMuted,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
+                    ),
+                    if (onTapTrips != null) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0EA5E9).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Mappa',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0EA5E9),
+                              ),
+                            ),
+                            SizedBox(width: 2),
+                            Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              size: 10,
+                              color: Color(0xFF0EA5E9),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ],

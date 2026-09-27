@@ -213,26 +213,6 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
     _showExportPreview('Esportazione JSON', json);
   }
 
-  void _seedDemo() async {
-    final visitRepo = Provider.of<VisitRepository>(context, listen: false);
-    final dashboardVm = Provider.of<DashboardViewModel>(context, listen: false);
-    final placesVm = Provider.of<PlacesViewModel>(context, listen: false);
-    final analyticsVm = Provider.of<AnalyticsViewModel>(context, listen: false);
-
-    await visitRepo.seedDemoData();
-    await dashboardVm.loadData();
-    await placesVm.loadPlaces();
-    await analyticsVm.loadAnalytics();
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Dati demo aggiunti con successo! Dashboard, Luoghi e Statistiche aggiornati.'),
-          backgroundColor: AppColors.success,
-        ),
-      );
-    }
-  }
 
   void _confirmClearData() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -759,14 +739,7 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
                     );
                   },
                 ),
-                Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
-                ListTile(
-                  leading: const Icon(Icons.auto_fix_high_rounded, color: AppColors.warning),
-                  title: Text('Carica Dati Demo', style: TextStyle(fontWeight: FontWeight.w600, color: textPrimary)),
-                  subtitle: Text('Popola 5 giorni con Ufficio, Casa Principale e Seconda Casa', style: TextStyle(color: textMuted, fontSize: 13)),
-                  trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
-                  onTap: _seedDemo,
-                ),
+
               ],
             ),
           ),

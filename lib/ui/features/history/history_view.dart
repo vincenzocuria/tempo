@@ -1,6 +1,9 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:intl/intl.dart';
+import 'package:latlong2/latlong.dart' hide Path;
 import 'package:provider/provider.dart';
 import '../../../data/models/trip.dart';
 import '../../../data/models/visit_session.dart';
@@ -8,6 +11,7 @@ import '../../../data/repositories/trip_repository.dart';
 import '../../../data/repositories/visit_repository.dart';
 import '../../../data/services/tracking_engine.dart';
 import '../../core/app_colors.dart';
+import '../places/places_view_model.dart';
 import '../trips/transport_mode_picker.dart';
 import 'manual_visit_dialog.dart';
 
@@ -50,10 +54,35 @@ class _HistoryViewState extends State<HistoryView> {
   String _searchQuery = '';
   HistoryFilter _filter = HistoryFilter.tutto;
 
+  PlacesViewModel? _placesVm;
+
   @override
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final newVm = Provider.of<PlacesViewModel>(context);
+    if (_placesVm != newVm) {
+      _placesVm?.removeListener(_onPlacesChanged);
+      _placesVm = newVm;
+      _placesVm?.addListener(_onPlacesChanged);
+    }
+  }
+
+  void _onPlacesChanged() {
+    if (mounted) {
+      _loadData();
+    }
+  }
+
+  @override
+  void dispose() {
+    _placesVm?.removeListener(_onPlacesChanged);
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -84,6 +113,300 @@ class _HistoryViewState extends State<HistoryView> {
     await repo.deleteTrip(id);
     if (!mounted) return;
     _loadData();
+  }
+
+  void _showTripRouteModal(Trip trip) {
+    HapticFeedback.selectionClick();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+    final tripColor = TransportMode.getColor(trip.transportMode);
+    final tripIcon = TransportMode.getIcon(trip.transportMode);
+
+    final timeFormat = DateFormat('HH:mm');
+    final startStr = timeFormat.format(trip.startTime);
+    final endStr = trip.endTime != null ? timeFormat.format(trip.endTime!) : 'In corso';
+    final dateStr = DateFormat('EEEE d MMMM yyyy', 'it_IT').format(trip.startTime);
+
+    final points = trip.latLngPoints;
+
+    LatLng center = const LatLng(41.9028, 12.4964);
+    double zoom = 14.0;
+
+    if (points.isNotEmpty) {
+      double minLat = points.first.latitude;
+      double maxLat = points.first.latitude;
+      double minLng = points.first.longitude;
+      double maxLng = points.first.longitude;
+
+      for (final p in points) {
+        minLat = min(minLat, p.latitude);
+        maxLat = max(maxLat, p.latitude);
+        minLng = min(minLng, p.longitude);
+        maxLng = max(maxLng, p.longitude);
+      }
+
+      center = LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
+      final maxSpan = max(maxLat - minLat, maxLng - minLng);
+      if (maxSpan > 1.0) {
+        zoom = 8.5;
+      } else if (maxSpan > 0.4) {
+        zoom = 10.0;
+      } else if (maxSpan > 0.15) {
+        zoom = 11.5;
+      } else if (maxSpan > 0.05) {
+        zoom = 13.0;
+      } else if (maxSpan > 0.02) {
+        zoom = 14.2;
+      } else {
+        zoom = 15.2;
+      }
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
+              blurRadius: 28,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  width: 44,
+                  height: 4.5,
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: tripColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(tripIcon, color: tripColor, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${trip.originPlaceName} ➔ ${trip.destinationPlaceName ?? "In corso"}',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          '$dateStr • $startStr - $endStr',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: textMuted,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Stats
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    Column(
+                      children: [
+                        Text('Distanza', style: TextStyle(fontSize: 11, color: textMuted)),
+                        const SizedBox(height: 2),
+                        Text(trip.formattedDistance, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: textPrimary)),
+                      ],
+                    ),
+                    Container(width: 1, height: 28, color: borderColor),
+                    Column(
+                      children: [
+                        Text('Durata', style: TextStyle(fontSize: 11, color: textMuted)),
+                        const SizedBox(height: 2),
+                        Text(trip.formattedDuration, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: textPrimary)),
+                      ],
+                    ),
+                    Container(width: 1, height: 28, color: borderColor),
+                    Column(
+                      children: [
+                        Text('Velocità Media', style: TextStyle(fontSize: 11, color: textMuted)),
+                        const SizedBox(height: 2),
+                        Text('${trip.averageSpeedKmH.toStringAsFixed(1)} km/h', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: textPrimary)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              // Map Preview
+              ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: SizedBox(
+                  height: 240,
+                  width: double.infinity,
+                  child: points.length >= 2
+                      ? FlutterMap(
+                          options: MapOptions(
+                            initialCenter: center,
+                            initialZoom: zoom,
+                            interactionOptions: const InteractionOptions(
+                              flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                            ),
+                          ),
+                          children: [
+                            TileLayer(
+                              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                              userAgentPackageName: 'com.tempo.app.tempo',
+                              maxZoom: 19,
+                              tileBuilder: isDark ? darkModeTileBuilder : null,
+                            ),
+                            PolylineLayer(
+                              polylines: [
+                                Polyline(
+                                  points: points,
+                                  color: tripColor,
+                                  strokeWidth: 5.5,
+                                  borderColor: Colors.white,
+                                  borderStrokeWidth: 2.0,
+                                ),
+                              ],
+                            ),
+                            MarkerLayer(
+                              markers: [
+                                Marker(
+                                  point: points.first,
+                                  width: 28,
+                                  height: 28,
+                                  alignment: Alignment.center,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF10B981),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: Colors.white, width: 2),
+                                      boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                                    ),
+                                    child: const Icon(Icons.trip_origin_rounded, color: Colors.white, size: 14),
+                                  ),
+                                ),
+                                Marker(
+                                  point: points.last,
+                                  width: 32,
+                                  height: 32,
+                                  alignment: Alignment.topCenter,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFEF4444),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: Colors.white, width: 2),
+                                      boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                                    ),
+                                    child: const Icon(Icons.location_on_rounded, color: Colors.white, size: 16),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        )
+                      : Container(
+                          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                          alignment: Alignment.center,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.location_off_rounded, size: 36, color: textMuted),
+                              const SizedBox(height: 8),
+                              Text('Nessun punto GPS registrato per questo tragitto', style: TextStyle(color: textMuted, fontSize: 13)),
+                            ],
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        side: BorderSide(color: borderColor),
+                      ),
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        final newMode = await TransportModePicker.show(
+                          context,
+                          currentMode: trip.transportMode,
+                        );
+                        if (newMode != null && newMode != trip.transportMode && mounted) {
+                          final engine = Provider.of<TrackingEngine>(context, listen: false);
+                          await engine.updateTripTransportMode(trip, newMode);
+                          _loadData();
+                        }
+                      },
+                      icon: const Icon(Icons.directions_rounded, size: 16),
+                      label: Text('Cambia Mezzo (${trip.transportMode})'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: tripColor,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    ),
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Chiudi', style: TextStyle(fontWeight: FontWeight.w800)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   String _formatItalianDayHeader(DateTime dt) {
@@ -471,7 +794,8 @@ class _HistoryViewState extends State<HistoryView> {
                                           borderRadius: BorderRadius.circular(20),
                                           child: InkWell(
                                             borderRadius: BorderRadius.circular(20),
-                                            onTap: () async {
+                                            onTap: () => _showTripRouteModal(t),
+                                            onLongPress: () async {
                                               HapticFeedback.selectionClick();
                                               final newMode = await TransportModePicker.show(
                                                 context,

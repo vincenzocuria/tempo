@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import '../models/app_notification.dart';
@@ -23,7 +24,7 @@ class DatabaseService {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
-    return await openDatabase(
+    final db = await openDatabase(
       path,
       version: 5,
       onCreate: _createDB,
@@ -42,6 +43,52 @@ class DatabaseService {
         }
       },
     );
+    await _syncPlaceNamesInDb(db);
+    return db;
+  }
+
+  static Future<void> _syncPlaceNamesInDb(Database db) async {
+    try {
+      final places = await db.query('places');
+      for (final p in places) {
+        final id = p['id'] as String;
+        final name = p['name'] as String;
+        final category = p['category'] as String?;
+
+        final visitUpdates = <String, dynamic>{'placeName': name};
+        if (category != null) {
+          visitUpdates['category'] = category;
+        }
+
+        await db.update(
+          'visit_sessions',
+          visitUpdates,
+          where: 'placeId = ?',
+          whereArgs: [id],
+        );
+
+        await db.update(
+          'trips',
+          {'originPlaceName': name},
+          where: 'originPlaceId = ?',
+          whereArgs: [id],
+        );
+
+        await db.update(
+          'trips',
+          {'destinationPlaceName': name},
+          where: 'destinationPlaceId = ?',
+          whereArgs: [id],
+        );
+      }
+    } catch (e) {
+      debugPrint('Error syncing place names in history: $e');
+    }
+  }
+
+  Future<void> syncPlaceNamesInHistory() async {
+    final db = await database;
+    await _syncPlaceNamesInDb(db);
   }
 
   static Future<void> _createCategoriesTable(Database db) async {
@@ -187,12 +234,66 @@ class DatabaseService {
 
   Future<int> updatePlace(Place place) async {
     final db = await database;
-    return await db.update(
+    final existing = await getPlaceById(place.id);
+    final oldName = existing?.name;
+
+    final res = await db.update(
       'places',
       place.toMap(),
       where: 'id = ?',
       whereArgs: [place.id],
     );
+
+    final visitUpdateData = <String, dynamic>{
+      'placeName': place.name,
+      'category': place.category.name,
+    };
+
+    if (oldName != null && oldName.isNotEmpty && oldName != place.name) {
+      await db.update(
+        'visit_sessions',
+        visitUpdateData,
+        where: 'placeId = ? OR placeName = ?',
+        whereArgs: [place.id, oldName],
+      );
+
+      await db.update(
+        'trips',
+        {'originPlaceName': place.name},
+        where: 'originPlaceId = ? OR originPlaceName = ?',
+        whereArgs: [place.id, oldName],
+      );
+
+      await db.update(
+        'trips',
+        {'destinationPlaceName': place.name},
+        where: 'destinationPlaceId = ? OR destinationPlaceName = ?',
+        whereArgs: [place.id, oldName],
+      );
+    } else {
+      await db.update(
+        'visit_sessions',
+        visitUpdateData,
+        where: 'placeId = ?',
+        whereArgs: [place.id],
+      );
+
+      await db.update(
+        'trips',
+        {'originPlaceName': place.name},
+        where: 'originPlaceId = ?',
+        whereArgs: [place.id],
+      );
+
+      await db.update(
+        'trips',
+        {'destinationPlaceName': place.name},
+        where: 'destinationPlaceId = ?',
+        whereArgs: [place.id],
+      );
+    }
+
+    return res;
   }
 
   Future<int> deletePlace(String id) async {

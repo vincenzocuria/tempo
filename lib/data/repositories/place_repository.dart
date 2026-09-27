@@ -26,4 +26,8 @@ class PlaceRepository {
   Future<void> deletePlace(String id) async {
     await _dbService.deletePlace(id);
   }
+
+  Future<void> syncPlaceNamesInHistory() async {
+    await _dbService.syncPlaceNamesInHistory();
+  }
 }

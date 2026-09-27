@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/place.dart';
@@ -12,7 +12,7 @@ import 'habit_detection_service.dart';
 import 'location_service.dart';
 import 'notification_service.dart';
 
-class TrackingEngine extends ChangeNotifier {
+class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
   final PlaceRepository _placeRepository;
   final VisitRepository _visitRepository;
   final TripRepository _tripRepository;
@@ -24,6 +24,12 @@ class TrackingEngine extends ChangeNotifier {
   Timer? _tickerTimer;
   Timer? _periodicCheckTimer;
 
+  int _activeDistanceFilter = 15;
+  int get activeDistanceFilter => _activeDistanceFilter;
+
+  LocationAccuracy _activeAccuracy = LocationAccuracy.high;
+  LocationAccuracy get activeAccuracy => _activeAccuracy;
+
   bool _isTrackingEnabled = true;
   bool get isTrackingEnabled => _isTrackingEnabled;
 
@@ -32,6 +38,9 @@ class TrackingEngine extends ChangeNotifier {
 
   String _preferredMotorVehicle = TransportMode.auto;
   String get preferredMotorVehicle => _preferredMotorVehicle;
+
+  int _placesVersion = 0;
+  int get placesVersion => _placesVersion;
 
   double _activeTripMaxSpeedKmH = 0.0;
   double _activeTripMaxAcceleration = 0.0;
@@ -118,15 +127,37 @@ class TrackingEngine extends ChangeNotifier {
       }
     }
 
-    // Start timer for live counter updates (for ongoing visit and ongoing trip)
+    // Register lifecycle observer for foreground-only ticker and power management
+    try {
+      WidgetsBinding.instance.addObserver(this);
+    } catch (_) {}
+
+    _startTicker();
+
+    if (_isTrackingEnabled) {
+      await startMonitoring();
+    }
+  }
+
+  void _startTicker() {
+    _tickerTimer?.cancel();
     _tickerTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_activeVisit != null || _activeTrip != null) {
         notifyListeners();
       }
     });
+  }
 
-    if (_isTrackingEnabled) {
-      await startMonitoring();
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      // Pause 1-second ticker when app is in background to save CPU and battery
+      _tickerTimer?.cancel();
+      _tickerTimer = null;
+    } else if (state == AppLifecycleState.resumed) {
+      // Resume ticker in foreground
+      _startTicker();
+      notifyListeners();
     }
   }
 
@@ -215,12 +246,62 @@ class TrackingEngine extends ChangeNotifier {
     // Check location right away
     await checkCurrentLocation();
 
-    // Listen to GPS stream for movement (responsive 15-meter threshold)
+    // Determine initial adaptive profile and start stream
+    _applyAdaptiveTrackingSettings(forceRestart: true);
+
+    // Battery-optimized watchdog timer: check every 10 minutes instead of every 150 seconds
+    _periodicCheckTimer = Timer.periodic(const Duration(minutes: 10), (_) async {
+      final now = DateTime.now();
+      // If we haven't received movement in 10 minutes, verify health without hammering GNSS hardware
+      if (_lastMovementTimestamp == null || now.difference(_lastMovementTimestamp!).inMinutes >= 10) {
+        final lastKnown = await _locationService.getLastKnownPosition();
+        if (lastKnown != null && now.difference(lastKnown.timestamp).inMinutes < 10) {
+          await _processNewPosition(lastKnown);
+        } else {
+          await checkCurrentLocation(
+            accuracy: _currentPlace != null ? LocationAccuracy.medium : LocationAccuracy.high,
+          );
+        }
+      }
+    });
+  }
+
+  void _applyAdaptiveTrackingSettings({bool forceRestart = false}) {
+    if (!_isTrackingEnabled) return;
+
+    int targetFilter;
+    LocationAccuracy targetAccuracy;
+
+    if (_currentPlace != null) {
+      // Stationary inside a known place: conserve battery!
+      // Relax filter to 35m-70m and switch to medium accuracy (Wi-Fi/Cell assisted, low GNSS power)
+      targetFilter = (_currentPlace!.radiusInMeters * 0.4).clamp(35.0, 70.0).round();
+      targetAccuracy = LocationAccuracy.medium;
+    } else if (_activeTrip != null) {
+      // Active travel: high precision tracking
+      targetFilter = 15;
+      targetAccuracy = LocationAccuracy.high;
+    } else {
+      // Outside known place, scanning for entrance/departure
+      targetFilter = 25;
+      targetAccuracy = LocationAccuracy.high;
+    }
+
+    if (forceRestart || targetFilter != _activeDistanceFilter || targetAccuracy != _activeAccuracy) {
+      _activeDistanceFilter = targetFilter;
+      _activeAccuracy = targetAccuracy;
+      _restartLocationStream();
+    }
+  }
+
+  void _restartLocationStream() {
+    if (!_isTrackingEnabled) return;
+    _positionSubscription?.cancel();
     try {
       _positionSubscription = _locationService
           .getPositionStream(
-            distanceFilterMeters: 15,
-            accuracy: LocationAccuracy.high,
+            distanceFilterMeters: _activeDistanceFilter,
+            accuracy: _activeAccuracy,
           )
           .listen(
             (position) => _processNewPosition(position),
@@ -231,13 +312,8 @@ class TrackingEngine extends ChangeNotifier {
             },
           );
     } catch (e) {
-      debugPrint('Error starting position stream: $e');
+      debugPrint('Error restarting position stream: $e');
     }
-
-    // Backup periodic check every 2.5 minutes
-    _periodicCheckTimer = Timer.periodic(const Duration(seconds: 150), (_) {
-      checkCurrentLocation();
-    });
   }
 
   Future<void> stopMonitoring() async {
@@ -247,13 +323,13 @@ class TrackingEngine extends ChangeNotifier {
     _periodicCheckTimer = null;
   }
 
-  Future<void> checkCurrentLocation() async {
+  Future<void> checkCurrentLocation({LocationAccuracy accuracy = LocationAccuracy.high}) async {
     if (_isChecking) return;
     _isChecking = true;
     notifyListeners();
 
     try {
-      final pos = await _locationService.getCurrentPosition();
+      final pos = await _locationService.getCurrentPosition(accuracy: accuracy);
       if (pos != null) {
         await _processNewPosition(pos);
       }
@@ -384,6 +460,7 @@ class TrackingEngine extends ChangeNotifier {
         _currentPlace = matchedPlace;
         _activeVisit = await _visitRepository.startVisit(matchedPlace);
         _statusMessage = 'Sei a ${matchedPlace.name}';
+        _applyAdaptiveTrackingSettings();
       } else {
         // User is still within their current place: walking inside house or office!
         // No trip is recorded, no notifications are triggered.
@@ -448,6 +525,7 @@ class TrackingEngine extends ChangeNotifier {
         _currentPlace = null;
         _activeVisit = null;
         _statusMessage = 'In spostamento da ${leftPlace.name}';
+        _applyAdaptiveTrackingSettings();
       } else if (_activeTrip != null) {
         // USER IS CURRENTLY TRAVELING ON AN ACTIVE TRIP
         if (_lastTripPointPosition != null) {
@@ -568,6 +646,7 @@ class TrackingEngine extends ChangeNotifier {
     _activeTripMaxAcceleration = 0.0;
     _activeTripManualMode = null;
     _statusMessage = 'Sosta fuori zona';
+    _applyAdaptiveTrackingSettings();
     notifyListeners();
   }
 
@@ -609,6 +688,7 @@ class TrackingEngine extends ChangeNotifier {
     _activeTripMaxAcceleration = 0.0;
     _activeTripManualMode = null;
     _statusMessage = 'Tragitto completato';
+    _applyAdaptiveTrackingSettings();
     notifyListeners();
   }
 
@@ -667,6 +747,7 @@ class TrackingEngine extends ChangeNotifier {
     );
 
     _statusMessage = 'Tragitto avviato';
+    _applyAdaptiveTrackingSettings();
     notifyListeners();
   }
 
@@ -686,6 +767,7 @@ class TrackingEngine extends ChangeNotifier {
     _currentPlace = place;
     _activeVisit = await _visitRepository.startVisit(place);
     _statusMessage = 'Check-in manuale a ${place.name}';
+    _applyAdaptiveTrackingSettings();
     notifyListeners();
   }
 
@@ -735,12 +817,38 @@ class TrackingEngine extends ChangeNotifier {
       } else {
         _statusMessage = 'Check-out completato';
       }
+      _applyAdaptiveTrackingSettings();
       notifyListeners();
     }
   }
 
+  /// Synchronizes active state when a place is renamed or its configuration is edited
+  void onPlaceUpdated(Place place) {
+    _placesVersion++;
+    if (_currentPlace?.id == place.id) {
+      _currentPlace = place;
+      _statusMessage = 'All\'interno di ${place.name}';
+    }
+    if (_activeVisit?.placeId == place.id) {
+      _activeVisit = _activeVisit!.copyWith(
+        placeName: place.name,
+        category: place.category,
+      );
+    }
+    if (_activeTrip?.originPlaceId == place.id) {
+      _activeTrip = _activeTrip!.copyWith(originPlaceName: place.name);
+    }
+    if (_activeTrip?.destinationPlaceId == place.id) {
+      _activeTrip = _activeTrip!.copyWith(destinationPlaceName: place.name);
+    }
+    notifyListeners();
+  }
+
   @override
   void dispose() {
+    try {
+      WidgetsBinding.instance.removeObserver(this);
+    } catch (_) {}
     _tickerTimer?.cancel();
     _periodicCheckTimer?.cancel();
     _positionSubscription?.cancel();

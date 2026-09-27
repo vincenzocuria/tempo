@@ -198,6 +198,8 @@ class AnalyticsViewModel extends ChangeNotifier {
   List<VisitSession> _recentFilteredVisits = [];
   List<VisitSession> get recentFilteredVisits => _recentFilteredVisits;
 
+  int _lastPlacesVersion = 0;
+
   AnalyticsViewModel({
     required VisitRepository visitRepository,
     TripRepository? tripRepository,
@@ -205,7 +207,16 @@ class AnalyticsViewModel extends ChangeNotifier {
   })  : _visitRepository = visitRepository,
         _tripRepository = tripRepository,
         _trackingEngine = trackingEngine {
+    _trackingEngine?.addListener(_onTrackingEngineUpdated);
     loadAnalytics();
+  }
+
+  void _onTrackingEngineUpdated() {
+    final currentPlacesVersion = _trackingEngine?.placesVersion ?? 0;
+    if (currentPlacesVersion != _lastPlacesVersion) {
+      _lastPlacesVersion = currentPlacesVersion;
+      loadAnalytics();
+    }
   }
 
   void setFilter(AnalyticsTimeFilter filter) {
@@ -620,4 +631,10 @@ class AnalyticsViewModel extends ChangeNotifier {
   }
 
   int get placesVisitedCount => _durationByPlace.keys.length;
+
+  @override
+  void dispose() {
+    _trackingEngine?.removeListener(_onTrackingEngineUpdated);
+    super.dispose();
+  }
 }

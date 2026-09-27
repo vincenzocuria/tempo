@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:tempo/data/models/app_notification.dart';
 import 'package:tempo/data/models/habit_suggestion.dart';
 import 'package:tempo/data/models/place.dart';
@@ -512,6 +513,102 @@ void main() {
       expect(motoBurst, TransportMode.moto);
     });
 
+    test('TrackingEngine onPlaceUpdated synchronizes place name and category across active trip and place references', () async {
+      final engine = TrackingEngine(
+        placeRepository: PlaceRepository(),
+        visitRepository: VisitRepository(),
+        tripRepository: TripRepository(),
+      );
+
+      final homePlace = Place(
+        id: 'place-home',
+        name: 'Casa Vecchia',
+        category: PlaceCategory.casa,
+        latitude: 45.45,
+        longitude: 9.18,
+      );
+
+      // Start a manual trip from homePlace
+      await engine.startManualTrip(originName: homePlace.name);
+      expect(engine.activeTrip, isNotNull);
+      expect(engine.activeTrip!.originPlaceName, 'Casa Vecchia');
+
+      // Test onPlaceUpdated updates placesVersion
+      final initialVersion = engine.placesVersion;
+      final renamedHome = homePlace.copyWith(name: 'Casa Nuova', category: PlaceCategory.secondaCasa);
+      engine.onPlaceUpdated(renamedHome);
+      expect(engine.placesVersion, initialVersion + 1);
+
+      // Verify Trip model destination and origin updating
+      final tripWithDest = engine.activeTrip!.copyWith(
+        originPlaceId: homePlace.id,
+        destinationPlaceId: 'place-work',
+        destinationPlaceName: 'Ufficio Vecchio',
+      );
+      expect(tripWithDest.originPlaceName, 'Casa Vecchia');
+      expect(tripWithDest.destinationPlaceName, 'Ufficio Vecchio');
+
+      final renamedTrip = tripWithDest.copyWith(
+        originPlaceName: renamedHome.name,
+        destinationPlaceName: 'Ufficio Nuovo',
+      );
+      expect(renamedTrip.originPlaceName, 'Casa Nuova');
+      expect(renamedTrip.destinationPlaceName, 'Ufficio Nuovo');
+
+      // Verify VisitSession model renaming
+      final visit = VisitSession(
+        placeId: 'place-home',
+        placeName: 'Casa Vecchia',
+        category: PlaceCategory.casa,
+        startTime: DateTime.now().subtract(const Duration(hours: 1)),
+        endTime: DateTime.now(),
+      );
+      expect(visit.placeName, 'Casa Vecchia');
+      final renamedVisit = visit.copyWith(
+        placeName: 'Casa Nuova',
+        category: PlaceCategory.secondaCasa,
+      );
+      expect(renamedVisit.placeName, 'Casa Nuova');
+      expect(renamedVisit.category, PlaceCategory.secondaCasa);
+    });
+
+    test('TrackingEngine adaptive profile conserves battery inside places and scales up during trips', () async {
+      final fakeVisitRepo = _FakeBatteryVisitRepository();
+      final fakeTripRepo = _FakeBatteryTripRepository();
+
+      final engine = TrackingEngine(
+        placeRepository: PlaceRepository(),
+        visitRepository: fakeVisitRepo,
+        tripRepository: fakeTripRepo,
+      );
+
+      final office = Place(
+        id: 'place-office',
+        name: 'Ufficio',
+        category: PlaceCategory.lavoro,
+        latitude: 45.46,
+        longitude: 9.19,
+        radiusInMeters: 100,
+      );
+
+      // Check-in inside place: switches to battery-conserving profile (medium accuracy, relaxed distance filter)
+      await engine.manualCheckIn(office);
+      expect(engine.currentPlace, isNotNull);
+      expect(engine.activeAccuracy, LocationAccuracy.medium);
+      expect(engine.activeDistanceFilter, greaterThanOrEqualTo(35));
+
+      // Check-out: transitions back to high accuracy
+      await engine.manualCheckOut();
+      expect(engine.currentPlace, isNull);
+      expect(engine.activeAccuracy, LocationAccuracy.high);
+
+      // Lifecycle pause / resume
+      engine.didChangeAppLifecycleState(AppLifecycleState.paused);
+      engine.didChangeAppLifecycleState(AppLifecycleState.resumed);
+
+      engine.dispose();
+    });
+
     testWidgets('OnboardingView renders initial slide with privacy badge and skip button', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
@@ -526,5 +623,38 @@ void main() {
       expect(find.text('Il tuo tempo nei luoghi che contano'), findsOneWidget);
     });
   });
+}
+
+class _FakeBatteryVisitRepository extends VisitRepository {
+  VisitSession? _active;
+
+  @override
+  Future<VisitSession?> getActiveVisit() async => _active;
+
+  @override
+  Future<VisitSession> startVisit(Place place, {DateTime? startTime}) async {
+    _active = VisitSession(
+      placeId: place.id,
+      placeName: place.name,
+      category: place.category,
+      startTime: startTime ?? DateTime.now(),
+    );
+    return _active!;
+  }
+
+  @override
+  Future<VisitSession?> endActiveVisit({DateTime? endTime}) async {
+    final v = _active;
+    _active = null;
+    return v;
+  }
+}
+
+class _FakeBatteryTripRepository extends TripRepository {
+  @override
+  Future<void> insertTrip(Trip trip) async {}
+
+  @override
+  Future<Trip?> getActiveTrip() async => null;
 }
 
