@@ -75,6 +75,8 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
 
   AnimationController? _cameraAnimController;
 
+  DateTime? _lastLiveRefresh;
+
   @override
   void initState() {
     super.initState();
@@ -83,6 +85,23 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
         ? DateTime(widget.initialDate!.year, widget.initialDate!.month, widget.initialDate!.day)
         : DateTime(now.year, now.month, now.day);
     _loadDayData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        try {
+          Provider.of<TrackingEngine>(context, listen: false).addListener(_onTrackingEngineUpdated);
+        } catch (_) {}
+      }
+    });
+  }
+
+  void _onTrackingEngineUpdated() {
+    if (!mounted || !_isToday) return;
+    final now = DateTime.now();
+    if (_lastLiveRefresh != null && now.difference(_lastLiveRefresh!).inSeconds < 3) {
+      return;
+    }
+    _lastLiveRefresh = now;
+    _loadDayData(silent: true);
   }
 
   bool get _isToday {
@@ -92,8 +111,10 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
         _selectedDate.day == now.day;
   }
 
-  Future<void> _loadDayData() async {
-    setState(() => _isLoading = true);
+  Future<void> _loadDayData({bool silent = false}) async {
+    if (!silent) {
+      setState(() => _isLoading = true);
+    }
 
     final placeRepo = Provider.of<PlaceRepository>(context, listen: false);
     final visitRepo = Provider.of<VisitRepository>(context, listen: false);
@@ -118,11 +139,13 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
     // If viewing today, also incorporate active visit or active trip if running
     if (_isToday) {
       final activeVisit = trackingEngine.activeVisit;
-      if (activeVisit != null && !visits.any((v) => v.id == activeVisit.id)) {
+      if (activeVisit != null) {
+        visits.removeWhere((v) => v.id == activeVisit.id);
         visits.add(activeVisit);
       }
       final activeTrip = trackingEngine.activeTrip;
-      if (activeTrip != null && !trips.any((t) => t.id == activeTrip.id)) {
+      if (activeTrip != null) {
+        trips.removeWhere((t) => t.id == activeTrip.id);
         trips.add(activeTrip.copyWith(
           routePoints: trackingEngine.activeRoutePoints,
           distanceMeters: trackingEngine.activeTripDistance,
@@ -181,17 +204,29 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
       _totalDistanceMeters = distSum;
       _totalMovingDurationSeconds = movingSec;
       _totalStationaryDurationSeconds = statSec;
-      _selectedItem = initialSelect;
+      if (!silent || _selectedItem == null) {
+        _selectedItem = initialSelect;
+      } else if (_selectedItem != null) {
+        if (_selectedItem is Trip) {
+          final updated = trips.where((t) => t.id == (_selectedItem as Trip).id).firstOrNull;
+          if (updated != null) _selectedItem = updated;
+        } else if (_selectedItem is VisitSession) {
+          final updated = visits.where((v) => v.id == (_selectedItem as VisitSession).id).firstOrNull;
+          if (updated != null) _selectedItem = updated;
+        }
+      }
       _isLoading = false;
     });
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (initialSelect != null && initialSelect is Trip) {
-        _focusTrip(initialSelect);
-      } else {
-        _fitWholeDay();
-      }
-    });
+    if (!silent) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (initialSelect != null && initialSelect is Trip) {
+          _focusTrip(initialSelect);
+        } else {
+          _fitWholeDay();
+        }
+      });
+    }
   }
 
   void _previousDay() {
@@ -414,6 +449,9 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
 
   @override
   void dispose() {
+    try {
+      Provider.of<TrackingEngine>(context, listen: false).removeListener(_onTrackingEngineUpdated);
+    } catch (_) {}
     _cameraAnimController?.dispose();
     super.dispose();
   }

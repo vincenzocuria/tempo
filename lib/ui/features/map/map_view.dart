@@ -396,7 +396,17 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
   Future<void> _loadTrips() async {
     try {
       final tripRepo = Provider.of<TripRepository>(context, listen: false);
+      final trackingEngine = Provider.of<TrackingEngine>(context, listen: false);
       final allTrips = await tripRepo.getTrips();
+
+      final activeTrip = trackingEngine.activeTrip;
+      if (activeTrip != null) {
+        allTrips.removeWhere((t) => t.id == activeTrip.id);
+        allTrips.add(activeTrip.copyWith(
+          routePoints: trackingEngine.activeRoutePoints,
+          distanceMeters: trackingEngine.activeTripDistance,
+        ));
+      }
 
       final now = DateTime.now();
       final todayStart = DateTime(now.year, now.month, now.day);
@@ -1404,6 +1414,9 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
     if (_showTripsOnMap) {
       // 1. Filtered trips for chosen period/date
       for (final trip in _filteredTrips) {
+        if (trip.id == trackingEngine.activeTrip?.id || trip.isOngoing) {
+          continue; // Handled by live activeTrip polyline below
+        }
         if (trip.routePoints.length >= 2) {
           final isSelected = _selectedTrip?.id == trip.id;
           final tripColor = TransportMode.getColor(trip.transportMode);
@@ -1461,6 +1474,9 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
     // Origin start pin & arrival pins for displayed trips
     if (_showTripsOnMap) {
       for (final trip in _filteredTrips) {
+        if (trip.id == trackingEngine.activeTrip?.id || trip.isOngoing) {
+          continue;
+        }
         if (trip.latLngPoints.isNotEmpty && (_filteredTrips.length <= 15 || _selectedTrip?.id == trip.id)) {
           final isSelected = _selectedTrip?.id == trip.id;
           final tripColor = TransportMode.getColor(trip.transportMode);
