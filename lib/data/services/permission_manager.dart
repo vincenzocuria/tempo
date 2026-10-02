@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../repositories/place_repository.dart';
+import 'native_geofence_service.dart';
 
 class PermissionStatusState {
   final bool locationGranted;
@@ -59,7 +61,10 @@ class PermissionManager {
 
     // Attempt background request
     final bgStatus = await Permission.locationAlways.request();
-    if (bgStatus.isGranted) return true;
+    if (bgStatus.isGranted) {
+      await _syncGeofencesIfGranted();
+      return true;
+    }
 
     // On Android 11+ and Samsung OneUI, background permission requires manual selection in Settings
     if (context.mounted) {
@@ -104,7 +109,22 @@ class PermissionManager {
     }
 
     final recheck = await Permission.locationAlways.status;
+    if (recheck.isGranted) {
+      await _syncGeofencesIfGranted();
+    }
     return recheck.isGranted;
+  }
+
+  Future<void> _syncGeofencesIfGranted() async {
+    try {
+      final status = await Permission.locationAlways.status;
+      if (status.isGranted) {
+        final places = await PlaceRepository().getAllPlaces();
+        await NativeGeofenceService.instance.syncAllPlaces(places);
+      }
+    } catch (e) {
+      debugPrint('Error syncing geofences after permission granted: $e');
+    }
   }
 
   /// Request notification permission

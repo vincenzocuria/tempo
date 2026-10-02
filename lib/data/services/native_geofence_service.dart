@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:native_geofence/native_geofence.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:uuid/uuid.dart';
 import '../models/place.dart';
 import '../models/visit_session.dart';
@@ -105,6 +106,11 @@ class NativeGeofenceService {
   Future<void> initialize() async {
     if (_isInitialized) return;
     try {
+      final bgPermission = await Permission.locationAlways.status;
+      if (!bgPermission.isGranted) {
+        debugPrint('[NativeGeofence] Background location permission not granted. Skipping initialization.');
+        return;
+      }
       await NativeGeofenceManager.instance.initialize();
       try {
         await NativeGeofenceManager.instance.reCreateAfterReboot();
@@ -117,8 +123,15 @@ class NativeGeofenceService {
   }
 
   Future<void> syncAllPlaces(List<Place> places) async {
-    if (!_isInitialized) await initialize();
     try {
+      final bgPermission = await Permission.locationAlways.status;
+      if (!bgPermission.isGranted) {
+        debugPrint('[NativeGeofence] Background location not granted, skipping sync.');
+        return;
+      }
+      if (!_isInitialized) await initialize();
+      if (!_isInitialized) return;
+
       await NativeGeofenceManager.instance.removeAllGeofences();
 
       for (final place in places) {
@@ -133,13 +146,20 @@ class NativeGeofenceService {
   }
 
   Future<void> registerPlace(Place place) async {
-    if (!_isInitialized) await initialize();
-    if (!place.isTrackingEnabled) {
-      await removePlace(place.id);
-      return;
-    }
-
     try {
+      final bgPermission = await Permission.locationAlways.status;
+      if (!bgPermission.isGranted) {
+        debugPrint('[NativeGeofence] Background location not granted, cannot register place ${place.name}.');
+        return;
+      }
+      if (!_isInitialized) await initialize();
+      if (!_isInitialized) return;
+
+      if (!place.isTrackingEnabled) {
+        await removePlace(place.id);
+        return;
+      }
+
       final geofence = Geofence(
         id: place.id,
         location: Location(latitude: place.latitude, longitude: place.longitude),
@@ -173,3 +193,4 @@ class NativeGeofenceService {
     }
   }
 }
+

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -73,9 +74,14 @@ void main() async {
   // Initialize native OS geofencing and sync places with OS subsystem asynchronously
   unawaited(() async {
     try {
-      await NativeGeofenceService.instance.initialize();
-      final allPlaces = await placeRepo.getAllPlaces();
-      await NativeGeofenceService.instance.syncAllPlaces(allPlaces);
+      final status = await Permission.locationAlways.status;
+      if (status.isGranted) {
+        await NativeGeofenceService.instance.initialize();
+        final allPlaces = await placeRepo.getAllPlaces();
+        await NativeGeofenceService.instance.syncAllPlaces(allPlaces);
+      } else {
+        debugPrint('[NativeGeofence] Startup sync skipped: locationAlways not granted yet.');
+      }
     } catch (e) {
       debugPrint('Native geofence initialization error: $e');
     }

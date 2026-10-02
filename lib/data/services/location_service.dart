@@ -44,6 +44,7 @@ class LocationService {
   Future<Position?> getCurrentPosition({
     LocationAccuracy accuracy = LocationAccuracy.high,
     Duration timeLimit = const Duration(seconds: 5),
+    bool requestIfNeeded = false,
   }) async {
     try {
       final serviceEnabled = await isLocationServiceEnabled();
@@ -52,12 +53,14 @@ class LocationService {
       }
 
       LocationPermission permission = await checkLocationPermission();
-      if (permission == LocationPermission.denied) {
+      if (permission == LocationPermission.denied && requestIfNeeded) {
         permission = await requestLocationPermission();
         if (permission == LocationPermission.denied) return null;
       }
 
-      if (permission == LocationPermission.deniedForever) return null;
+      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+        return null;
+      }
 
       try {
         final pos = await Geolocator.getCurrentPosition(
