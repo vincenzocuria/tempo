@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -94,10 +95,39 @@ class LocationService {
     int distanceFilterMeters = 30,
     LocationAccuracy accuracy = LocationAccuracy.medium,
   }) {
-    final locationSettings = LocationSettings(
-      accuracy: accuracy,
-      distanceFilter: distanceFilterMeters,
-    );
+    LocationSettings locationSettings;
+
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      locationSettings = AndroidSettings(
+        accuracy: accuracy,
+        distanceFilter: distanceFilterMeters,
+        intervalDuration: const Duration(seconds: 10),
+        foregroundNotificationConfig: const ForegroundNotificationConfig(
+          notificationTitle: 'Tempo attivo',
+          notificationText: 'Monitoraggio luoghi e tragitti in background',
+          notificationChannelName: 'Servizio di Localizzazione Tempo',
+          enableWakeLock: true,
+          setOngoing: true,
+          color: const Color(0xFF6366F1),
+        ),
+      );
+    } else if (defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.macOS) {
+      locationSettings = AppleSettings(
+        accuracy: accuracy,
+        distanceFilter: distanceFilterMeters,
+        activityType: ActivityType.fitness,
+        pauseLocationUpdatesAutomatically: false,
+        showBackgroundLocationIndicator: true,
+        allowBackgroundLocationUpdates: true,
+      );
+    } else {
+      locationSettings = LocationSettings(
+        accuracy: accuracy,
+        distanceFilter: distanceFilterMeters,
+      );
+    }
+
     return Geolocator.getPositionStream(locationSettings: locationSettings);
   }
 }

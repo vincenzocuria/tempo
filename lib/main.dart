@@ -8,6 +8,7 @@ import 'data/repositories/place_repository.dart';
 import 'data/repositories/trip_repository.dart';
 import 'data/repositories/visit_repository.dart';
 import 'data/services/database_service.dart';
+import 'data/services/native_geofence_service.dart';
 import 'data/services/notification_service.dart';
 import 'data/services/permission_manager.dart';
 import 'data/services/tracking_engine.dart';
@@ -42,6 +43,15 @@ void main() async {
   final tripRepo = TripRepository();
   final categoryRepo = CategoryRepository();
   await categoryRepo.initialize();
+
+  // Initialize native OS geofencing and sync places with OS subsystem
+  try {
+    await NativeGeofenceService.instance.initialize();
+    final allPlaces = await placeRepo.getAllPlaces();
+    await NativeGeofenceService.instance.syncAllPlaces(allPlaces);
+  } catch (e) {
+    debugPrint('Native geofence initialization error: $e');
+  }
 
   // Tracking Engine
   final trackingEngine = TrackingEngine(

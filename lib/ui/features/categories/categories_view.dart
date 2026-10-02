@@ -451,6 +451,7 @@ class _CategoryFormSheetState extends State<_CategoryFormSheet> {
   late TextEditingController _nameController;
   late IconData _selectedIcon;
   late Color _selectedColor;
+  bool _isSaving = false;
 
   static const List<IconData> _availableIcons = [
     Icons.star_rounded,
@@ -526,37 +527,52 @@ class _CategoryFormSheetState extends State<_CategoryFormSheet> {
   }
 
   void _save() async {
+    if (_isSaving) return;
     if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSaving = true);
 
     final catRepo = Provider.of<CategoryRepository>(context, listen: false);
     final name = _nameController.text.trim();
 
-    if (widget.categoryToEdit != null) {
-      final updated = widget.categoryToEdit!.copyWith(
-        displayName: name,
-        icon: _selectedIcon,
-        defaultColor: _selectedColor,
-      );
-      await catRepo.updateCategory(updated);
-    } else {
-      await catRepo.addCategory(
-        displayName: name,
-        icon: _selectedIcon,
-        color: _selectedColor,
-      );
-    }
+    try {
+      if (widget.categoryToEdit != null) {
+        final updated = widget.categoryToEdit!.copyWith(
+          displayName: name,
+          icon: _selectedIcon,
+          defaultColor: _selectedColor,
+        );
+        await catRepo.updateCategory(updated);
+      } else {
+        await catRepo.addCategory(
+          displayName: name,
+          icon: _selectedIcon,
+          color: _selectedColor,
+        );
+      }
 
-    HapticFeedback.mediumImpact();
-    widget.onSaved();
+      HapticFeedback.mediumImpact();
+      widget.onSaved();
 
-    if (mounted) {
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Categoria "$name" salvata con successo!'),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Categoria "$name" salvata con successo!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Errore nel salvataggio: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
     }
   }
 
@@ -834,10 +850,18 @@ class _CategoryFormSheetState extends State<_CategoryFormSheet> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           elevation: 2,
                         ),
-                        onPressed: _save,
-                        icon: const Icon(Icons.check_circle_rounded, size: 20),
+                        onPressed: _isSaving ? null : _save,
+                        icon: _isSaving
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Icon(Icons.check_circle_rounded, size: 20),
                         label: Text(
-                          isEditing ? 'Salva Modifiche' : 'Crea Categoria',
+                          _isSaving
+                              ? 'Salvataggio...'
+                              : (isEditing ? 'Salva Modifiche' : 'Crea Categoria'),
                           style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
                         ),
                       ),

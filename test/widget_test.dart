@@ -15,6 +15,7 @@ import 'package:tempo/data/services/export_service.dart';
 import 'package:tempo/data/services/tracking_engine.dart';
 import 'package:tempo/ui/features/analytics/analytics_view_model.dart';
 import 'package:tempo/ui/features/onboarding/onboarding_view.dart';
+import 'package:tempo/ui/features/places/places_view_model.dart';
 
 void main() {
   group('Tempo Domain Models Unit Tests', () {
@@ -605,6 +606,41 @@ void main() {
       // Lifecycle pause / resume
       engine.didChangeAppLifecycleState(AppLifecycleState.paused);
       engine.didChangeAppLifecycleState(AppLifecycleState.resumed);
+
+      engine.dispose();
+    });
+
+    test('TrackingEngine onPlaceDeleted cleans up currentPlace and terminates active visit', () async {
+      final fakeVisitRepo = _FakeBatteryVisitRepository();
+      final fakeTripRepo = _FakeBatteryTripRepository();
+
+      final engine = TrackingEngine(
+        placeRepository: PlaceRepository(),
+        visitRepository: fakeVisitRepo,
+        tripRepository: fakeTripRepo,
+      );
+
+      final office = Place(
+        id: 'place-to-delete',
+        name: 'Ufficio Vecchio',
+        category: PlaceCategory.lavoro,
+        latitude: 45.46,
+        longitude: 9.19,
+        radiusInMeters: 100,
+      );
+
+      await engine.manualCheckIn(office);
+      expect(engine.currentPlace, isNotNull);
+      expect(engine.currentPlace!.id, 'place-to-delete');
+      expect(engine.activeVisit, isNotNull);
+
+      // Delete the place
+      engine.onPlaceDeleted('place-to-delete');
+
+      // State must be completely cleared
+      expect(engine.currentPlace, isNull);
+      expect(engine.activeVisit, isNull);
+      expect(engine.statusMessage, 'Fuori dai luoghi registrati');
 
       engine.dispose();
     });

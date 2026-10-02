@@ -69,8 +69,8 @@ class _SplashViewState extends State<SplashView> with TickerProviderStateMixin {
 
     _mainController.forward();
 
-    // Auto navigate after animation
-    Future.delayed(const Duration(milliseconds: 1850), () {
+    // Auto navigate quickly once intro completes
+    Future.delayed(const Duration(milliseconds: 950), () {
       _proceedToApp();
     });
   }

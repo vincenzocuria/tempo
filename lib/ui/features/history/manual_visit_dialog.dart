@@ -35,6 +35,7 @@ class _ManualVisitDialogState extends State<ManualVisitDialog> {
   TimeOfDay _endTime = const TimeOfDay(hour: 17, minute: 30);
   final _notesController = TextEditingController();
   bool _isLoading = true;
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -92,6 +93,7 @@ class _ManualVisitDialogState extends State<ManualVisitDialog> {
   }
 
   void _save() async {
+    if (_isSaving) return;
     if (_selectedPlace == null) return;
 
     final start = DateTime(
@@ -116,30 +118,44 @@ class _ManualVisitDialogState extends State<ManualVisitDialog> {
       return;
     }
 
-    final repo = Provider.of<VisitRepository>(context, listen: false);
-    final visit = VisitSession(
-      placeId: _selectedPlace!.id,
-      placeName: _selectedPlace!.name,
-      category: _selectedPlace!.category,
-      startTime: start,
-      endTime: end,
-      durationSeconds: end.difference(start).inSeconds,
-      isManual: true,
-      notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
-    );
+    setState(() => _isSaving = true);
 
-    await repo.addManualVisit(visit);
-    HapticFeedback.mediumImpact();
-    if (mounted) {
-      final messenger = ScaffoldMessenger.of(context);
-      Navigator.pop(context);
-      widget.onVisitAdded();
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Visita a "${_selectedPlace!.name}" aggiunta alla cronologia!'),
-          backgroundColor: AppColors.success,
-        ),
+    try {
+      final repo = Provider.of<VisitRepository>(context, listen: false);
+      final visit = VisitSession(
+        placeId: _selectedPlace!.id,
+        placeName: _selectedPlace!.name,
+        category: _selectedPlace!.category,
+        startTime: start,
+        endTime: end,
+        durationSeconds: end.difference(start).inSeconds,
+        isManual: true,
+        notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
       );
+
+      await repo.addManualVisit(visit);
+      HapticFeedback.mediumImpact();
+      if (mounted) {
+        final messenger = ScaffoldMessenger.of(context);
+        Navigator.pop(context);
+        widget.onVisitAdded();
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Visita a "${_selectedPlace!.name}" aggiunta alla cronologia!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Errore durante il salvataggio: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
     }
   }
 
@@ -473,8 +489,14 @@ class _ManualVisitDialogState extends State<ManualVisitDialog> {
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                                       elevation: 2,
                                     ),
-                                    onPressed: _save,
-                                    child: const Text('Salva Sessione', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                                    onPressed: _isSaving ? null : _save,
+                                    child: _isSaving
+                                        ? const SizedBox(
+                                            width: 20,
+                                            height: 20,
+                                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                          )
+                                        : const Text('Salva Sessione', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
                                   ),
                                 ),
                               ],

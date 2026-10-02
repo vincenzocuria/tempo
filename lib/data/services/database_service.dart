@@ -43,7 +43,6 @@ class DatabaseService {
         }
       },
     );
-    await _syncPlaceNamesInDb(db);
     return db;
   }
 

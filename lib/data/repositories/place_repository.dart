@@ -1,5 +1,6 @@
 import '../models/place.dart';
 import '../services/database_service.dart';
+import '../services/native_geofence_service.dart';
 
 class PlaceRepository {
   final DatabaseService _dbService;
@@ -17,14 +18,17 @@ class PlaceRepository {
 
   Future<void> savePlace(Place place) async {
     await _dbService.insertPlace(place);
+    await NativeGeofenceService.instance.registerPlace(place);
   }
 
   Future<void> updatePlace(Place place) async {
     await _dbService.updatePlace(place);
+    await NativeGeofenceService.instance.registerPlace(place);
   }
 
   Future<void> deletePlace(String id) async {
     await _dbService.deletePlace(id);
+    await NativeGeofenceService.instance.removePlace(id);
   }
 
   Future<void> syncPlaceNamesInHistory() async {

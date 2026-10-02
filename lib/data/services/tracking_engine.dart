@@ -23,6 +23,7 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
   StreamSubscription<Position>? _positionSubscription;
   Timer? _tickerTimer;
   Timer? _periodicCheckTimer;
+  bool _isDisposed = false;
 
   int _activeDistanceFilter = 15;
   int get activeDistanceFilter => _activeDistanceFilter;
@@ -170,9 +171,31 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
       _tickerTimer?.cancel();
       _tickerTimer = null;
     } else if (state == AppLifecycleState.resumed) {
-      // Resume ticker in foreground
+      // Resume ticker in foreground and sync state if native geofence triggered while away
       _startTicker();
+      reloadActiveStateFromDb();
       notifyListeners();
+    }
+  }
+
+  Future<void> reloadActiveStateFromDb() async {
+    try {
+      final active = await _visitRepository.getActiveVisit();
+      if (_isDisposed) return;
+      _activeVisit = active;
+      if (_activeVisit != null) {
+        _currentPlace = await _placeRepository.getPlaceById(_activeVisit!.placeId);
+      } else {
+        _currentPlace = null;
+      }
+      final trip = await _tripRepository.getActiveTrip();
+      if (_isDisposed) return;
+      _activeTrip = trip;
+      if (!_isDisposed) {
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error reloading active state from db: $e');
     }
   }
 
@@ -258,8 +281,8 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
     await _positionSubscription?.cancel();
     _periodicCheckTimer?.cancel();
 
-    // Check location right away
-    await checkCurrentLocation();
+    // Check location right away asynchronously so startup and UI are never blocked
+    unawaited(checkCurrentLocation());
 
     // Determine initial adaptive profile and start stream
     _applyAdaptiveTrackingSettings(forceRestart: true);
@@ -1057,11 +1080,36 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  /// Cleans up state when a place is deleted
+  void onPlaceDeleted(String placeId) {
+    _placesVersion++;
+    if (_currentPlace?.id == placeId) {
+      _currentPlace = null;
+      if (_activeVisit != null && _activeVisit!.placeId == placeId) {
+        _visitRepository.endActiveVisit();
+        _activeVisit = null;
+      }
+      _statusMessage = 'Fuori dai luoghi registrati';
+      _applyAdaptiveTrackingSettings();
+    }
+    if (_activeTrip?.originPlaceId == placeId) {
+      _activeTrip = _activeTrip!.copyWith(originPlaceId: null);
+    }
+    if (_activeTrip?.destinationPlaceId == placeId) {
+      _activeTrip = _activeTrip!.copyWith(
+        destinationPlaceId: null,
+        destinationPlaceName: 'In spostamento',
+      );
+    }
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     try {
       WidgetsBinding.instance.removeObserver(this);
     } catch (_) {}
+    _isDisposed = true;
     _tickerTimer?.cancel();
     _periodicCheckTimer?.cancel();
     _positionSubscription?.cancel();

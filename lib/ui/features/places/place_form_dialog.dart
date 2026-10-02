@@ -59,6 +59,7 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
 
   late LatLng _selectedPoint;
   bool _isFetchingGps = false;
+  bool _isSaving = false;
 
   final List<Color> _colorOptions = const [
     Color(0xFF6366F1), // Indigo
@@ -151,7 +152,10 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
   }
 
   void _savePlace() async {
+    if (_isSaving) return;
     if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSaving = true);
 
     final vm = Provider.of<PlacesViewModel>(context, listen: false);
     final dashboardVm = Provider.of<DashboardViewModel>(context, listen: false);
@@ -159,44 +163,56 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
 
     final placeName = _nameController.text.trim();
 
-    if (widget.placeToEdit != null) {
-      final updated = widget.placeToEdit!.copyWith(
-        name: placeName,
-        category: _selectedCategory,
-        latitude: _selectedPoint.latitude,
-        longitude: _selectedPoint.longitude,
-        radiusInMeters: _radiusInMeters,
-        colorValue: _selectedColor.toARGB32(),
-        notifyOnEntry: _notifyOnEntry,
-        notifyOnExit: _notifyOnExit,
-      );
-      await vm.updatePlace(updated);
-      await dashboardVm.loadData();
-      await analyticsVm.loadAnalytics();
-    } else {
-      final newPlace = Place(
-        name: placeName,
-        category: _selectedCategory,
-        latitude: _selectedPoint.latitude,
-        longitude: _selectedPoint.longitude,
-        radiusInMeters: _radiusInMeters,
-        colorValue: _selectedColor.toARGB32(),
-        notifyOnEntry: _notifyOnEntry,
-        notifyOnExit: _notifyOnExit,
-      );
-      await vm.addPlace(newPlace);
-    }
+    try {
+      if (widget.placeToEdit != null) {
+        final updated = widget.placeToEdit!.copyWith(
+          name: placeName,
+          category: _selectedCategory,
+          latitude: _selectedPoint.latitude,
+          longitude: _selectedPoint.longitude,
+          radiusInMeters: _radiusInMeters,
+          colorValue: _selectedColor.toARGB32(),
+          notifyOnEntry: _notifyOnEntry,
+          notifyOnExit: _notifyOnExit,
+        );
+        await vm.updatePlace(updated);
+        dashboardVm.loadData();
+        analyticsVm.loadAnalytics();
+      } else {
+        final newPlace = Place(
+          name: placeName,
+          category: _selectedCategory,
+          latitude: _selectedPoint.latitude,
+          longitude: _selectedPoint.longitude,
+          radiusInMeters: _radiusInMeters,
+          colorValue: _selectedColor.toARGB32(),
+          notifyOnEntry: _notifyOnEntry,
+          notifyOnExit: _notifyOnExit,
+        );
+        await vm.addPlace(newPlace);
+      }
 
-    if (!mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    HapticFeedback.mediumImpact();
-    Navigator.pop(context);
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text('Luogo "$placeName" salvato con successo!'),
-        backgroundColor: AppColors.success,
-      ),
-    );
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      HapticFeedback.mediumImpact();
+      Navigator.pop(context);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Luogo "$placeName" salvato con successo!'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Errore durante il salvataggio: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -832,11 +848,20 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
                               ),
                               elevation: 2,
                             ),
-                            onPressed: _savePlace,
-                            child: Text(
-                              isEditing ? 'Aggiorna Luogo' : 'Salva Luogo',
-                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
-                            ),
+                            onPressed: _isSaving ? null : _savePlace,
+                            child: _isSaving
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : Text(
+                                    isEditing ? 'Aggiorna Luogo' : 'Salva Luogo',
+                                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                                  ),
                           ),
                         ),
                       ],
