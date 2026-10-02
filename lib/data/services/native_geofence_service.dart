@@ -15,10 +15,6 @@ Future<void> tempoGeofenceCallback(GeofenceCallbackParams params) async {
   debugPrint('[NativeGeofence] Triggered: ${params.event.name} for ${params.geofences.length} geofence(s)');
 
   try {
-    await NativeGeofenceBackgroundManager.instance.promoteToForeground();
-  } catch (_) {}
-
-  try {
     final dbService = DatabaseService.instance;
     final notifService = NotificationService.instance;
 
@@ -97,10 +93,6 @@ Future<void> tempoGeofenceCallback(GeofenceCallbackParams params) async {
     }
   } catch (e, stack) {
     debugPrint('[NativeGeofence] Callback error: $e\n$stack');
-  } finally {
-    try {
-      await NativeGeofenceBackgroundManager.instance.demoteToBackground();
-    } catch (_) {}
   }
 }
 

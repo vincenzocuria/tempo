@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -44,15 +45,6 @@ void main() async {
   final categoryRepo = CategoryRepository();
   await categoryRepo.initialize();
 
-  // Initialize native OS geofencing and sync places with OS subsystem
-  try {
-    await NativeGeofenceService.instance.initialize();
-    final allPlaces = await placeRepo.getAllPlaces();
-    await NativeGeofenceService.instance.syncAllPlaces(allPlaces);
-  } catch (e) {
-    debugPrint('Native geofence initialization error: $e');
-  }
-
   // Tracking Engine
   final trackingEngine = TrackingEngine(
     placeRepository: placeRepo,
@@ -77,6 +69,17 @@ void main() async {
       hasCompletedOnboarding: hasCompletedOnboarding,
     ),
   );
+
+  // Initialize native OS geofencing and sync places with OS subsystem asynchronously
+  unawaited(() async {
+    try {
+      await NativeGeofenceService.instance.initialize();
+      final allPlaces = await placeRepo.getAllPlaces();
+      await NativeGeofenceService.instance.syncAllPlaces(allPlaces);
+    } catch (e) {
+      debugPrint('Native geofence initialization error: $e');
+    }
+  }());
 }
 
 class TempoApp extends StatefulWidget {

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -101,15 +100,7 @@ class LocationService {
       locationSettings = AndroidSettings(
         accuracy: accuracy,
         distanceFilter: distanceFilterMeters,
-        intervalDuration: const Duration(seconds: 10),
-        foregroundNotificationConfig: const ForegroundNotificationConfig(
-          notificationTitle: 'Tempo attivo',
-          notificationText: 'Monitoraggio luoghi e tragitti in background',
-          notificationChannelName: 'Servizio di Localizzazione Tempo',
-          enableWakeLock: true,
-          setOngoing: true,
-          color: const Color(0xFF6366F1),
-        ),
+        intervalDuration: const Duration(seconds: 15),
       );
     } else if (defaultTargetPlatform == TargetPlatform.iOS ||
         defaultTargetPlatform == TargetPlatform.macOS) {
@@ -118,8 +109,6 @@ class LocationService {
         distanceFilter: distanceFilterMeters,
         activityType: ActivityType.fitness,
         pauseLocationUpdatesAutomatically: false,
-        showBackgroundLocationIndicator: true,
-        allowBackgroundLocationUpdates: true,
       );
     } else {
       locationSettings = LocationSettings(
