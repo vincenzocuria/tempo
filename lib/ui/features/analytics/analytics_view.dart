@@ -1,8 +1,10 @@
 import 'dart:math';
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+
 import '../../../data/models/place_category.dart';
 import '../../../data/models/trip.dart';
 import '../../../data/services/tracking_engine.dart';
@@ -38,15 +40,21 @@ class _AnalyticsViewState extends State<AnalyticsView> {
     if (places.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Aggiungi prima un luogo nella scheda "Luoghi" per fare il check-in.'),
+          content: Text(
+            'Aggiungi prima un luogo nella scheda "Luoghi" per fare il check-in.',
+          ),
         ),
       );
       return;
     }
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
-    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
+    final textMuted = isDark
+        ? AppColors.textDarkMuted
+        : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
@@ -80,7 +88,9 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                       width: 44,
                       height: 4.5,
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+                        color: isDark
+                            ? const Color(0xFF475569)
+                            : const Color(0xFFCBD5E1),
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -98,7 +108,9 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                       ),
                       IconButton(
                         style: IconButton.styleFrom(
-                          backgroundColor: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                          backgroundColor: isDark
+                              ? AppColors.darkSurfaceElevated
+                              : AppColors.lightSurfaceElevated,
                           padding: const EdgeInsets.all(6),
                         ),
                         icon: const Icon(Icons.close_rounded, size: 20),
@@ -122,14 +134,19 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                       separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (context, idx) {
                         final place = places[idx];
-                        final isCurrent = trackingEngine.currentPlace?.id == place.id;
+                        final isCurrent =
+                            trackingEngine.currentPlace?.id == place.id;
 
                         return Container(
                           decoration: BoxDecoration(
-                            color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                            color: isDark
+                                ? AppColors.darkSurfaceElevated
+                                : AppColors.lightSurfaceElevated,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: isCurrent ? AppColors.primary : borderColor,
+                              color: isCurrent
+                                  ? AppColors.primary
+                                  : borderColor,
                               width: isCurrent ? 2.0 : 1.0,
                             ),
                           ),
@@ -142,32 +159,56 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                                   color: place.color.withValues(alpha: 0.2),
                                   shape: BoxShape.circle,
                                 ),
-                                child: Icon(place.icon, color: place.color, size: 20),
+                                child: Icon(
+                                  place.icon,
+                                  color: place.color,
+                                  size: 20,
+                                ),
                               ),
                               title: Text(
                                 place.name,
-                                style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: textPrimary,
+                                ),
                               ),
                               subtitle: Text(
                                 place.category.displayName,
-                                style: TextStyle(fontSize: 12, color: textMuted),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: textMuted,
+                                ),
                               ),
                               trailing: isCurrent
                                   ? const Chip(
-                                      label: Text('SEI QUI', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900)),
+                                      label: Text(
+                                        'SEI QUI',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
                                       backgroundColor: AppColors.primary,
-                                      labelStyle: TextStyle(color: Colors.white),
+                                      labelStyle: TextStyle(
+                                        color: Colors.white,
+                                      ),
                                       padding: EdgeInsets.zero,
                                       visualDensity: VisualDensity.compact,
                                     )
-                                  : const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                                  : const Icon(
+                                      Icons.arrow_forward_ios_rounded,
+                                      size: 14,
+                                    ),
                               onTap: isCurrent
                                   ? null
                                   : () async {
                                       Navigator.pop(ctx);
                                       await trackingEngine.manualCheckIn(place);
                                       if (context.mounted) {
-                                        Provider.of<AnalyticsViewModel>(context, listen: false).loadAnalytics();
+                                        Provider.of<AnalyticsViewModel>(
+                                          context,
+                                          listen: false,
+                                        ).loadAnalytics();
                                       }
                                     },
                             ),
@@ -190,12 +231,17 @@ class _AnalyticsViewState extends State<AnalyticsView> {
     final viewModel = Provider.of<AnalyticsViewModel>(context);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
-    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
+    final textMuted = isDark
+        ? AppColors.textDarkMuted
+        : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
-    final hasAnyData = viewModel.totalDurationSeconds > 0 || viewModel.totalTripsCount > 0;
+    final hasAnyData =
+        viewModel.totalDurationSeconds > 0 || viewModel.totalTripsCount > 0;
 
     return Scaffold(
       appBar: AppBar(
@@ -228,13 +274,17 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                       selected: isSelected,
                       label: Text(f.displayName),
                       selectedColor: AppColors.primary,
-                      backgroundColor: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                      backgroundColor: isDark
+                          ? AppColors.darkSurfaceElevated
+                          : AppColors.lightSurfaceElevated,
                       side: BorderSide(
                         color: isSelected ? AppColors.primary : borderColor,
                       ),
                       labelStyle: TextStyle(
                         color: isSelected ? Colors.white : textPrimary,
-                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                        fontWeight: isSelected
+                            ? FontWeight.w800
+                            : FontWeight.w600,
                       ),
                       onSelected: (_) => viewModel.setFilter(f),
                     ),
@@ -249,12 +299,14 @@ class _AnalyticsViewState extends State<AnalyticsView> {
               children: [
                 Icon(Icons.calendar_today_rounded, size: 13, color: textMuted),
                 const SizedBox(width: 6),
-                Text(
-                  viewModel.filterDateRangeLabel,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: textMuted,
+                Expanded(
+                  child: Text(
+                    viewModel.filterDateRangeLabel,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: textMuted,
+                    ),
                   ),
                 ),
               ],
@@ -266,15 +318,21 @@ class _AnalyticsViewState extends State<AnalyticsView> {
             // =========================================================
             Row(
               children: [
-                const Icon(Icons.psychology_alt_rounded, size: 18, color: AppColors.primary),
+                const Icon(
+                  Icons.psychology_alt_rounded,
+                  size: 18,
+                  color: AppColors.primary,
+                ),
                 const SizedBox(width: 8),
-                Text(
-                  'IL TUO TEMPO IN SINTESI',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.1,
-                    color: textMuted,
+                Expanded(
+                  child: Text(
+                    'IL TUO TEMPO IN SINTESI',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.1,
+                      color: textMuted,
+                    ),
                   ),
                 ),
               ],
@@ -286,25 +344,30 @@ class _AnalyticsViewState extends State<AnalyticsView> {
               children: [
                 // 1. IN AUTO / MOTO
                 Expanded(
-                  child: (viewModel.motoStats.tripCount > 0 && viewModel.carStats.tripCount == 0)
+                  child:
+                      (viewModel.motoStats.tripCount > 0 &&
+                          viewModel.carStats.tripCount == 0)
                       ? _AnswerMetricCard(
                           title: 'IN MOTO / SCOOTER',
                           value: viewModel.motoStats.formattedDistance,
                           highlightSub: viewModel.motoStats.formattedDuration,
-                          detail: '${viewModel.motoStats.tripCount} viaggi • ${viewModel.motoStats.avgSpeedKmh.toStringAsFixed(0)} km/h media',
+                          detail:
+                              '${viewModel.motoStats.tripCount} viaggi • ${viewModel.motoStats.avgSpeedKmh.toStringAsFixed(0)} km/h media',
                           icon: Icons.two_wheeler_rounded,
                           accentColor: const Color(0xFFF97316),
                           isDark: isDark,
                         )
                       : _AnswerMetricCard(
-                          title: viewModel.motoStats.tripCount > 0 ? 'AUTO & MOTO' : 'IN AUTO',
+                          title: viewModel.motoStats.tripCount > 0
+                              ? 'AUTO & MOTO'
+                              : 'IN AUTO',
                           value: viewModel.carStats.formattedDistance,
                           highlightSub: viewModel.carStats.formattedDuration,
                           detail: viewModel.carStats.tripCount > 0
                               ? '${viewModel.carStats.tripCount} viaggi • ${viewModel.carStats.avgSpeedKmh.toStringAsFixed(0)} km/h media'
                               : (viewModel.motoStats.tripCount > 0
-                                  ? '${viewModel.motoStats.formattedDistance} in moto'
-                                  : 'Nessun tragitto'),
+                                    ? '${viewModel.motoStats.formattedDistance} in moto'
+                                    : 'Nessun tragitto'),
                           icon: Icons.directions_car_rounded,
                           accentColor: const Color(0xFF0284C7),
                           isDark: isDark,
@@ -359,8 +422,8 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                     detail: viewModel.walkStats.tripCount > 0
                         ? '${viewModel.walkStats.tripCount} a piedi • ${viewModel.bikeStats.tripCount} in bici'
                         : (viewModel.bikeStats.tripCount > 0
-                            ? '${viewModel.bikeStats.formattedDistance} in bici'
-                            : 'Mobilità attiva'),
+                              ? '${viewModel.bikeStats.formattedDistance} in bici'
+                              : 'Mobilità attiva'),
                     icon: Icons.directions_walk_rounded,
                     accentColor: const Color(0xFF10B981),
                     isDark: isDark,
@@ -368,13 +431,15 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                 ),
               ],
             ),
-            if (viewModel.motoStats.tripCount > 0 && viewModel.carStats.tripCount > 0) ...[
+            if (viewModel.motoStats.tripCount > 0 &&
+                viewModel.carStats.tripCount > 0) ...[
               const SizedBox(height: 12),
               _AnswerMetricCard(
                 title: 'IN MOTO / SCOOTER',
                 value: viewModel.motoStats.formattedDistance,
                 highlightSub: viewModel.motoStats.formattedDuration,
-                detail: '${viewModel.motoStats.tripCount} viaggi su due ruote • ${viewModel.motoStats.avgSpeedKmh.toStringAsFixed(0)} km/h media',
+                detail:
+                    '${viewModel.motoStats.tripCount} viaggi su due ruote • ${viewModel.motoStats.avgSpeedKmh.toStringAsFixed(0)} km/h media',
                 icon: Icons.two_wheeler_rounded,
                 accentColor: const Color(0xFFF97316),
                 isDark: isDark,
@@ -399,7 +464,9 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                   border: Border.all(color: borderColor),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
+                      color: Colors.black.withValues(
+                        alpha: isDark ? 0.15 : 0.03,
+                      ),
                       blurRadius: 14,
                       offset: const Offset(0, 4),
                     ),
@@ -413,12 +480,20 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                         color: AppColors.primary.withValues(alpha: 0.12),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.query_stats_rounded, size: 40, color: AppColors.primary),
+                      child: const Icon(
+                        Icons.query_stats_rounded,
+                        size: 40,
+                        color: AppColors.primary,
+                      ),
                     ),
                     const SizedBox(height: 14),
                     Text(
                       'Nessuna attività registrata',
-                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: textPrimary),
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: textPrimary,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 6),
@@ -438,10 +513,18 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                           child: OutlinedButton.icon(
                             style: OutlinedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
                             ),
                             icon: const Icon(Icons.touch_app_rounded, size: 16),
-                            label: const Text('Check-in ora', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                            label: const Text(
+                              'Check-in ora',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
                             onPressed: () => _showQuickCheckIn(context),
                           ),
                         ),
@@ -452,10 +535,18 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                               backgroundColor: AppColors.primary,
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
                             ),
                             icon: const Icon(Icons.add_rounded, size: 16),
-                            label: const Text('Visita manuale', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                            label: const Text(
+                              'Visita manuale',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
                             onPressed: () => ManualVisitDialog.show(
                               context,
                               onVisitAdded: () => viewModel.loadAnalytics(),
@@ -471,10 +562,7 @@ class _AnalyticsViewState extends State<AnalyticsView> {
               // =========================================================
               // 🚗 SEZIONE 2: SPOSTAMENTI & MEZZI DI TRASPORTO (Km & Ore)
               // =========================================================
-              _MobilitySection(
-                viewModel: viewModel,
-                isDark: isDark,
-              ),
+              _MobilitySection(viewModel: viewModel, isDark: isDark),
               const SizedBox(height: 22),
 
               // =========================================================
@@ -537,8 +625,12 @@ class _AnswerMetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
-    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
+    final textMuted = isDark
+        ? AppColors.textDarkMuted
+        : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
@@ -629,18 +721,21 @@ class _MobilitySection extends StatelessWidget {
   final AnalyticsViewModel viewModel;
   final bool isDark;
 
-  const _MobilitySection({
-    required this.viewModel,
-    required this.isDark,
-  });
+  const _MobilitySection({required this.viewModel, required this.isDark});
 
   @override
   Widget build(BuildContext context) {
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
-    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
+    final textMuted = isDark
+        ? AppColors.textDarkMuted
+        : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
-    final elevatedBg = isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated;
+    final elevatedBg = isDark
+        ? AppColors.darkSurfaceElevated
+        : AppColors.lightSurfaceElevated;
 
     final trips = viewModel.recentFilteredTrips;
 
@@ -672,18 +767,30 @@ class _MobilitySection extends StatelessWidget {
                       color: const Color(0xFF0284C7).withValues(alpha: 0.15),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.route_rounded, color: Color(0xFF0284C7), size: 18),
+                    child: const Icon(
+                      Icons.route_rounded,
+                      color: Color(0xFF0284C7),
+                      size: 18,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Text(
                     'Mobilità & Spostamenti',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: textPrimary),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: textPrimary,
+                    ),
                   ),
                 ],
               ),
               Text(
                 '${viewModel.totalTripsCount} viaggi',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: textMuted),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: textMuted,
+                ),
               ),
             ],
           ),
@@ -701,7 +808,9 @@ class _MobilitySection extends StatelessWidget {
               children: [
                 _MobilityMiniStat(
                   label: 'KM TOTALI',
-                  value: viewModel.formatDistance(viewModel.totalTripDistanceMeters),
+                  value: viewModel.formatDistance(
+                    viewModel.totalTripDistanceMeters,
+                  ),
                   icon: Icons.speed_rounded,
                   color: const Color(0xFF0284C7),
                   isDark: isDark,
@@ -709,7 +818,9 @@ class _MobilitySection extends StatelessWidget {
                 Container(width: 1, height: 28, color: borderColor),
                 _MobilityMiniStat(
                   label: 'IN TRANSITO',
-                  value: viewModel.formatSeconds(viewModel.totalTripDurationSeconds),
+                  value: viewModel.formatSeconds(
+                    viewModel.totalTripDurationSeconds,
+                  ),
                   icon: Icons.timer_outlined,
                   color: const Color(0xFF38BDF8),
                   isDark: isDark,
@@ -736,71 +847,97 @@ class _MobilitySection extends StatelessWidget {
           // Modes Breakdown (Auto, Moto, Bici, Piedi, Corsa)
           Text(
             'Ripartizione per Mezzo',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: textPrimary),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: textPrimary,
+            ),
           ),
           const SizedBox(height: 10),
 
           ...(viewModel.allTransportStats.isNotEmpty
                   ? viewModel.allTransportStats
-                  : [viewModel.carStats, viewModel.motoStats, viewModel.bikeStats, viewModel.walkStats])
+                  : [
+                      viewModel.carStats,
+                      viewModel.motoStats,
+                      viewModel.bikeStats,
+                      viewModel.walkStats,
+                    ])
               .map((stat) {
-            final double pct = viewModel.totalTripDistanceMeters > 0
-                ? (stat.distanceMeters / viewModel.totalTripDistanceMeters)
-                : 0.0;
+                final double pct = viewModel.totalTripDistanceMeters > 0
+                    ? (stat.distanceMeters / viewModel.totalTripDistanceMeters)
+                    : 0.0;
 
-            return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: borderColor.withValues(alpha: 0.6)),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: stat.color.withValues(alpha: 0.15),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(stat.icon, color: stat.color, size: 16),
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? AppColors.darkSurfaceElevated
+                        : AppColors.lightSurfaceElevated,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: borderColor.withValues(alpha: 0.6),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: stat.color.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(stat.icon, color: stat.color, size: 16),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              stat.modeName,
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: textPrimary),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  stat.modeName,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: textPrimary,
+                                  ),
+                                ),
+                                Text(
+                                  '${stat.formattedDistance} • ${stat.formattedDuration}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    color: stat.color,
+                                  ),
+                                ),
+                              ],
                             ),
-                            Text(
-                              '${stat.formattedDistance} • ${stat.formattedDuration}',
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: stat.color),
+                            const SizedBox(height: 6),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: pct.clamp(0.0, 1.0),
+                                minHeight: 5,
+                                backgroundColor: borderColor,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  stat.color,
+                                ),
+                              ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 6),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: pct.clamp(0.0, 1.0),
-                            minHeight: 5,
-                            backgroundColor: borderColor,
-                            valueColor: AlwaysStoppedAnimation<Color>(stat.color),
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            );
-          }),
+                );
+              }),
 
           // Recent trips list if available (Interactive with 1-tap mode change)
           if (trips.isNotEmpty) ...[
@@ -810,11 +947,19 @@ class _MobilitySection extends StatelessWidget {
               children: [
                 Text(
                   'Ultimi Tragitti Rilevati',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: textPrimary),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: textPrimary,
+                  ),
                 ),
                 Text(
                   'Tocca per cambiare mezzo',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: textMuted),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: textMuted,
+                  ),
                 ),
               ],
             ),
@@ -838,8 +983,13 @@ class _MobilitySection extends StatelessWidget {
                       context,
                       currentMode: trip.transportMode,
                     );
-                    if (newMode != null && newMode != trip.transportMode && context.mounted) {
-                      final engine = Provider.of<TrackingEngine>(context, listen: false);
+                    if (newMode != null &&
+                        newMode != trip.transportMode &&
+                        context.mounted) {
+                      final engine = Provider.of<TrackingEngine>(
+                        context,
+                        listen: false,
+                      );
                       await engine.updateTripTransportMode(trip, newMode);
                       if (context.mounted) {
                         viewModel.loadAnalytics();
@@ -847,11 +997,18 @@ class _MobilitySection extends StatelessWidget {
                     }
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
-                      color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                      color: isDark
+                          ? AppColors.darkSurfaceElevated
+                          : AppColors.lightSurfaceElevated,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: borderColor.withValues(alpha: 0.6)),
+                      border: Border.all(
+                        color: borderColor.withValues(alpha: 0.6),
+                      ),
                     ),
                     child: Row(
                       children: [
@@ -870,7 +1027,11 @@ class _MobilitySection extends StatelessWidget {
                             children: [
                               Text(
                                 '${trip.originPlaceName} ➔ $dest',
-                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: textPrimary),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: textPrimary,
+                                ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -878,7 +1039,10 @@ class _MobilitySection extends StatelessWidget {
                               Row(
                                 children: [
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 1.5,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: modeColor.withValues(alpha: 0.12),
                                       borderRadius: BorderRadius.circular(6),
@@ -888,10 +1052,18 @@ class _MobilitySection extends StatelessWidget {
                                       children: [
                                         Text(
                                           trip.transportMode,
-                                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: modeColor),
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w800,
+                                            color: modeColor,
+                                          ),
                                         ),
                                         const SizedBox(width: 3),
-                                        Icon(Icons.edit_rounded, size: 10, color: modeColor),
+                                        Icon(
+                                          Icons.edit_rounded,
+                                          size: 10,
+                                          color: modeColor,
+                                        ),
                                       ],
                                     ),
                                   ),
@@ -902,7 +1074,11 @@ class _MobilitySection extends StatelessWidget {
                         ),
                         Text(
                           '${trip.formattedDistance} (${trip.formattedDuration})',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: textMuted),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: textMuted,
+                          ),
                         ),
                       ],
                     ),
@@ -934,8 +1110,12 @@ class _MobilityMiniStat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+    final textMuted = isDark
+        ? AppColors.textDarkMuted
+        : AppColors.textLightMuted;
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
 
     return Column(
       children: [
@@ -984,7 +1164,9 @@ class _CategoryPieChartSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
@@ -1019,7 +1201,11 @@ class _CategoryPieChartSection extends StatelessWidget {
         children: [
           Text(
             'Distribuzione per Categoria',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: textPrimary),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: textPrimary,
+            ),
           ),
           const SizedBox(height: 20),
           Row(
@@ -1056,7 +1242,9 @@ class _CategoryPieChartSection extends StatelessWidget {
                   children: categoryDurations.entries.map((entry) {
                     final cat = entry.key;
                     final sec = entry.value;
-                    final pct = totalSeconds > 0 ? (sec / totalSeconds * 100).toInt() : 0;
+                    final pct = totalSeconds > 0
+                        ? (sec / totalSeconds * 100).toInt()
+                        : 0;
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       child: Row(
@@ -1073,7 +1261,11 @@ class _CategoryPieChartSection extends StatelessWidget {
                           Expanded(
                             child: Text(
                               cat.displayName,
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: textPrimary),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: textPrimary,
+                              ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -1109,13 +1301,25 @@ class _DailyBarChartSection extends StatelessWidget {
     required this.isDark,
   });
 
-  static const List<String> _weekdaysIt = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
+  static const List<String> _weekdaysIt = [
+    'Lun',
+    'Mar',
+    'Mer',
+    'Gio',
+    'Ven',
+    'Sab',
+    'Dom',
+  ];
 
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
-    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
+    final textMuted = isDark
+        ? AppColors.textDarkMuted
+        : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
@@ -1124,7 +1328,8 @@ class _DailyBarChartSection extends StatelessWidget {
 
     for (int i = 6; i >= 0; i--) {
       final date = now.subtract(Duration(days: i));
-      final dateKey = "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
+      final dateKey =
+          "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
       final seconds = dailyDurations[dateKey] ?? 0;
       final hours = seconds / 3600.0;
 
@@ -1139,10 +1344,12 @@ class _DailyBarChartSection extends StatelessWidget {
               color: i == 0
                   ? AppColors.primary
                   : (isDark
-                      ? AppColors.primaryLight.withValues(alpha: 0.6)
-                      : AppColors.primary.withValues(alpha: 0.4)),
+                        ? AppColors.primaryLight.withValues(alpha: 0.6)
+                        : AppColors.primary.withValues(alpha: 0.4)),
               width: 16,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(6),
+              ),
             ),
           ],
         ),
@@ -1171,7 +1378,11 @@ class _DailyBarChartSection extends StatelessWidget {
         children: [
           Text(
             'Ore di Presenza (Ultimi 7 Giorni)',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: textPrimary),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: textPrimary,
+            ),
           ),
           const SizedBox(height: 20),
           SizedBox(
@@ -1182,8 +1393,12 @@ class _DailyBarChartSection extends StatelessWidget {
                 maxY: maxYValue,
                 barGroups: barGroups,
                 titlesData: FlTitlesData(
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
@@ -1206,7 +1421,11 @@ class _DailyBarChartSection extends StatelessWidget {
                         final label = _weekdaysIt[date.weekday - 1];
                         return Text(
                           label,
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: textMuted),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: textMuted,
+                          ),
                         );
                       },
                     ),
@@ -1243,10 +1462,14 @@ class _PlacesRankingSection extends StatelessWidget {
     final entries = placesDuration.entries.toList();
     entries.sort((a, b) => b.value.compareTo(a.value));
 
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
-    final elevatedBg = isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated;
+    final elevatedBg = isDark
+        ? AppColors.darkSurfaceElevated
+        : AppColors.lightSurfaceElevated;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1267,7 +1490,11 @@ class _PlacesRankingSection extends StatelessWidget {
         children: [
           Text(
             'Classifica Luoghi & Presenze',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: textPrimary),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: textPrimary,
+            ),
           ),
           const SizedBox(height: 14),
           ListView.separated(
@@ -1287,11 +1514,17 @@ class _PlacesRankingSection extends StatelessWidget {
                     children: [
                       Text(
                         '${idx + 1}. ${e.key}',
-                        style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: textPrimary,
+                        ),
                       ),
                       Text(
                         formatDuration(e.value),
-                        style: TextStyle(fontWeight: FontWeight.w800, color: textPrimary),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: textPrimary,
+                        ),
                       ),
                     ],
                   ),

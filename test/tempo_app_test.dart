@@ -25,7 +25,7 @@ void main() {
       const MethodChannel('flutter.baseflow.com/permissions/methods'),
       (call) async {
         if (call.method == 'requestPermissions') {
-          return {'3': 0, '4': 0, '17': 0};
+          return {3: 0, 4: 0, 17: 0};
         }
         return 0;
       },
