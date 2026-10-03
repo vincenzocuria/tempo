@@ -15,7 +15,7 @@ check_launch() {
   adb shell dumpsys activity activities > "$evidence/$name-activity.txt"
   adb shell uiautomator dump /sdcard/window.xml >/dev/null
   adb pull /sdcard/window.xml "$evidence/$name-ui.xml"
-  adb exec-out screencap -p > "smoke-evidence/$name.png"
+  adb exec-out screencap -p > "$evidence/$name.png"
   if grep -E 'FATAL EXCEPTION|Fatal signal|Unhandled Exception|Zone mismatch' "$evidence/$name-logcat.txt"; then
     echo "Crash detected: $name" >&2
     return 1
