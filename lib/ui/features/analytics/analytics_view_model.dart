@@ -195,6 +195,7 @@ class AnalyticsViewModel extends ChangeNotifier {
   List<TransportModeStats> get allTransportStats => _allTransportStats;
 
   List<CategoryTimeStats> _categoryStatsList = [];
+  final Map<PlaceCategory, Set<String>> _categoryDays = {};
   List<CategoryTimeStats> get categoryStatsList => _categoryStatsList;
 
   List<Trip> _recentFilteredTrips = [];
@@ -274,44 +275,47 @@ class AnalyticsViewModel extends ChangeNotifier {
     }
   }
 
-  CategoryTimeStats? get workStats {
-    for (final s in _categoryStatsList) {
-      final name = s.category.displayName.toLowerCase();
-      final id = s.category.id.toLowerCase();
-      if (id == 'lavoro' ||
-          id == 'secondolavoro' ||
-          name.contains('lavoro') ||
-          name.contains('ufficio')) {
-        return s;
-      }
+  CategoryTimeStats? _combinedCategoryStats(
+    bool Function(PlaceCategory) matches,
+  ) {
+    final stats = _categoryStatsList.where((s) => matches(s.category)).toList();
+    if (stats.isEmpty) return null;
+    final days = <String>{};
+    for (final stat in stats) {
+      days.addAll(_categoryDays[stat.category] ?? {});
     }
-    return null;
+    final seconds = stats.fold<int>(0, (sum, s) => sum + s.durationSeconds);
+    return CategoryTimeStats(
+      category: stats.first.category,
+      durationSeconds: seconds,
+      visitCount: stats.fold<int>(0, (sum, s) => sum + s.visitCount),
+      distinctDaysCount: days.length,
+      percentageOfTotal: _totalDurationSeconds > 0
+          ? seconds / _totalDurationSeconds
+          : 0,
+    );
   }
 
-  CategoryTimeStats? get homeStats {
-    for (final s in _categoryStatsList) {
-      final name = s.category.displayName.toLowerCase();
-      final id = s.category.id.toLowerCase();
-      if (id == 'casa' || id == 'secondacasa' || name.contains('casa')) {
-        return s;
-      }
-    }
-    return null;
-  }
-
-  CategoryTimeStats? get fitnessStats {
-    for (final s in _categoryStatsList) {
-      final name = s.category.displayName.toLowerCase();
-      final id = s.category.id.toLowerCase();
-      if (id == 'palestra' ||
-          name.contains('palestra') ||
-          name.contains('sport') ||
-          name.contains('fitness')) {
-        return s;
-      }
-    }
-    return null;
-  }
+  CategoryTimeStats? get workStats => _combinedCategoryStats((cat) {
+    final name = cat.displayName.toLowerCase();
+    return cat == PlaceCategory.lavoro ||
+        cat == PlaceCategory.secondoLavoro ||
+        name.contains('lavoro') ||
+        name.contains('ufficio');
+  });
+  CategoryTimeStats? get homeStats => _combinedCategoryStats(
+    (cat) =>
+        cat == PlaceCategory.casa ||
+        cat == PlaceCategory.secondaCasa ||
+        cat.displayName.toLowerCase().contains('casa'),
+  );
+  CategoryTimeStats? get fitnessStats => _combinedCategoryStats((cat) {
+    final name = cat.displayName.toLowerCase();
+    return cat == PlaceCategory.palestra ||
+        name.contains('palestra') ||
+        name.contains('sport') ||
+        name.contains('fitness');
+  });
 
   Future<void> loadAnalytics() async {
     if (_disposed) return;
@@ -406,6 +410,7 @@ class AnalyticsViewModel extends ChangeNotifier {
         visitsByCat.putIfAbsent(v.category, () => []).add(v);
       }
       final catStats = <CategoryTimeStats>[];
+      _categoryDays.clear();
       for (final entry in visitsByCat.entries) {
         final cat = entry.key;
         final list = entry.value;
@@ -432,6 +437,7 @@ class AnalyticsViewModel extends ChangeNotifier {
           );
         }
 
+        _categoryDays[cat] = distinctDays;
         final pct = _totalDurationSeconds > 0
             ? (durSec / _totalDurationSeconds)
             : 0.0;

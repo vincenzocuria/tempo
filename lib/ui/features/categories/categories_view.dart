@@ -1,6 +1,12 @@
+import '../places/places_view_model.dart';
+import '../../../data/services/tracking_engine.dart';
+import '../analytics/analytics_view_model.dart';
+import '../dashboard/dashboard_view_model.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+
 import '../../../data/models/place_category.dart';
 import '../../../data/repositories/category_repository.dart';
 import '../../../data/repositories/place_repository.dart';
@@ -58,8 +64,12 @@ class _CategoriesViewState extends State<CategoriesView> {
 
   void _confirmDeleteCategory(PlaceCategory cat) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
-    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
+    final textMuted = isDark
+        ? AppColors.textDarkMuted
+        : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
     final placesCount = _placeCountByCategory[cat.id] ?? 0;
 
@@ -88,7 +98,9 @@ class _CategoriesViewState extends State<CategoriesView> {
                 height: 4.5,
                 margin: const EdgeInsets.only(bottom: 18),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+                  color: isDark
+                      ? const Color(0xFF475569)
+                      : const Color(0xFFCBD5E1),
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -98,7 +110,11 @@ class _CategoriesViewState extends State<CategoriesView> {
                   color: AppColors.danger.withValues(alpha: 0.14),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.delete_outline_rounded, color: AppColors.danger, size: 32),
+                child: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: AppColors.danger,
+                  size: 32,
+                ),
               ),
               const SizedBox(height: 14),
               Text(
@@ -125,10 +141,18 @@ class _CategoriesViewState extends State<CategoriesView> {
                     child: OutlinedButton(
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                       ),
                       onPressed: () => Navigator.pop(ctx),
-                      child: Text('Annulla', style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary)),
+                      child: Text(
+                        'Annulla',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: textPrimary,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -138,26 +162,45 @@ class _CategoriesViewState extends State<CategoriesView> {
                         backgroundColor: AppColors.danger,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                         elevation: 0,
                       ),
                       onPressed: () async {
                         Navigator.pop(ctx);
                         final messenger = ScaffoldMessenger.of(context);
-                        final catRepo = Provider.of<CategoryRepository>(context, listen: false);
-                        final placeRepo = Provider.of<PlaceRepository>(context, listen: false);
-                        await catRepo.deleteCategory(cat.id, placeRepository: placeRepo);
+                        final catRepo = Provider.of<CategoryRepository>(
+                          context,
+                          listen: false,
+                        );
+                        final placeRepo = Provider.of<PlaceRepository>(
+                          context,
+                          listen: false,
+                        );
+                        await catRepo.deleteCategory(
+                          cat.id,
+                          placeRepository: placeRepo,
+                        );
                         if (!mounted) return;
                         _loadPlaceCounts();
 
                         messenger.showSnackBar(
                           SnackBar(
-                            content: Text('Categoria "${cat.displayName}" eliminata.'),
+                            content: Text(
+                              'Categoria "${cat.displayName}" eliminata.',
+                            ),
                             backgroundColor: AppColors.danger,
                           ),
                         );
                       },
-                      child: const Text('Elimina', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                      child: const Text(
+                        'Elimina',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -174,8 +217,12 @@ class _CategoriesViewState extends State<CategoriesView> {
     final catRepo = Provider.of<CategoryRepository>(context);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
-    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
+    final textMuted = isDark
+        ? AppColors.textDarkMuted
+        : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
@@ -209,7 +256,9 @@ class _CategoriesViewState extends State<CategoriesView> {
               ),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: isDark ? const Color(0xFF334155) : const Color(0xFFC7D2FE),
+                color: isDark
+                    ? const Color(0xFF334155)
+                    : const Color(0xFFC7D2FE),
               ),
             ),
             child: Row(
@@ -220,7 +269,11 @@ class _CategoriesViewState extends State<CategoriesView> {
                     color: AppColors.primary.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.category_rounded, color: AppColors.primary, size: 24),
+                  child: const Icon(
+                    Icons.category_rounded,
+                    color: AppColors.primary,
+                    size: 24,
+                  ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -238,7 +291,11 @@ class _CategoriesViewState extends State<CategoriesView> {
                       const SizedBox(height: 3),
                       Text(
                         'Aggiungi e personalizza le categorie per classificare al meglio i tuoi luoghi e tracciare le statistiche.',
-                        style: TextStyle(fontSize: 12, color: textMuted, height: 1.3),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: textMuted,
+                          height: 1.3,
+                        ),
                       ),
                     ],
                   ),
@@ -264,7 +321,10 @@ class _CategoriesViewState extends State<CategoriesView> {
               TextButton.icon(
                 onPressed: () => _showCategoryDialog(),
                 icon: const Icon(Icons.add_rounded, size: 16),
-                label: const Text('Crea Nuova', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                label: const Text(
+                  'Crea Nuova',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                ),
               ),
             ],
           ),
@@ -283,12 +343,18 @@ class _CategoriesViewState extends State<CategoriesView> {
                   Icon(
                     Icons.label_outline_rounded,
                     size: 36,
-                    color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+                    color: isDark
+                        ? const Color(0xFF475569)
+                        : const Color(0xFFCBD5E1),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Nessuna categoria personalizzata',
-                    style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary, fontSize: 14),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: textPrimary,
+                      fontSize: 14,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -323,7 +389,10 @@ class _CategoriesViewState extends State<CategoriesView> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showCategoryDialog(),
         icon: const Icon(Icons.add_rounded),
-        label: const Text('Nuova Categoria', style: TextStyle(fontWeight: FontWeight.w800)),
+        label: const Text(
+          'Nuova Categoria',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
       ),
     );
   }
@@ -331,8 +400,12 @@ class _CategoriesViewState extends State<CategoriesView> {
   Widget _buildCategoryTile(PlaceCategory cat, {required bool isCustom}) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
-    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
+    final textMuted = isDark
+        ? AppColors.textDarkMuted
+        : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
     final placesCount = _placeCountByCategory[cat.id] ?? 0;
@@ -384,9 +457,16 @@ class _CategoriesViewState extends State<CategoriesView> {
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
-                        color: (isCustom ? AppColors.primary : const Color(0xFF64748B)).withValues(alpha: 0.12),
+                        color:
+                            (isCustom
+                                    ? AppColors.primary
+                                    : const Color(0xFF64748B))
+                                .withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -394,7 +474,9 @@ class _CategoriesViewState extends State<CategoriesView> {
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
-                          color: isCustom ? AppColors.primary : const Color(0xFF64748B),
+                          color: isCustom
+                              ? AppColors.primary
+                              : const Color(0xFF64748B),
                         ),
                       ),
                     ),
@@ -418,13 +500,21 @@ class _CategoriesViewState extends State<CategoriesView> {
             ),
             IconButton(
               tooltip: 'Elimina Categoria',
-              icon: const Icon(Icons.delete_outline_rounded, size: 19, color: AppColors.danger),
+              icon: const Icon(
+                Icons.delete_outline_rounded,
+                size: 19,
+                color: AppColors.danger,
+              ),
               onPressed: () => _confirmDeleteCategory(cat),
             ),
           ] else ...[
             Container(
               padding: const EdgeInsets.all(8),
-              child: Icon(Icons.lock_outline_rounded, size: 16, color: textMuted),
+              child: Icon(
+                Icons.lock_outline_rounded,
+                size: 16,
+                color: textMuted,
+              ),
             ),
           ],
         ],
@@ -437,10 +527,7 @@ class _CategoryFormSheet extends StatefulWidget {
   final PlaceCategory? categoryToEdit;
   final VoidCallback onSaved;
 
-  const _CategoryFormSheet({
-    this.categoryToEdit,
-    required this.onSaved,
-  });
+  const _CategoryFormSheet({this.categoryToEdit, required this.onSaved});
 
   @override
   State<_CategoryFormSheet> createState() => _CategoryFormSheetState();
@@ -581,11 +668,17 @@ class _CategoryFormSheetState extends State<_CategoryFormSheet> {
     final isEditing = widget.categoryToEdit != null;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
-    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
+    final textMuted = isDark
+        ? AppColors.textDarkMuted
+        : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
-    final elevatedBg = isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated;
+    final elevatedBg = isDark
+        ? AppColors.darkSurfaceElevated
+        : AppColors.lightSurfaceElevated;
 
     return Container(
       decoration: BoxDecoration(
@@ -609,7 +702,9 @@ class _CategoryFormSheetState extends State<_CategoryFormSheet> {
               width: 44,
               height: 4.5,
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+                color: isDark
+                    ? const Color(0xFF475569)
+                    : const Color(0xFFCBD5E1),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -629,7 +724,11 @@ class _CategoryFormSheetState extends State<_CategoryFormSheet> {
                         color: _selectedColor.withValues(alpha: 0.16),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(_selectedIcon, color: _selectedColor, size: 22),
+                      child: Icon(
+                        _selectedIcon,
+                        color: _selectedColor,
+                        size: 22,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Text(
@@ -671,16 +770,26 @@ class _CategoryFormSheetState extends State<_CategoryFormSheet> {
                     // Live Preview Chip
                     Center(
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
                         decoration: BoxDecoration(
                           color: _selectedColor.withValues(alpha: 0.14),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: _selectedColor.withValues(alpha: 0.4), width: 1.5),
+                          border: Border.all(
+                            color: _selectedColor.withValues(alpha: 0.4),
+                            width: 1.5,
+                          ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(_selectedIcon, color: _selectedColor, size: 20),
+                            Icon(
+                              _selectedIcon,
+                              color: _selectedColor,
+                              size: 20,
+                            ),
                             const SizedBox(width: 8),
                             Text(
                               _nameController.text.trim().isNotEmpty
@@ -718,7 +827,8 @@ class _CategoryFormSheetState extends State<_CategoryFormSheet> {
                         color: textPrimary,
                       ),
                       decoration: const InputDecoration(
-                        hintText: 'Es. Scuola, Volontariato, Ristorante, Famiglia...',
+                        hintText:
+                            'Es. Scuola, Volontariato, Ristorante, Famiglia...',
                         prefixIcon: Icon(Icons.label_rounded),
                       ),
                       onChanged: (_) => setState(() {}),
@@ -751,11 +861,12 @@ class _CategoryFormSheetState extends State<_CategoryFormSheet> {
                         border: Border.all(color: borderColor),
                       ),
                       child: GridView.builder(
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 6,
-                          crossAxisSpacing: 8,
-                          mainAxisSpacing: 8,
-                        ),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 6,
+                              crossAxisSpacing: 8,
+                              mainAxisSpacing: 8,
+                            ),
                         itemCount: _availableIcons.length,
                         itemBuilder: (ctx, idx) {
                           final icon = _availableIcons[idx];
@@ -772,7 +883,9 @@ class _CategoryFormSheetState extends State<_CategoryFormSheet> {
                                 color: isSelected ? _selectedColor : cardBg,
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: isSelected ? _selectedColor : borderColor,
+                                  color: isSelected
+                                      ? _selectedColor
+                                      : borderColor,
                                   width: isSelected ? 2 : 1,
                                 ),
                               ),
@@ -818,7 +931,9 @@ class _CategoryFormSheetState extends State<_CategoryFormSheet> {
                               color: color,
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: isSelected ? Colors.white : Colors.transparent,
+                                color: isSelected
+                                    ? Colors.white
+                                    : Colors.transparent,
                                 width: 3,
                               ),
                               boxShadow: [
@@ -831,7 +946,11 @@ class _CategoryFormSheetState extends State<_CategoryFormSheet> {
                               ],
                             ),
                             child: isSelected
-                                ? const Icon(Icons.check_rounded, color: Colors.white, size: 20)
+                                ? const Icon(
+                                    Icons.check_rounded,
+                                    color: Colors.white,
+                                    size: 20,
+                                  )
                                 : null,
                           ),
                         );
@@ -847,7 +966,9 @@ class _CategoryFormSheetState extends State<_CategoryFormSheet> {
                           backgroundColor: _selectedColor,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
                           elevation: 2,
                         ),
                         onPressed: _isSaving ? null : _save,
@@ -855,14 +976,22 @@ class _CategoryFormSheetState extends State<_CategoryFormSheet> {
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
                               )
                             : const Icon(Icons.check_circle_rounded, size: 20),
                         label: Text(
                           _isSaving
                               ? 'Salvataggio...'
-                              : (isEditing ? 'Salva Modifiche' : 'Crea Categoria'),
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                              : (isEditing
+                                    ? 'Salva Modifiche'
+                                    : 'Crea Categoria'),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                          ),
                         ),
                       ),
                     ),

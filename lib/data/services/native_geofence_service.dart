@@ -1,3 +1,5 @@
+import '../models/place_category.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'dart:async';
@@ -26,6 +28,9 @@ Future<void> tempoGeofenceCallback(GeofenceCallbackParams params) async {
     await prefs.reload();
     if (!(prefs.getBool('tracking_enabled') ?? true)) return;
     final dbService = DatabaseService.instance;
+    for (final category in await dbService.getAllCustomCategories()) {
+      PlaceCategory.registerCustomCategory(category);
+    }
     final notifService = NotificationService.instance;
 
     for (final geofence in params.geofences) {

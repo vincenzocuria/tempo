@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -7,6 +8,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart' hide Path;
 import 'package:provider/provider.dart';
+
 import '../../../data/models/place.dart';
 import '../../../data/models/trip.dart';
 import '../../../data/repositories/trip_repository.dart';
@@ -117,8 +119,8 @@ enum MapLayerType {
 }
 
 enum MapFollowMode {
-  none,            // Mappa libera (spostata manualmente con gesture)
-  follow,          // Centra e segui in tempo reale (Nord in alto)
+  none, // Mappa libera (spostata manualmente con gesture)
+  follow, // Centra e segui in tempo reale (Nord in alto)
   followAndRotate, // Bussola / Navigazione: la mappa si orienta verso la direzione di marcia
 }
 
@@ -138,7 +140,8 @@ class MapView extends StatefulWidget {
   State<MapView> createState() => _MapViewState();
 }
 
-class _MapViewState extends State<MapView> with TickerProviderStateMixin, WidgetsBindingObserver {
+class _MapViewState extends State<MapView>
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   final MapController _mapController = MapController();
   Place? _selectedPlace;
   LatLng _currentLocation = const LatLng(41.9028, 12.4964); // Fallback iniziale
@@ -235,11 +238,11 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
         final target = _hasLocatedUser
             ? _currentLocation
             : (context.read<PlacesViewModel>().places.isNotEmpty
-                ? LatLng(
-                    context.read<PlacesViewModel>().places.first.latitude,
-                    context.read<PlacesViewModel>().places.first.longitude,
-                  )
-                : _currentLocation);
+                  ? LatLng(
+                      context.read<PlacesViewModel>().places.first.latitude,
+                      context.read<PlacesViewModel>().places.first.longitude,
+                    )
+                  : _currentLocation);
         _safeMove(target, 16.0);
       });
     } else if (!widget.isActive && oldWidget.isActive) {
@@ -287,7 +290,9 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
   void _startForegroundLocationStream() async {
     final hasPerm = await LocationService.instance.hasPermission();
     if (!hasPerm) {
-      debugPrint('[MapView] Location permission not granted, skipping foreground stream');
+      debugPrint(
+        '[MapView] Location permission not granted, skipping foreground stream',
+      );
       return;
     }
     _positionStreamSub?.cancel();
@@ -316,7 +321,8 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
 
     final dLng = endLng - startLng;
     final y = sin(dLng) * cos(endLat);
-    final x = cos(startLat) * sin(endLat) - sin(startLat) * cos(endLat) * cos(dLng);
+    final x =
+        cos(startLat) * sin(endLat) - sin(startLat) * cos(endLat) * cos(dLng);
     final radians = atan2(y, x);
     return (radians * (180.0 / pi) + 360.0) % 360.0;
   }
@@ -325,8 +331,12 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
     if (!mounted) return;
 
     final newPoint = LatLng(pos.latitude, pos.longitude);
-    final speedKmh = (pos.speed.isNaN || pos.speed <= 0) ? 0.0 : pos.speed * 3.6;
-    final accuracy = (pos.accuracy.isNaN || pos.accuracy <= 0) ? 0.0 : pos.accuracy;
+    final speedKmh = (pos.speed.isNaN || pos.speed <= 0)
+        ? 0.0
+        : pos.speed * 3.6;
+    final accuracy = (pos.accuracy.isNaN || pos.accuracy <= 0)
+        ? 0.0
+        : pos.accuracy;
 
     double heading = (pos.heading.isNaN || pos.heading < 0) ? 0.0 : pos.heading;
     if (heading <= 0.0 && _hasLocatedUser) {
@@ -346,11 +356,12 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
     // Accumulate live breadcrumb trail
     if (_recentBreadcrumbs.isEmpty ||
         LocationService.instance.calculateDistance(
-          _recentBreadcrumbs.last.latitude,
-          _recentBreadcrumbs.last.longitude,
-          newPoint.latitude,
-          newPoint.longitude,
-        ) >= 3.0) {
+              _recentBreadcrumbs.last.latitude,
+              _recentBreadcrumbs.last.longitude,
+              newPoint.latitude,
+              newPoint.longitude,
+            ) >=
+            3.0) {
       _recentBreadcrumbs.add(newPoint);
       if (_recentBreadcrumbs.length > 150) {
         _recentBreadcrumbs.removeAt(0);
@@ -384,9 +395,15 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
     if (!hasPerm) return;
     final pos = await LocationService.instance.getCurrentPosition();
     if (pos != null && mounted) {
-      final safeHeading = (pos.heading.isNaN || pos.heading < 0) ? 0.0 : pos.heading;
-      final safeAccuracy = (pos.accuracy.isNaN || pos.accuracy < 0) ? 0.0 : pos.accuracy;
-      final safeSpeed = (pos.speed.isNaN || pos.speed < 0) ? 0.0 : pos.speed * 3.6;
+      final safeHeading = (pos.heading.isNaN || pos.heading < 0)
+          ? 0.0
+          : pos.heading;
+      final safeAccuracy = (pos.accuracy.isNaN || pos.accuracy < 0)
+          ? 0.0
+          : pos.accuracy;
+      final safeSpeed = (pos.speed.isNaN || pos.speed < 0)
+          ? 0.0
+          : pos.speed * 3.6;
       final newLoc = LatLng(pos.latitude, pos.longitude);
 
       setState(() {
@@ -403,16 +420,21 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
   Future<void> _loadTrips() async {
     try {
       final tripRepo = Provider.of<TripRepository>(context, listen: false);
-      final trackingEngine = Provider.of<TrackingEngine>(context, listen: false);
+      final trackingEngine = Provider.of<TrackingEngine>(
+        context,
+        listen: false,
+      );
       final allTrips = await tripRepo.getTrips();
 
       final activeTrip = trackingEngine.activeTrip;
       if (activeTrip != null) {
         allTrips.removeWhere((t) => t.id == activeTrip.id);
-        allTrips.add(activeTrip.copyWith(
-          routePoints: trackingEngine.activeRoutePoints,
-          distanceMeters: trackingEngine.activeTripDistance,
-        ));
+        allTrips.add(
+          activeTrip.copyWith(
+            routePoints: trackingEngine.activeRoutePoints,
+            distanceMeters: trackingEngine.activeTripDistance,
+          ),
+        );
       }
 
       final now = DateTime.now();
@@ -420,8 +442,20 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
       final todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
 
       final yesterdayDate = todayStart.subtract(const Duration(days: 1));
-      final yesterdayStart = DateTime(yesterdayDate.year, yesterdayDate.month, yesterdayDate.day);
-      final yesterdayEnd = DateTime(yesterdayDate.year, yesterdayDate.month, yesterdayDate.day, 23, 59, 59, 999);
+      final yesterdayStart = DateTime(
+        yesterdayDate.year,
+        yesterdayDate.month,
+        yesterdayDate.day,
+      );
+      final yesterdayEnd = DateTime(
+        yesterdayDate.year,
+        yesterdayDate.month,
+        yesterdayDate.day,
+        23,
+        59,
+        59,
+        999,
+      );
 
       final weekStart = now.subtract(const Duration(days: 7));
       final monthStart = DateTime(now.year, now.month, 1);
@@ -432,10 +466,12 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
       int monthCount = 0;
 
       for (final t in allTrips) {
-        if (!t.startTime.isBefore(todayStart) && !t.startTime.isAfter(todayEnd)) {
+        if (!t.startTime.isBefore(todayStart) &&
+            !t.startTime.isAfter(todayEnd)) {
           todayCount++;
         }
-        if (!t.startTime.isBefore(yesterdayStart) && !t.startTime.isAfter(yesterdayEnd)) {
+        if (!t.startTime.isBefore(yesterdayStart) &&
+            !t.startTime.isAfter(yesterdayEnd)) {
           yesterdayCount++;
         }
         if (!t.startTime.isBefore(weekStart)) {
@@ -458,29 +494,57 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
       switch (_tripFilter) {
         case TripPeriodFilter.today:
           currentFiltered = allTrips
-              .where((t) => !t.startTime.isBefore(todayStart) && !t.startTime.isAfter(todayEnd))
+              .where(
+                (t) =>
+                    !t.startTime.isBefore(todayStart) &&
+                    !t.startTime.isAfter(todayEnd),
+              )
               .toList();
           break;
         case TripPeriodFilter.yesterday:
           currentFiltered = allTrips
-              .where((t) => !t.startTime.isBefore(yesterdayStart) && !t.startTime.isAfter(yesterdayEnd))
+              .where(
+                (t) =>
+                    !t.startTime.isBefore(yesterdayStart) &&
+                    !t.startTime.isAfter(yesterdayEnd),
+              )
               .toList();
           break;
         case TripPeriodFilter.thisWeek:
-          currentFiltered = allTrips.where((t) => !t.startTime.isBefore(weekStart)).toList();
+          currentFiltered = allTrips
+              .where((t) => !t.startTime.isBefore(weekStart))
+              .toList();
           break;
         case TripPeriodFilter.thisMonth:
-          currentFiltered = allTrips.where((t) => !t.startTime.isBefore(monthStart)).toList();
+          currentFiltered = allTrips
+              .where((t) => !t.startTime.isBefore(monthStart))
+              .toList();
           break;
         case TripPeriodFilter.all:
           currentFiltered = List<Trip>.from(allTrips);
           break;
         case TripPeriodFilter.custom:
           if (_customSelectedDate != null) {
-            final cStart = DateTime(_customSelectedDate!.year, _customSelectedDate!.month, _customSelectedDate!.day);
-            final cEnd = DateTime(_customSelectedDate!.year, _customSelectedDate!.month, _customSelectedDate!.day, 23, 59, 59, 999);
+            final cStart = DateTime(
+              _customSelectedDate!.year,
+              _customSelectedDate!.month,
+              _customSelectedDate!.day,
+            );
+            final cEnd = DateTime(
+              _customSelectedDate!.year,
+              _customSelectedDate!.month,
+              _customSelectedDate!.day,
+              23,
+              59,
+              59,
+              999,
+            );
             currentFiltered = allTrips
-                .where((t) => !t.startTime.isBefore(cStart) && !t.startTime.isAfter(cEnd))
+                .where(
+                  (t) =>
+                      !t.startTime.isBefore(cStart) &&
+                      !t.startTime.isAfter(cEnd),
+                )
                 .toList();
           } else {
             currentFiltered = [];
@@ -511,7 +575,12 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
     }
   }
 
-  void _safeMove(LatLng destLocation, double destZoom, {double? destRotation, bool animate = true}) {
+  void _safeMove(
+    LatLng destLocation,
+    double destZoom, {
+    double? destRotation,
+    bool animate = true,
+  }) {
     if (!mounted) return;
 
     try {
@@ -527,8 +596,14 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
       _moveAnimController = null;
 
       final camera = _mapController.camera;
-      final latTween = Tween<double>(begin: camera.center.latitude, end: destLocation.latitude);
-      final lngTween = Tween<double>(begin: camera.center.longitude, end: destLocation.longitude);
+      final latTween = Tween<double>(
+        begin: camera.center.latitude,
+        end: destLocation.latitude,
+      );
+      final lngTween = Tween<double>(
+        begin: camera.center.longitude,
+        end: destLocation.longitude,
+      );
       final zoomTween = Tween<double>(begin: camera.zoom, end: destZoom);
       final rotTween = destRotation != null
           ? Tween<double>(begin: camera.rotation, end: destRotation)
@@ -540,7 +615,10 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
       );
       _moveAnimController = controller;
 
-      final animation = CurvedAnimation(parent: controller, curve: Curves.easeOutCubic);
+      final animation = CurvedAnimation(
+        parent: controller,
+        curve: Curves.easeOutCubic,
+      );
 
       controller.addListener(() {
         if (!mounted) return;
@@ -557,7 +635,8 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
       });
 
       controller.addStatusListener((status) {
-        if (status == AnimationStatus.completed || status == AnimationStatus.dismissed) {
+        if (status == AnimationStatus.completed ||
+            status == AnimationStatus.dismissed) {
           controller.dispose();
           if (_moveAnimController == controller) {
             _moveAnimController = null;
@@ -587,7 +666,11 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
       // Engage Follow + Compass rotation
       setState(() => _followMode = MapFollowMode.followAndRotate);
       if (_currentHeading > 0) {
-        _safeMove(_currentLocation, 16.5, destRotation: (360.0 - _currentHeading) % 360.0);
+        _safeMove(
+          _currentLocation,
+          16.5,
+          destRotation: (360.0 - _currentHeading) % 360.0,
+        );
       }
     } else {
       // Reset rotation and go back to North-up follow
@@ -619,10 +702,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
     setState(() => _followMode = MapFollowMode.none);
 
     if (places.length == 1) {
-      _safeMove(
-        LatLng(places.first.latitude, places.first.longitude),
-        16.0,
-      );
+      _safeMove(LatLng(places.first.latitude, places.first.longitude), 16.0);
       return;
     }
 
@@ -737,8 +817,12 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
   }
 
   void _showTripPeriodSelector(BuildContext context, bool isDark) {
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
-    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
+    final textMuted = isDark
+        ? AppColors.textDarkMuted
+        : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
@@ -756,7 +840,9 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
             ),
             decoration: BoxDecoration(
               color: cardBg,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(28),
+              ),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
@@ -777,7 +863,9 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                       width: 44,
                       height: 4.5,
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+                        color: isDark
+                            ? const Color(0xFF475569)
+                            : const Color(0xFFCBD5E1),
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -785,7 +873,10 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
 
                   // Header
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 8,
+                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -794,10 +885,15 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF0EA5E9).withValues(alpha: 0.15),
+                                color: const Color(0xFF0EA5E9)
+                                    .withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: const Icon(Icons.route_rounded, color: Color(0xFF0EA5E9), size: 22),
+                              child: const Icon(
+                                Icons.route_rounded,
+                                color: Color(0xFF0EA5E9),
+                                size: 22,
+                              ),
                             ),
                             const SizedBox(width: 12),
                             Column(
@@ -832,35 +928,52 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
 
                   // Direct shortcut to "La mia giornata" Timeline
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(14),
                       onTap: () {
                         Navigator.pop(ctx);
-                        final targetDate = _tripFilter == TripPeriodFilter.custom && _customSelectedDate != null
+                        final targetDate =
+                            _tripFilter == TripPeriodFilter.custom &&
+                                _customSelectedDate != null
                             ? _customSelectedDate!
                             : (_tripFilter == TripPeriodFilter.yesterday
-                                ? DateTime.now().subtract(const Duration(days: 1))
-                                : DateTime.now());
+                                  ? DateTime.now().subtract(
+                                      const Duration(days: 1),
+                                    )
+                                  : DateTime.now());
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => DayTimelineView(initialDate: targetDate),
+                            builder: (_) =>
+                                DayTimelineView(initialDate: targetDate),
                           ),
                         );
                       },
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF0EA5E9).withValues(alpha: isDark ? 0.16 : 0.08),
+                          color: const Color(0xFF0EA5E9)
+                              .withValues(alpha: isDark ? 0.16 : 0.08),
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
-                            color: const Color(0xFF0EA5E9).withValues(alpha: 0.35),
+                            color: const Color(0xFF0EA5E9)
+                                .withValues(alpha: 0.35),
                           ),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.timeline_rounded, color: Color(0xFF0EA5E9), size: 20),
+                            const Icon(
+                              Icons.timeline_rounded,
+                              color: Color(0xFF0EA5E9),
+                              size: 20,
+                            ),
                             const SizedBox(width: 10),
                             Expanded(
                               child: Column(
@@ -873,15 +986,23 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                                         style: TextStyle(
                                           fontWeight: FontWeight.w800,
                                           fontSize: 13,
-                                          color: isDark ? Colors.white : const Color(0xFF0369A1),
+                                          color: isDark
+                                              ? Colors.white
+                                              : const Color(0xFF0369A1),
                                         ),
                                       ),
                                       const SizedBox(width: 6),
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 1,
+                                        ),
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFF0EA5E9).withValues(alpha: 0.2),
-                                          borderRadius: BorderRadius.circular(6),
+                                          color: const Color(0xFF0EA5E9)
+                                              .withValues(alpha: 0.2),
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
                                         ),
                                         child: const Text(
                                           'NEW',
@@ -904,7 +1025,11 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                                 ],
                               ),
                             ),
-                            const Icon(Icons.arrow_forward_ios_rounded, size: 13, color: Color(0xFF0EA5E9)),
+                            const Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              size: 13,
+                              color: Color(0xFF0EA5E9),
+                            ),
                           ],
                         ),
                       ),
@@ -914,7 +1039,10 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                   // Horizontal Period Filter Chips
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 6,
+                    ),
                     child: Row(
                       children: [
                         ...[
@@ -937,11 +1065,16 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                                   Text(period.displayName),
                                   const SizedBox(width: 6),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 1,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: isSelected
                                           ? Colors.white.withValues(alpha: 0.3)
-                                          : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                                          : (isDark
+                                                ? const Color(0xFF334155)
+                                                : const Color(0xFFE2E8F0)),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Text(
@@ -951,21 +1084,29 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                                         fontWeight: FontWeight.w800,
                                         color: isSelected
                                             ? Colors.white
-                                            : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                                            : (isDark
+                                                  ? const Color(0xFF94A3B8)
+                                                  : const Color(0xFF64748B)),
                                       ),
                                     ),
                                   ),
                                 ],
                               ),
                               selectedColor: const Color(0xFF0EA5E9),
-                              backgroundColor: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                              backgroundColor: isDark
+                                  ? AppColors.darkSurfaceElevated
+                                  : AppColors.lightSurfaceElevated,
                               labelStyle: TextStyle(
                                 color: isSelected ? Colors.white : textPrimary,
-                                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                fontWeight: isSelected
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
                                 fontSize: 13,
                               ),
                               side: BorderSide(
-                                color: isSelected ? const Color(0xFF0EA5E9) : borderColor,
+                                color: isSelected
+                                    ? const Color(0xFF0EA5E9)
+                                    : borderColor,
                                 width: isSelected ? 1.5 : 1.0,
                               ),
                               onSelected: (_) async {
@@ -986,29 +1127,45 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                           avatar: Icon(
                             Icons.calendar_month_rounded,
                             size: 16,
-                            color: _tripFilter == TripPeriodFilter.custom ? Colors.white : const Color(0xFF0EA5E9),
+                            color: _tripFilter == TripPeriodFilter.custom
+                                ? Colors.white
+                                : const Color(0xFF0EA5E9),
                           ),
                           label: Text(
-                            _tripFilter == TripPeriodFilter.custom && _customSelectedDate != null
-                                ? DateFormat('d MMM yyyy', 'it_IT').format(_customSelectedDate!)
+                            _tripFilter == TripPeriodFilter.custom &&
+                                    _customSelectedDate != null
+                                ? DateFormat(
+                                    'd MMM yyyy',
+                                    'it_IT',
+                                  ).format(_customSelectedDate!)
                                 : '📅 Scegli data...',
                             style: TextStyle(
-                              color: _tripFilter == TripPeriodFilter.custom ? Colors.white : textPrimary,
-                              fontWeight: _tripFilter == TripPeriodFilter.custom ? FontWeight.w800 : FontWeight.w600,
+                              color: _tripFilter == TripPeriodFilter.custom
+                                  ? Colors.white
+                                  : textPrimary,
+                              fontWeight: _tripFilter == TripPeriodFilter.custom
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
                               fontSize: 13,
                             ),
                           ),
-                          backgroundColor: _tripFilter == TripPeriodFilter.custom
+                          backgroundColor:
+                              _tripFilter == TripPeriodFilter.custom
                               ? const Color(0xFF0EA5E9)
-                              : (isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated),
+                              : (isDark
+                                    ? AppColors.darkSurfaceElevated
+                                    : AppColors.lightSurfaceElevated),
                           side: BorderSide(
-                            color: _tripFilter == TripPeriodFilter.custom ? const Color(0xFF0EA5E9) : borderColor,
+                            color: _tripFilter == TripPeriodFilter.custom
+                                ? const Color(0xFF0EA5E9)
+                                : borderColor,
                           ),
                           onPressed: () async {
                             HapticFeedback.selectionClick();
                             final picked = await showDatePicker(
                               context: context,
-                              initialDate: _customSelectedDate ?? DateTime.now(),
+                              initialDate:
+                                  _customSelectedDate ?? DateTime.now(),
                               firstDate: DateTime(2020),
                               lastDate: DateTime.now(),
                               locale: const Locale('it', 'IT'),
@@ -1033,11 +1190,19 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                   // Summary stats bar + "Inquadra tutti" button
                   if (_filteredTrips.isNotEmpty)
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
                         decoration: BoxDecoration(
-                          color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                          color: isDark
+                              ? AppColors.darkSurfaceElevated
+                              : AppColors.lightSurfaceElevated,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(color: borderColor),
                         ),
@@ -1074,7 +1239,10 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                             ),
                             TextButton.icon(
                               style: TextButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
                                 minimumSize: Size.zero,
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
@@ -1082,7 +1250,11 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                                 Navigator.pop(ctx);
                                 _fitAllFilteredTrips();
                               },
-                              icon: const Icon(Icons.crop_free_rounded, size: 16, color: Color(0xFF0EA5E9)),
+                              icon: const Icon(
+                                Icons.crop_free_rounded,
+                                size: 16,
+                                color: Color(0xFF0EA5E9),
+                              ),
                               label: const Text(
                                 'Inquadra tutti',
                                 style: TextStyle(
@@ -1103,20 +1275,27 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                   Flexible(
                     child: _filteredTrips.isEmpty
                         ? Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 32,
+                            ),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Container(
                                   padding: const EdgeInsets.all(16),
                                   decoration: BoxDecoration(
-                                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                                    color: isDark
+                                        ? const Color(0xFF1E293B)
+                                        : const Color(0xFFF1F5F9),
                                     shape: BoxShape.circle,
                                   ),
                                   child: Icon(
                                     Icons.alt_route_rounded,
                                     size: 38,
-                                    color: isDark ? const Color(0xFF475569) : const Color(0xFF94A3B8),
+                                    color: isDark
+                                        ? const Color(0xFF475569)
+                                        : const Color(0xFF94A3B8),
                                   ),
                                 ),
                                 const SizedBox(height: 14),
@@ -1132,32 +1311,51 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                                 Text(
                                   'Non ci sono spostamenti registrati per ${_tripFilter.displayName.toLowerCase()}.',
                                   textAlign: TextAlign.center,
-                                  style: TextStyle(fontSize: 13, color: textMuted),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: textMuted,
+                                  ),
                                 ),
                                 const SizedBox(height: 18),
-                                if (_tripFilter == TripPeriodFilter.today && (_periodCounts[TripPeriodFilter.yesterday] ?? 0) > 0)
+                                if (_tripFilter == TripPeriodFilter.today &&
+                                    (_periodCounts[TripPeriodFilter
+                                                .yesterday] ??
+                                            0) >
+                                        0)
                                   ElevatedButton.icon(
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: const Color(0xFF0EA5E9),
                                       foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
                                     ),
                                     onPressed: () async {
                                       setState(() {
-                                        _tripFilter = TripPeriodFilter.yesterday;
+                                        _tripFilter =
+                                            TripPeriodFilter.yesterday;
                                       });
                                       await _loadTrips();
                                       modalSetState(() {});
                                     },
-                                    icon: const Icon(Icons.history_rounded, size: 16),
-                                    label: Text('Mostra Ieri (${_periodCounts[TripPeriodFilter.yesterday]} tragitti)'),
+                                    icon: const Icon(
+                                      Icons.history_rounded,
+                                      size: 16,
+                                    ),
+                                    label: Text(
+                                      'Mostra Ieri (${_periodCounts[TripPeriodFilter.yesterday]} tragitti)',
+                                    ),
                                   )
-                                else if (_tripFilter != TripPeriodFilter.all && (_periodCounts[TripPeriodFilter.all] ?? 0) > 0)
+                                else if (_tripFilter != TripPeriodFilter.all &&
+                                    (_periodCounts[TripPeriodFilter.all] ?? 0) >
+                                        0)
                                   ElevatedButton.icon(
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: const Color(0xFF0EA5E9),
                                       foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
                                     ),
                                     onPressed: () async {
                                       setState(() {
@@ -1166,31 +1364,55 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                                       await _loadTrips();
                                       modalSetState(() {});
                                     },
-                                    icon: const Icon(Icons.all_inclusive_rounded, size: 16),
-                                    label: Text('Mostra Tutti i tragitti (${_periodCounts[TripPeriodFilter.all]})'),
+                                    icon: const Icon(
+                                      Icons.all_inclusive_rounded,
+                                      size: 16,
+                                    ),
+                                    label: Text(
+                                      'Mostra Tutti i tragitti (${_periodCounts[TripPeriodFilter.all]})',
+                                    ),
                                   ),
                               ],
                             ),
                           )
                         : ListView.separated(
                             shrinkWrap: true,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
                             itemCount: _filteredTrips.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 8),
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 8),
                             itemBuilder: (context, index) {
                               final trip = _filteredTrips[index];
                               final isSelected = _selectedTrip?.id == trip.id;
-                              final tripColor = TransportMode.getColor(trip.transportMode);
-                              final tripIcon = TransportMode.getIcon(trip.transportMode);
-                              final startStr = timeFormat.format(trip.startTime);
-                              final endStr = trip.endTime != null ? timeFormat.format(trip.endTime!) : 'In corso';
-                              final dateStr = DateFormat('d MMM', 'it_IT').format(trip.startTime);
+                              final tripColor = TransportMode.getColor(
+                                trip.transportMode,
+                              );
+                              final tripIcon = TransportMode.getIcon(
+                                trip.transportMode,
+                              );
+                              final startStr = timeFormat.format(
+                                trip.startTime,
+                              );
+                              final endStr = trip.endTime != null
+                                  ? timeFormat.format(trip.endTime!)
+                                  : 'In corso';
+                              final dateStr = DateFormat(
+                                'd MMM',
+                                'it_IT',
+                              ).format(trip.startTime);
 
                               return Container(
                                 decoration: BoxDecoration(
                                   color: isSelected
-                                      ? tripColor.withValues(alpha: isDark ? 0.2 : 0.1)
-                                      : (isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated),
+                                      ? tripColor.withValues(
+                                          alpha: isDark ? 0.2 : 0.1,
+                                        )
+                                      : (isDark
+                                            ? AppColors.darkSurfaceElevated
+                                            : AppColors.lightSurfaceElevated),
                                   borderRadius: BorderRadius.circular(16),
                                   border: Border.all(
                                     color: isSelected ? tripColor : borderColor,
@@ -1200,57 +1422,85 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                                 child: Material(
                                   color: Colors.transparent,
                                   child: ListTile(
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                                  leading: Container(
-                                    width: 42,
-                                    height: 42,
-                                    decoration: BoxDecoration(
-                                      color: tripColor.withValues(alpha: 0.15),
-                                      borderRadius: BorderRadius.circular(12),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 4,
                                     ),
-                                    child: Icon(tripIcon, color: tripColor, size: 22),
-                                  ),
-                                  title: Text(
-                                    '${trip.originPlaceName} ➔ ${trip.destinationPlaceName ?? "In corso"}',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 14,
-                                      color: isSelected ? tripColor : textPrimary,
+                                    leading: Container(
+                                      width: 42,
+                                      height: 42,
+                                      decoration: BoxDecoration(
+                                        color: tripColor.withValues(
+                                          alpha: 0.15,
+                                        ),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Icon(
+                                        tripIcon,
+                                        color: tripColor,
+                                        size: 22,
+                                      ),
                                     ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  subtitle: Text(
-                                    '$dateStr, $startStr-$endStr • ${trip.formattedDistance} • ${trip.formattedDuration}',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: textMuted,
-                                      fontWeight: FontWeight.w500,
+                                    title: Text(
+                                      '${trip.originPlaceName} ➔ ${trip.destinationPlaceName ?? "In corso"}',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 14,
+                                        color: isSelected
+                                            ? tripColor
+                                            : textPrimary,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                  ),
-                                  trailing: ElevatedButton.icon(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: tripColor,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                      minimumSize: Size.zero,
-                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                    subtitle: Text(
+                                      '$dateStr, $startStr-$endStr • ${trip.formattedDistance} • ${trip.formattedDuration}',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: textMuted,
+                                        fontWeight: FontWeight.w500,
+                                      ),
                                     ),
-                                    onPressed: () {
+                                    trailing: ElevatedButton.icon(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: tripColor,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                        minimumSize: Size.zero,
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                      ),
+                                      onPressed: () {
+                                        Navigator.pop(ctx);
+                                        _fitTripOnMap(trip);
+                                      },
+                                      icon: const Icon(
+                                        Icons.map_rounded,
+                                        size: 14,
+                                      ),
+                                      label: const Text(
+                                        'Inquadra',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    onTap: () {
                                       Navigator.pop(ctx);
                                       _fitTripOnMap(trip);
                                     },
-                                    icon: const Icon(Icons.map_rounded, size: 14),
-                                    label: const Text('Inquadra', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                                   ),
-                                  onTap: () {
-                                    Navigator.pop(ctx);
-                                    _fitTripOnMap(trip);
-                                  },
                                 ),
-                              ),
-                            );
+                              );
                             },
                           ),
                   ),
@@ -1264,9 +1514,14 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
   }
 
   void _showLayerSelector(BuildContext context, bool isDark) {
-    final currentType = _customLayerType ?? (isDark ? MapLayerType.dark : MapLayerType.osm);
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
-    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final currentType =
+        _customLayerType ?? (isDark ? MapLayerType.dark : MapLayerType.osm);
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
+    final textMuted = isDark
+        ? AppColors.textDarkMuted
+        : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
@@ -1297,7 +1552,9 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                   width: 44,
                   height: 4.5,
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+                    color: isDark
+                        ? const Color(0xFF475569)
+                        : const Color(0xFFCBD5E1),
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -1342,8 +1599,12 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                   margin: const EdgeInsets.only(bottom: 10),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? AppColors.primary.withValues(alpha: isDark ? 0.2 : 0.1)
-                        : (isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated),
+                        ? AppColors.primary.withValues(
+                            alpha: isDark ? 0.2 : 0.1,
+                          )
+                        : (isDark
+                              ? AppColors.darkSurfaceElevated
+                              : AppColors.lightSurfaceElevated),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: isSelected ? AppColors.primary : borderColor,
@@ -1360,12 +1621,17 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                       title: Text(
                         layer.displayName,
                         style: TextStyle(
-                          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                          fontWeight: isSelected
+                              ? FontWeight.w800
+                              : FontWeight.w600,
                           color: isSelected ? AppColors.primary : textPrimary,
                         ),
                       ),
                       trailing: isSelected
-                          ? const Icon(Icons.check_circle_rounded, color: AppColors.primary)
+                          ? const Icon(
+                              Icons.check_circle_rounded,
+                              color: AppColors.primary,
+                            )
                           : null,
                       onTap: () {
                         HapticFeedback.selectionClick();
@@ -1389,9 +1655,12 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
     final placesVm = Provider.of<PlacesViewModel>(context);
     final isDark = widget.isDarkMode;
 
-    final activeLayer = _customLayerType ?? (isDark ? MapLayerType.dark : MapLayerType.osm);
+    final activeLayer =
+        _customLayerType ?? (isDark ? MapLayerType.dark : MapLayerType.osm);
 
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
 
     // Build geofence circles for each place
     final circles = placesVm.places.map((place) {
@@ -1402,7 +1671,9 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
         point: LatLng(place.latitude, place.longitude),
         radius: place.radiusInMeters,
         useRadiusInMeter: true,
-        color: place.color.withValues(alpha: isCurrent ? 0.35 : (isSelected ? 0.28 : 0.15)),
+        color: place.color.withValues(
+          alpha: isCurrent ? 0.35 : (isSelected ? 0.28 : 0.15),
+        ),
         borderColor: place.color,
         borderStrokeWidth: isCurrent || isSelected ? 2.5 : 1.5,
       );
@@ -1439,10 +1710,12 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
               color: isSelected
                   ? tripColor.withValues(alpha: 0.95)
                   : (_selectedTrip != null
-                      ? tripColor.withValues(alpha: 0.35)
-                      : tripColor.withValues(alpha: 0.85)),
+                        ? tripColor.withValues(alpha: 0.35)
+                        : tripColor.withValues(alpha: 0.85)),
               strokeWidth: isSelected ? 6.5 : 4.5,
-              borderColor: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.65),
+              borderColor: isSelected
+                  ? Colors.white
+                  : Colors.white.withValues(alpha: 0.65),
               borderStrokeWidth: isSelected ? 2.5 : 1.5,
             ),
           );
@@ -1467,11 +1740,15 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
             ),
           );
         }
-      } else if (_recentBreadcrumbs.length >= 2 && trackingEngine.currentPlace == null) {
+      } else if (_recentBreadcrumbs.length >= 2 &&
+          trackingEngine.currentPlace == null) {
         // Real-time breadcrumb footsteps when walking/moving outside places
         polylines.add(
           Polyline(
-            points: [..._recentBreadcrumbs, if (_hasLocatedUser) _currentLocation],
+            points: [
+              ..._recentBreadcrumbs,
+              if (_hasLocatedUser) _currentLocation,
+            ],
             color: const Color(0xFF38BDF8).withValues(alpha: 0.85),
             strokeWidth: 4.5,
             borderColor: Colors.white.withValues(alpha: 0.6),
@@ -1490,7 +1767,8 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
         if (trip.id == trackingEngine.activeTrip?.id || trip.isOngoing) {
           continue;
         }
-        if (trip.latLngPoints.isNotEmpty && (_filteredTrips.length <= 15 || _selectedTrip?.id == trip.id)) {
+        if (trip.latLngPoints.isNotEmpty &&
+            (_filteredTrips.length <= 15 || _selectedTrip?.id == trip.id)) {
           final isSelected = _selectedTrip?.id == trip.id;
           final tripColor = TransportMode.getColor(trip.transportMode);
 
@@ -1511,12 +1789,23 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                   decoration: BoxDecoration(
                     color: const Color(0xFF10B981), // Emerald green origin
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: isSelected ? 2.5 : 1.8),
+                    border: Border.all(
+                      color: Colors.white,
+                      width: isSelected ? 2.5 : 1.8,
+                    ),
                     boxShadow: const [
-                      BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 4,
+                        offset: Offset(0, 2),
+                      ),
                     ],
                   ),
-                  child: Icon(Icons.trip_origin_rounded, color: Colors.white, size: isSelected ? 16 : 13),
+                  child: Icon(
+                    Icons.trip_origin_rounded,
+                    color: Colors.white,
+                    size: isSelected ? 16 : 13,
+                  ),
                 ),
               ),
             ),
@@ -1540,12 +1829,23 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                     decoration: BoxDecoration(
                       color: isSelected ? tripColor : const Color(0xFFEF4444),
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: isSelected ? 2.5 : 1.8),
+                      border: Border.all(
+                        color: Colors.white,
+                        width: isSelected ? 2.5 : 1.8,
+                      ),
                       boxShadow: const [
-                        BoxShadow(color: Colors.black26, blurRadius: 5, offset: Offset(0, 2)),
+                        BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 5,
+                          offset: Offset(0, 2),
+                        ),
                       ],
                     ),
-                    child: Icon(Icons.location_on_rounded, color: Colors.white, size: isSelected ? 18 : 14),
+                    child: Icon(
+                      Icons.location_on_rounded,
+                      color: Colors.white,
+                      size: isSelected ? 18 : 14,
+                    ),
                   ),
                 ),
               ),
@@ -1571,10 +1871,18 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
               shape: BoxShape.circle,
               border: Border.all(color: Colors.white, width: 2.5),
               boxShadow: const [
-                BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2)),
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 6,
+                  offset: Offset(0, 2),
+                ),
               ],
             ),
-            child: const Icon(Icons.trip_origin_rounded, color: Colors.white, size: 16),
+            child: const Icon(
+              Icons.trip_origin_rounded,
+              color: Colors.white,
+              size: 16,
+            ),
           ),
         ),
       );
@@ -1615,7 +1923,9 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                     height: 28 * _beaconRadiusAnim.value,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: AppColors.primary.withValues(alpha: _beaconOpacityAnim.value * 0.6),
+                      color: AppColors.primary.withValues(
+                        alpha: _beaconOpacityAnim.value * 0.6,
+                      ),
                     ),
                   ),
 
@@ -1629,7 +1939,8 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                       border: Border.all(color: Colors.white, width: 3),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF2563EB).withValues(alpha: 0.55),
+                          color: const Color(0xFF2563EB)
+                              .withValues(alpha: 0.55),
                           blurRadius: 10,
                           spreadRadius: 2,
                         ),
@@ -1682,10 +1993,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                 _selectedPlace = place;
                 _followMode = MapFollowMode.none;
               });
-              _safeMove(
-                LatLng(place.latitude, place.longitude),
-                16.0,
-              );
+              _safeMove(LatLng(place.latitude, place.longitude), 16.0);
             },
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1707,22 +2015,18 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                       ),
                     ],
                   ),
-                  child: Icon(
-                    place.icon,
-                    color: Colors.white,
-                    size: 18,
-                  ),
+                  child: Icon(place.icon, color: Colors.white, size: 18),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: isDark ? const Color(0xFF0F172A) : Colors.white,
                     borderRadius: BorderRadius.circular(6),
                     boxShadow: const [
-                      BoxShadow(
-                        color: Colors.black26,
-                        blurRadius: 4,
-                      ),
+                      BoxShadow(color: Colors.black26, blurRadius: 4),
                     ],
                   ),
                   child: Text(
@@ -1752,7 +2056,9 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
             options: MapOptions(
               initialCenter: _currentLocation,
               initialZoom: 15.5,
-              backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+              backgroundColor: isDark
+                  ? const Color(0xFF0F172A)
+                  : const Color(0xFFF1F5F9),
               onMapReady: () {
                 if (mounted) {
                   try {
@@ -1764,7 +2070,10 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                     _safeMove(_currentLocation, 16.0);
                   } else if (placesVm.places.isNotEmpty) {
                     _safeMove(
-                      LatLng(placesVm.places.first.latitude, placesVm.places.first.longitude),
+                      LatLng(
+                        placesVm.places.first.latitude,
+                        placesVm.places.first.longitude,
+                      ),
                       15.5,
                     );
                   }
@@ -1818,21 +2127,33 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
             bottom: false,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                spacing: 8,
+                runSpacing: 8,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
-                      color: isDark ? AppColors.darkSurface.withValues(alpha: 0.92) : Colors.white.withValues(alpha: 0.95),
+                      color: isDark
+                          ? AppColors.darkSurface.withValues(alpha: 0.92)
+                          : Colors.white.withValues(alpha: 0.95),
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: const [
                         BoxShadow(color: Colors.black12, blurRadius: 8),
                       ],
                     ),
                     child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.map_rounded, color: AppColors.primary, size: 20),
+                        const Icon(
+                          Icons.map_rounded,
+                          color: AppColors.primary,
+                          size: 20,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           'Mappa (${placesVm.places.length} luoghi)',
@@ -1846,25 +2167,33 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                     ),
                   ),
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       // "La mia giornata" Timeline Screen Button
                       FloatingActionButton.small(
                         heroTag: 'map_timeline_button',
-                        backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
+                        backgroundColor: isDark
+                            ? AppColors.darkSurface
+                            : Colors.white,
                         foregroundColor: const Color(0xFF0EA5E9),
                         elevation: 3,
                         tooltip: 'La mia giornata (Timeline Google Maps)',
                         onPressed: () {
                           HapticFeedback.selectionClick();
-                          final targetDate = _tripFilter == TripPeriodFilter.custom && _customSelectedDate != null
+                          final targetDate =
+                              _tripFilter == TripPeriodFilter.custom &&
+                                  _customSelectedDate != null
                               ? _customSelectedDate!
                               : (_tripFilter == TripPeriodFilter.yesterday
-                                  ? DateTime.now().subtract(const Duration(days: 1))
-                                  : DateTime.now());
+                                    ? DateTime.now().subtract(
+                                        const Duration(days: 1),
+                                      )
+                                    : DateTime.now());
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => DayTimelineView(initialDate: targetDate),
+                              builder: (_) =>
+                                  DayTimelineView(initialDate: targetDate),
                             ),
                           );
                         },
@@ -1877,9 +2206,12 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                         backgroundColor: _showTripsOnMap
                             ? const Color(0xFF0EA5E9)
                             : (isDark ? AppColors.darkSurface : Colors.white),
-                        foregroundColor: _showTripsOnMap ? Colors.white : textPrimary,
+                        foregroundColor: _showTripsOnMap
+                            ? Colors.white
+                            : textPrimary,
                         elevation: 3,
-                        tooltip: 'Tragitti e Periodo (${_tripFilter.displayName})',
+                        tooltip:
+                            'Tragitti e Periodo (${_tripFilter.displayName})',
                         onPressed: () {
                           HapticFeedback.selectionClick();
                           if (!_showTripsOnMap) {
@@ -1893,7 +2225,9 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                       // Map Layer Selector
                       FloatingActionButton.small(
                         heroTag: 'map_layer_selector',
-                        backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
+                        backgroundColor: isDark
+                            ? AppColors.darkSurface
+                            : Colors.white,
                         foregroundColor: AppColors.primary,
                         elevation: 3,
                         tooltip: 'Stile Mappa (Classica / Scura / Rilievi)',
@@ -1905,7 +2239,9 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                       if (placesVm.places.isNotEmpty) ...[
                         FloatingActionButton.small(
                           heroTag: 'map_fit_places',
-                          backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
+                          backgroundColor: isDark
+                              ? AppColors.darkSurface
+                              : Colors.white,
                           foregroundColor: textPrimary,
                           elevation: 3,
                           tooltip: 'Inquadra tutti i luoghi',
@@ -1924,7 +2260,13 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
         // 2b. Floating Trip Filter Pill under top bar
         if (_showTripsOnMap)
           Positioned(
-            top: (trackingEngine.isInTransit || activeTrip != null || (_currentSpeedKmh > 3.5 && trackingEngine.currentPlace == null)) ? 134 : 64,
+            top:
+                (trackingEngine.isInTransit ||
+                    activeTrip != null ||
+                    (_currentSpeedKmh > 3.5 &&
+                        trackingEngine.currentPlace == null))
+                ? 134
+                : 64,
             left: 16,
             right: 16,
             child: SafeArea(
@@ -1934,7 +2276,9 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
           ),
 
         // 3. Live Displacement / Movement Navigation HUD (Google Maps style)
-        if (trackingEngine.isInTransit || activeTrip != null || (_currentSpeedKmh > 3.5 && trackingEngine.currentPlace == null))
+        if (trackingEngine.isInTransit ||
+            activeTrip != null ||
+            (_currentSpeedKmh > 3.5 && trackingEngine.currentPlace == null))
           Positioned(
             top: 64,
             left: 16,
@@ -1948,7 +2292,8 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                 currentPlace: trackingEngine.currentPlace,
                 isFollowing: _followMode != MapFollowMode.none,
                 onToggleFollow: _toggleFollowMode,
-                onFitTrip: activeTrip != null && activeTrip.routePoints.isNotEmpty
+                onFitTrip:
+                    activeTrip != null && activeTrip.routePoints.isNotEmpty
                     ? () => _fitTripOnMap(activeTrip)
                     : null,
               ),
@@ -1996,7 +2341,10 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
               icon: const Icon(Icons.add_location_alt_rounded),
-              label: const Text('Nuovo Luogo', style: TextStyle(fontWeight: FontWeight.w700)),
+              label: const Text(
+                'Nuovo Luogo',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
             ),
           ),
 
@@ -2009,7 +2357,8 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
             child: _PlaceDetailCard(
               place: _selectedPlace!,
               isDark: isDark,
-              isCurrentPlace: trackingEngine.currentPlace?.id == _selectedPlace!.id,
+              isCurrentPlace:
+                  trackingEngine.currentPlace?.id == _selectedPlace!.id,
               totalTimeStr: placesVm.formatPlaceDuration(_selectedPlace!.name),
               onCheckIn: () {
                 HapticFeedback.mediumImpact();
@@ -2171,7 +2520,9 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: Colors.white.withValues(alpha: _beaconOpacityAnim.value * 0.7),
+                              color: Colors.white.withValues(
+                                alpha: _beaconOpacityAnim.value * 0.7,
+                              ),
                               width: 1.5,
                             ),
                           ),
@@ -2182,11 +2533,13 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                     isCompass
                         ? Icons.explore_rounded
                         : (isFollowing
-                            ? Icons.gps_fixed_rounded
-                            : Icons.my_location_outlined),
+                              ? Icons.gps_fixed_rounded
+                              : Icons.my_location_outlined),
                     color: isActive
                         ? Colors.white
-                        : (isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary),
+                        : (isDark
+                              ? AppColors.textDarkPrimary
+                              : AppColors.textLightPrimary),
                     size: 24,
                   ),
                 ],
@@ -2199,11 +2552,16 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
   }
 
   Widget _buildTripFilterPill(bool isDark, Color textPrimary) {
-    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
-    final cardBg = isDark ? AppColors.darkSurface.withValues(alpha: 0.94) : Colors.white.withValues(alpha: 0.95);
+    final textMuted = isDark
+        ? AppColors.textDarkMuted
+        : AppColors.textLightMuted;
+    final cardBg = isDark
+        ? AppColors.darkSurface.withValues(alpha: 0.94)
+        : Colors.white.withValues(alpha: 0.95);
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
-    final filterName = _tripFilter == TripPeriodFilter.custom && _customSelectedDate != null
+    final filterName =
+        _tripFilter == TripPeriodFilter.custom && _customSelectedDate != null
         ? DateFormat('d MMMM yyyy', 'it_IT').format(_customSelectedDate!)
         : _tripFilter.displayName;
 
@@ -2244,7 +2602,11 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                 color: const Color(0xFF0EA5E9).withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.route_rounded, color: Color(0xFF0EA5E9), size: 16),
+              child: const Icon(
+                Icons.route_rounded,
+                color: Color(0xFF0EA5E9),
+                size: 16,
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -2253,6 +2615,7 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Flexible(
                         child: Text(
@@ -2268,9 +2631,14 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                       ),
                       const SizedBox(width: 6),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 1.5,
+                        ),
                         decoration: BoxDecoration(
-                          color: _filteredTrips.isNotEmpty ? const Color(0xFF0EA5E9) : const Color(0xFF64748B),
+                          color: _filteredTrips.isNotEmpty
+                              ? const Color(0xFF0EA5E9)
+                              : const Color(0xFF64748B),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
@@ -2348,10 +2716,7 @@ class _HeadingBeamPainter extends CustomPainter {
 
     final paint = Paint()
       ..shader = RadialGradient(
-        colors: [
-          color.withValues(alpha: 0.45),
-          color.withValues(alpha: 0.0),
-        ],
+        colors: [color.withValues(alpha: 0.45), color.withValues(alpha: 0.0)],
       ).createShader(Rect.fromCircle(center: center, radius: radius));
 
     final path = Path()
@@ -2458,11 +2823,15 @@ class _LiveMovementHud extends StatelessWidget {
                   children: [
                     Flexible(
                       child: Text(
-                        originName != null ? 'Da $originName' : 'In Spostamento',
+                        originName != null
+                            ? 'Da $originName'
+                            : 'In Spostamento',
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
-                          color: isDark ? Colors.white : AppColors.textLightPrimary,
+                          color: isDark
+                              ? Colors.white
+                              : AppColors.textLightPrimary,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -2470,7 +2839,10 @@ class _LiveMovementHud extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 1.5,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF0EA5E9).withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(6),
@@ -2492,7 +2864,9 @@ class _LiveMovementHud extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    color: isDark
+                        ? const Color(0xFF94A3B8)
+                        : const Color(0xFF64748B),
                   ),
                 ),
               ],
@@ -2537,10 +2911,7 @@ class _PlaceDetailCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: place.color.withValues(alpha: 0.4),
-          width: 2,
-        ),
+        border: Border.all(color: place.color.withValues(alpha: 0.4), width: 2),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.12),
@@ -2577,7 +2948,9 @@ class _PlaceDetailCard extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w800,
-                              color: isDark ? Colors.white : AppColors.textLightPrimary,
+                              color: isDark
+                                  ? Colors.white
+                                  : AppColors.textLightPrimary,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -2586,7 +2959,10 @@ class _PlaceDetailCard extends StatelessWidget {
                         if (isCurrentPlace) ...[
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: place.color,
                               borderRadius: BorderRadius.circular(8),
@@ -2608,7 +2984,9 @@ class _PlaceDetailCard extends StatelessWidget {
                       '${place.category.displayName} • Raggio ${place.radiusInMeters.toInt()}m',
                       style: TextStyle(
                         fontSize: 12,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                        color: isDark
+                            ? const Color(0xFF94A3B8)
+                            : const Color(0xFF64748B),
                       ),
                     ),
                   ],
@@ -2625,21 +3003,32 @@ class _PlaceDetailCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
-                    color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                    color: isDark
+                        ? AppColors.darkSurfaceElevated
+                        : AppColors.lightSurfaceElevated,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.access_time_rounded, size: 16, color: AppColors.primary),
+                      const Icon(
+                        Icons.access_time_rounded,
+                        size: 16,
+                        color: AppColors.primary,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         'Totale: $totalTimeStr',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white : AppColors.textLightPrimary,
+                          color: isDark
+                              ? Colors.white
+                              : AppColors.textLightPrimary,
                         ),
                       ),
                     ],
@@ -2657,11 +3046,21 @@ class _PlaceDetailCard extends StatelessWidget {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: place.color,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                 ),
                 onPressed: isCurrentPlace ? null : onCheckIn,
-                icon: Icon(isCurrentPlace ? Icons.check_circle_rounded : Icons.touch_app_rounded, size: 16),
+                icon: Icon(
+                  isCurrentPlace
+                      ? Icons.check_circle_rounded
+                      : Icons.touch_app_rounded,
+                  size: 16,
+                ),
                 label: Text(isCurrentPlace ? 'Attivo' : 'Check-in'),
               ),
             ],
@@ -2691,24 +3090,27 @@ class _TripDetailCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final tripColor = TransportMode.getColor(trip.transportMode);
     final tripIcon = TransportMode.getIcon(trip.transportMode);
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
-    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
+    final textMuted = isDark
+        ? AppColors.textDarkMuted
+        : AppColors.textLightMuted;
     final timeFormat = DateFormat('HH:mm');
     final dateFormat = DateFormat('d MMMM', 'it_IT');
 
     final dateStr = dateFormat.format(trip.startTime);
     final startStr = timeFormat.format(trip.startTime);
-    final endStr = trip.endTime != null ? timeFormat.format(trip.endTime!) : 'In corso';
+    final endStr = trip.endTime != null
+        ? timeFormat.format(trip.endTime!)
+        : 'In corso';
 
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: tripColor.withValues(alpha: 0.5),
-          width: 2,
-        ),
+        border: Border.all(color: tripColor.withValues(alpha: 0.5), width: 2),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.12),
@@ -2770,9 +3172,14 @@ class _TripDetailCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
-                    color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                    color: isDark
+                        ? AppColors.darkSurfaceElevated
+                        : AppColors.lightSurfaceElevated,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -2781,24 +3188,66 @@ class _TripDetailCard extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Distanza', style: TextStyle(fontSize: 10, color: textMuted)),
-                          Text(trip.formattedDistance, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: textPrimary)),
+                          Text(
+                            'Distanza',
+                            style: TextStyle(fontSize: 10, color: textMuted),
+                          ),
+                          Text(
+                            trip.formattedDistance,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: textPrimary,
+                            ),
+                          ),
                         ],
                       ),
-                      Container(width: 1, height: 24, color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                      Container(
+                        width: 1,
+                        height: 24,
+                        color: isDark
+                            ? AppColors.darkBorder
+                            : AppColors.lightBorder,
+                      ),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Durata', style: TextStyle(fontSize: 10, color: textMuted)),
-                          Text(trip.formattedDuration, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: textPrimary)),
+                          Text(
+                            'Durata',
+                            style: TextStyle(fontSize: 10, color: textMuted),
+                          ),
+                          Text(
+                            trip.formattedDuration,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: textPrimary,
+                            ),
+                          ),
                         ],
                       ),
-                      Container(width: 1, height: 24, color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                      Container(
+                        width: 1,
+                        height: 24,
+                        color: isDark
+                            ? AppColors.darkBorder
+                            : AppColors.lightBorder,
+                      ),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Media', style: TextStyle(fontSize: 10, color: textMuted)),
-                          Text('${trip.averageSpeedKmH.toStringAsFixed(1)} km/h', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: textPrimary)),
+                          Text(
+                            'Media',
+                            style: TextStyle(fontSize: 10, color: textMuted),
+                          ),
+                          Text(
+                            '${trip.averageSpeedKmH.toStringAsFixed(1)} km/h',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: textPrimary,
+                            ),
+                          ),
                         ],
                       ),
                     ],
@@ -2814,8 +3263,14 @@ class _TripDetailCard extends StatelessWidget {
                 child: OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
                     foregroundColor: textPrimary,
-                    side: BorderSide(color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    side: BorderSide(
+                      color: isDark
+                          ? AppColors.darkBorder
+                          : AppColors.lightBorder,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   onPressed: onOpenSelector,
                   icon: const Icon(Icons.list_alt_rounded, size: 16),
@@ -2827,12 +3282,20 @@ class _TripDetailCard extends StatelessWidget {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: tripColor,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                 ),
                 onPressed: onFit,
                 icon: const Icon(Icons.center_focus_strong_rounded, size: 16),
-                label: const Text('Inquadra', style: TextStyle(fontWeight: FontWeight.w800)),
+                label: const Text(
+                  'Inquadra',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
               ),
             ],
           ),
@@ -2841,4 +3304,3 @@ class _TripDetailCard extends StatelessWidget {
     );
   }
 }
-

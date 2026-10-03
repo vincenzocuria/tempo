@@ -340,5 +340,31 @@ void main() {
         );
       },
     );
+    test(
+      'Home summary combines both homes while counting a shared day once',
+      () async {
+        await db.insertVisit(
+          visit(DateTime(2026, 9, 25, 8), DateTime(2026, 9, 25, 9)),
+        );
+        await db.insertVisit(
+          visit(
+            DateTime(2026, 9, 25, 10),
+            DateTime(2026, 9, 25, 11),
+          ).copyWith(category: PlaceCategory.secondaCasa),
+        );
+        final vm = AnalyticsViewModel(visitRepository: VisitRepository());
+        while (vm.isLoading) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        vm.setFilter(AnalyticsTimeFilter.allTime);
+        while (vm.isLoading) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        expect(vm.homeStats!.durationSeconds, 7200);
+        expect(vm.homeStats!.visitCount, 2);
+        expect(vm.homeStats!.distinctDaysCount, 1);
+        vm.dispose();
+      },
+    );
   });
 }
