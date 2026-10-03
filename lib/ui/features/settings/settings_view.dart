@@ -795,7 +795,7 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
             child: Column(
               children: [
                 Text(
-                  'Tempo v1.0.15',
+                  'Tempo v1.0.24',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
