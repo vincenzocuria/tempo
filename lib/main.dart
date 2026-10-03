@@ -27,9 +27,10 @@ import 'ui/features/settings/settings_view.dart';
 import 'ui/features/splash/splash_view.dart';
 import 'ui/features/onboarding/onboarding_view.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
   runZonedGuarded(() async {
-    WidgetsFlutterBinding.ensureInitialized();
 
     FlutterError.onError = (FlutterErrorDetails details) {
       FlutterError.presentError(details);
