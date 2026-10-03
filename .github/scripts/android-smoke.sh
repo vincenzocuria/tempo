@@ -22,6 +22,11 @@ check_launch() {
 }
 adb install Tempo.apk
 check_launch baseline-1.0.23 || true
+# Both APKs use the runner's temporary key for this CI upgrade test.
+# The distributable APK is re-signed locally with the original production key.
+adb uninstall "$package"
+"$ANDROID_HOME/build-tools/36.0.0/apksigner" sign --ks "$HOME/.android/debug.keystore" --ks-pass pass:android --key-pass pass:android --out smoke-evidence/baseline-ci.apk Tempo.apk
+adb install smoke-evidence/baseline-ci.apk
 adb shell am force-stop "$package"
 adb install -r build/app/outputs/flutter-apk/app-release.apk
 check_launch upgrade-1.0.24

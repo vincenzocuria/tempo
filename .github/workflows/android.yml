@@ -61,13 +61,6 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
-      - name: Restore existing APK signing key
-        env:
-          KEYSTORE: ${{ secrets.TEMPO_ANDROID_KEYSTORE }}
-        run: |
-          test -n "$KEYSTORE"
-          mkdir -p "$HOME/.android"
-          printf '%s' "$KEYSTORE" | base64 --decode > "$HOME/.android/debug.keystore"
       - run: flutter build apk --release
       - uses: actions/upload-artifact@v4
         with:
