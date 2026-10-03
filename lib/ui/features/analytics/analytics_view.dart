@@ -759,30 +759,34 @@ class _MobilitySection extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0284C7).withValues(alpha: 0.15),
-                      shape: BoxShape.circle,
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0284C7).withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.route_rounded,
+                        color: Color(0xFF0284C7),
+                        size: 18,
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.route_rounded,
-                      color: Color(0xFF0284C7),
-                      size: 18,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Mobilità & Spostamenti',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: textPrimary,
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Mobilità & Spostamenti',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: textPrimary,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               Text(
                 '${viewModel.totalTripsCount} viaggi',
@@ -803,8 +807,10 @@ class _MobilitySection extends StatelessWidget {
               color: elevatedBg,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+            child: Wrap(
+              alignment: WrapAlignment.spaceAround,
+              spacing: 12,
+              runSpacing: 12,
               children: [
                 _MobilityMiniStat(
                   label: 'KM TOTALI',
@@ -815,7 +821,7 @@ class _MobilitySection extends StatelessWidget {
                   color: const Color(0xFF0284C7),
                   isDark: isDark,
                 ),
-                Container(width: 1, height: 28, color: borderColor),
+
                 _MobilityMiniStat(
                   label: 'IN TRANSITO',
                   value: viewModel.formatSeconds(
@@ -825,7 +831,7 @@ class _MobilitySection extends StatelessWidget {
                   color: const Color(0xFF38BDF8),
                   isDark: isDark,
                 ),
-                Container(width: 1, height: 28, color: borderColor),
+
                 _MobilityMiniStat(
                   label: viewModel.motoStats.tripCount > 0 ? 'MOTO' : 'IN AUTO',
                   value: viewModel.motoStats.tripCount > 0
@@ -898,8 +904,10 @@ class _MobilitySection extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              alignment: WrapAlignment.spaceBetween,
                               children: [
                                 Text(
                                   stat.modeName,
@@ -942,8 +950,10 @@ class _MobilitySection extends StatelessWidget {
           // Recent trips list if available (Interactive with 1-tap mode change)
           if (trips.isNotEmpty) ...[
             const SizedBox(height: 14),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              alignment: WrapAlignment.spaceBetween,
               children: [
                 Text(
                   'Ultimi Tragitti Rilevati',
@@ -1069,15 +1079,16 @@ class _MobilitySection extends StatelessWidget {
                                   ),
                                 ],
                               ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${trip.formattedDistance} (${trip.formattedDuration})',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: textMuted,
+                                ),
+                              ),
                             ],
-                          ),
-                        ),
-                        Text(
-                          '${trip.formattedDistance} (${trip.formattedDuration})',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: textMuted,
                           ),
                         ),
                       ],
