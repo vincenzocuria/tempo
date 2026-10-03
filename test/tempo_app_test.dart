@@ -1,3 +1,7 @@
+import 'package:tempo/data/models/place.dart';
+import 'package:tempo/data/models/place_category.dart';
+import 'package:tempo/data/models/trip.dart';
+import 'package:tempo/data/models/visit_session.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -92,6 +96,37 @@ void main() {
       visitRepository: visitRepo,
       tripRepository: tripRepo,
     );
+
+    await tester.runAsync(() async {
+      final now = DateTime.now();
+      final place = Place(
+        name: 'Casa con un nome molto lungo di prova',
+        category: PlaceCategory.casa,
+        latitude: 45.46,
+        longitude: 9.19,
+      );
+      await placeRepo.savePlace(place);
+      await visitRepo.addManualVisit(
+        VisitSession(
+          placeId: place.id,
+          placeName: place.name,
+          category: place.category,
+          startTime: now.subtract(const Duration(hours: 2)),
+          endTime: now.subtract(const Duration(minutes: 70)),
+          isManual: true,
+        ),
+      );
+      await tripRepo.insertTrip(
+        Trip(
+          originPlaceName: place.name,
+          destinationPlaceName: 'Destinazione con un nome molto lungo',
+          startTime: now.subtract(const Duration(minutes: 70)),
+          endTime: now.subtract(const Duration(minutes: 10)),
+          distanceMeters: 7000,
+          transportMode: 'In auto',
+        ),
+      );
+    });
 
     await tester.pumpWidget(
       TempoApp(

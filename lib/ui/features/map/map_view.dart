@@ -860,43 +860,47 @@ class _MapViewState extends State<MapView>
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF0EA5E9)
-                                    .withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(
-                                Icons.route_rounded,
-                                color: Color(0xFF0EA5E9),
-                                size: 22,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Tragitti su Mappa',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w800,
-                                    color: textPrimary,
-                                  ),
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0EA5E9)
+                                      .withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                                Text(
-                                  'Scegli giorno o periodo da visualizzare',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: textMuted,
-                                  ),
+                                child: const Icon(
+                                  Icons.route_rounded,
+                                  color: Color(0xFF0EA5E9),
+                                  size: 22,
                                 ),
-                              ],
-                            ),
-                          ],
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Tragitti su Mappa',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w800,
+                                        color: textPrimary,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Scegli giorno o periodo da visualizzare',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: textMuted,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                         IconButton(
                           icon: const Icon(Icons.close_rounded),
@@ -961,14 +965,16 @@ class _MapViewState extends State<MapView>
                                 children: [
                                   Row(
                                     children: [
-                                      Text(
-                                        'Apri Timeline "La mia giornata"',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 13,
-                                          color: isDark
-                                              ? Colors.white
-                                              : const Color(0xFF0369A1),
+                                      Expanded(
+                                        child: Text(
+                                          'Apri Timeline "La mia giornata"',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 13,
+                                            color: isDark
+                                                ? Colors.white
+                                                : const Color(0xFF0369A1),
+                                          ),
                                         ),
                                       ),
                                       const SizedBox(width: 6),
@@ -2107,178 +2113,167 @@ class _MapViewState extends State<MapView>
             bottom: false,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Wrap(
-                alignment: WrapAlignment.spaceBetween,
-                spacing: 8,
-                runSpacing: 8,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? AppColors.darkSurface.withValues(alpha: 0.92)
-                          : Colors.white.withValues(alpha: 0.95),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: const [
-                        BoxShadow(color: Colors.black12, blurRadius: 8),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.map_rounded,
-                          color: AppColors.primary,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Mappa (${placesVm.places.length} luoghi)',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            color: textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    spacing: 8,
+                    runSpacing: 8,
                     children: [
-                      // "La mia giornata" Timeline Screen Button
-                      FloatingActionButton.small(
-                        heroTag: 'map_timeline_button',
-                        backgroundColor: isDark
-                            ? AppColors.darkSurface
-                            : Colors.white,
-                        foregroundColor: const Color(0xFF0EA5E9),
-                        elevation: 3,
-                        tooltip: 'La mia giornata (Timeline Google Maps)',
-                        onPressed: () {
-                          HapticFeedback.selectionClick();
-                          final targetDate =
-                              _tripFilter == TripPeriodFilter.custom &&
-                                  _customSelectedDate != null
-                              ? _customSelectedDate!
-                              : (_tripFilter == TripPeriodFilter.yesterday
-                                    ? DateTime.now().subtract(
-                                        const Duration(days: 1),
-                                      )
-                                    : DateTime.now());
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  DayTimelineView(initialDate: targetDate),
-                            ),
-                          );
-                        },
-                        child: const Icon(Icons.timeline_rounded),
-                      ),
-                      const SizedBox(width: 8),
-                      // Toggle Routes & Period Selector on map
-                      FloatingActionButton.small(
-                        heroTag: 'map_toggle_trips',
-                        backgroundColor: _showTripsOnMap
-                            ? const Color(0xFF0EA5E9)
-                            : (isDark ? AppColors.darkSurface : Colors.white),
-                        foregroundColor: _showTripsOnMap
-                            ? Colors.white
-                            : textPrimary,
-                        elevation: 3,
-                        tooltip:
-                            'Tragitti e Periodo (${_tripFilter.displayName})',
-                        onPressed: () {
-                          HapticFeedback.selectionClick();
-                          if (!_showTripsOnMap) {
-                            setState(() => _showTripsOnMap = true);
-                          }
-                          _showTripPeriodSelector(context, isDark);
-                        },
-                        child: const Icon(Icons.route_rounded),
-                      ),
-                      const SizedBox(width: 8),
-                      // Map Layer Selector
-                      FloatingActionButton.small(
-                        heroTag: 'map_layer_selector',
-                        backgroundColor: isDark
-                            ? AppColors.darkSurface
-                            : Colors.white,
-                        foregroundColor: AppColors.primary,
-                        elevation: 3,
-                        tooltip: 'Stile Mappa (Classica / Scura / Rilievi)',
-                        onPressed: () => _showLayerSelector(context, isDark),
-                        child: const Icon(Icons.layers_rounded),
-                      ),
-                      const SizedBox(width: 8),
-                      // Fit all places
-                      if (placesVm.places.isNotEmpty) ...[
-                        FloatingActionButton.small(
-                          heroTag: 'map_fit_places',
-                          backgroundColor: isDark
-                              ? AppColors.darkSurface
-                              : Colors.white,
-                          foregroundColor: textPrimary,
-                          elevation: 3,
-                          tooltip: 'Inquadra tutti i luoghi',
-                          onPressed: () => _fitAllPlaces(placesVm.places),
-                          child: const Icon(Icons.crop_free_rounded),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
                         ),
-                      ],
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? AppColors.darkSurface.withValues(alpha: 0.92)
+                              : Colors.white.withValues(alpha: 0.95),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: const [
+                            BoxShadow(color: Colors.black12, blurRadius: 8),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.map_rounded,
+                              color: AppColors.primary,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Mappa (${placesVm.places.length} luoghi)',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // "La mia giornata" Timeline Screen Button
+                          FloatingActionButton.small(
+                            heroTag: 'map_timeline_button',
+                            backgroundColor: isDark
+                                ? AppColors.darkSurface
+                                : Colors.white,
+                            foregroundColor: const Color(0xFF0EA5E9),
+                            elevation: 3,
+                            tooltip: 'La mia giornata (Timeline Google Maps)',
+                            onPressed: () {
+                              HapticFeedback.selectionClick();
+                              final targetDate =
+                                  _tripFilter == TripPeriodFilter.custom &&
+                                      _customSelectedDate != null
+                                  ? _customSelectedDate!
+                                  : (_tripFilter == TripPeriodFilter.yesterday
+                                        ? DateTime.now().subtract(
+                                            const Duration(days: 1),
+                                          )
+                                        : DateTime.now());
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      DayTimelineView(initialDate: targetDate),
+                                ),
+                              );
+                            },
+                            child: const Icon(Icons.timeline_rounded),
+                          ),
+                          const SizedBox(width: 8),
+                          // Toggle Routes & Period Selector on map
+                          FloatingActionButton.small(
+                            heroTag: 'map_toggle_trips',
+                            backgroundColor: _showTripsOnMap
+                                ? const Color(0xFF0EA5E9)
+                                : (isDark
+                                      ? AppColors.darkSurface
+                                      : Colors.white),
+                            foregroundColor: _showTripsOnMap
+                                ? Colors.white
+                                : textPrimary,
+                            elevation: 3,
+                            tooltip:
+                                'Tragitti e Periodo (${_tripFilter.displayName})',
+                            onPressed: () {
+                              HapticFeedback.selectionClick();
+                              if (!_showTripsOnMap) {
+                                setState(() => _showTripsOnMap = true);
+                              }
+                              _showTripPeriodSelector(context, isDark);
+                            },
+                            child: const Icon(Icons.route_rounded),
+                          ),
+                          const SizedBox(width: 8),
+                          // Map Layer Selector
+                          FloatingActionButton.small(
+                            heroTag: 'map_layer_selector',
+                            backgroundColor: isDark
+                                ? AppColors.darkSurface
+                                : Colors.white,
+                            foregroundColor: AppColors.primary,
+                            elevation: 3,
+                            tooltip: 'Stile Mappa (Classica / Scura / Rilievi)',
+                            onPressed: () =>
+                                _showLayerSelector(context, isDark),
+                            child: const Icon(Icons.layers_rounded),
+                          ),
+                          const SizedBox(width: 8),
+                          // Fit all places
+                          if (placesVm.places.isNotEmpty) ...[
+                            FloatingActionButton.small(
+                              heroTag: 'map_fit_places',
+                              backgroundColor: isDark
+                                  ? AppColors.darkSurface
+                                  : Colors.white,
+                              foregroundColor: textPrimary,
+                              elevation: 3,
+                              tooltip: 'Inquadra tutti i luoghi',
+                              onPressed: () => _fitAllPlaces(placesVm.places),
+                              child: const Icon(Icons.crop_free_rounded),
+                            ),
+                          ],
+                        ],
+                      ),
                     ],
                   ),
+                  if (trackingEngine.isInTransit ||
+                      activeTrip != null ||
+                      (_currentSpeedKmh > 3.5 &&
+                          trackingEngine.currentPlace == null)) ...[
+                    const SizedBox(height: 8),
+                    _LiveMovementHud(
+                      isDark: isDark,
+                      speedKmh: _currentSpeedKmh,
+                      activeTrip: activeTrip,
+                      currentPlace: trackingEngine.currentPlace,
+                      isFollowing: _followMode != MapFollowMode.none,
+                      onToggleFollow: _toggleFollowMode,
+                      onFitTrip:
+                          activeTrip != null &&
+                              activeTrip.routePoints.isNotEmpty
+                          ? () => _fitTripOnMap(activeTrip)
+                          : null,
+                    ),
+                  ],
+                  if (_showTripsOnMap) ...[
+                    const SizedBox(height: 8),
+                    _buildTripFilterPill(isDark, textPrimary),
+                  ],
                 ],
               ),
             ),
           ),
         ),
-
-        // 2b. Floating Trip Filter Pill under top bar
-        if (_showTripsOnMap)
-          Positioned(
-            top:
-                (trackingEngine.isInTransit ||
-                    activeTrip != null ||
-                    (_currentSpeedKmh > 3.5 &&
-                        trackingEngine.currentPlace == null))
-                ? 134
-                : 64,
-            left: 16,
-            right: 16,
-            child: SafeArea(
-              bottom: false,
-              child: _buildTripFilterPill(isDark, textPrimary),
-            ),
-          ),
-
-        // 3. Live Displacement / Movement Navigation HUD (Google Maps style)
-        if (trackingEngine.isInTransit ||
-            activeTrip != null ||
-            (_currentSpeedKmh > 3.5 && trackingEngine.currentPlace == null))
-          Positioned(
-            top: 64,
-            left: 16,
-            right: 16,
-            child: SafeArea(
-              bottom: false,
-              child: _LiveMovementHud(
-                isDark: isDark,
-                speedKmh: _currentSpeedKmh,
-                activeTrip: activeTrip,
-                currentPlace: trackingEngine.currentPlace,
-                isFollowing: _followMode != MapFollowMode.none,
-                onToggleFollow: _toggleFollowMode,
-                onFitTrip:
-                    activeTrip != null && activeTrip.routePoints.isNotEmpty
-                    ? () => _fitTripOnMap(activeTrip)
-                    : null,
-              ),
-            ),
-          ),
 
         // 4. Floating Controls Column on Right (Compass, Zoom In/Out, Google Maps Recenter FAB)
         Positioned(

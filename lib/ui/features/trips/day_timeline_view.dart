@@ -1352,7 +1352,9 @@ class _DayTimelineViewState extends State<DayTimelineView>
                           ],
                         ),
                         const SizedBox(height: 6),
-                        Row(
+                        Wrap(
+                          runSpacing: 4,
+                          spacing: 4,
                           children: [
                             Icon(
                               Icons.schedule_rounded,
@@ -1519,7 +1521,9 @@ class _DayTimelineViewState extends State<DayTimelineView>
                           ],
                         ),
                         const SizedBox(height: 6),
-                        Row(
+                        Wrap(
+                          runSpacing: 4,
+                          spacing: 4,
                           children: [
                             Text(
                               '$startStr - $endStr',
