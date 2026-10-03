@@ -464,12 +464,14 @@ class _SettingsViewState extends State<SettingsView>
                       size: 24,
                     ),
                     SizedBox(width: 10),
-                    Text(
-                      '100% Privacy & Locale',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.success,
+                    Expanded(
+                      child: Text(
+                        '100% Privacy & Locale',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.success,
+                        ),
                       ),
                     ),
                   ],
