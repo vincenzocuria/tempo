@@ -398,8 +398,10 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: borderColor),
             ),
-            child: Column(
-              children: [
+            child: Material(
+              color: Colors.transparent,
+              child: Column(
+                children: [
                 SwitchListTile(
                   title: Text(
                     'Tracciamento Luoghi',
@@ -489,6 +491,7 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
               ],
             ),
           ),
+        ),
           const SizedBox(height: 24),
 
           // Permissions
@@ -499,8 +502,10 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: borderColor),
             ),
-            child: Column(
-              children: [
+            child: Material(
+              color: Colors.transparent,
+              child: Column(
+                children: [
                 _PermissionTile(
                   title: 'Posizione GPS',
                   subtitle: 'Richiesta per determinare le coordinate',
@@ -529,22 +534,26 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
                   onTap: _requestBatteryOptimization,
                 ),
                 Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
-                ListTile(
-                  leading: const Icon(Icons.settings_suggest_rounded, color: AppColors.primary),
-                  title: Text(
-                    'Apri Impostazioni App di Sistema',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: textPrimary),
+                Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    leading: const Icon(Icons.settings_suggest_rounded, color: AppColors.primary),
+                    title: Text(
+                      'Apri Impostazioni App di Sistema',
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: textPrimary),
+                    ),
+                    subtitle: Text(
+                      'Gestisci manualmente tutti i permessi nelle impostazioni Android',
+                      style: TextStyle(fontSize: 12, color: textMuted),
+                    ),
+                    trailing: const Icon(Icons.open_in_new_rounded, size: 18),
+                    onTap: () => PermissionManager.instance.openSystemSettings(),
                   ),
-                  subtitle: Text(
-                    'Gestisci manualmente tutti i permessi nelle impostazioni Android',
-                    style: TextStyle(fontSize: 12, color: textMuted),
-                  ),
-                  trailing: const Icon(Icons.open_in_new_rounded, size: 18),
-                  onTap: () => PermissionManager.instance.openSystemSettings(),
                 ),
               ],
             ),
           ),
+        ),
           const SizedBox(height: 24),
 
           // Appearance
@@ -555,15 +564,18 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: borderColor),
             ),
-            child: SwitchListTile(
-              title: Text(
-                'Tema Scuro',
-                style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
+            child: Material(
+              color: Colors.transparent,
+              child: SwitchListTile(
+                title: Text(
+                  'Tema Scuro',
+                  style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
+                ),
+                subtitle: Text(widget.isDarkMode ? 'Attivo' : 'Disattivato (Tema Chiaro)', style: TextStyle(color: textMuted, fontSize: 13)),
+                value: widget.isDarkMode,
+                activeColor: AppColors.primary,
+                onChanged: (_) => widget.onThemeToggle(),
               ),
-              subtitle: Text(widget.isDarkMode ? 'Attivo' : 'Disattivato (Tema Chiaro)', style: TextStyle(color: textMuted, fontSize: 13)),
-              value: widget.isDarkMode,
-              activeColor: AppColors.primary,
-              onChanged: (_) => widget.onThemeToggle(),
             ),
           ),
           const SizedBox(height: 24),
@@ -576,30 +588,33 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: borderColor),
             ),
-            child: ListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
+            child: Material(
+              color: Colors.transparent,
+              child: ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.category_rounded, color: Color(0xFF8B5CF6), size: 22),
                 ),
-                child: const Icon(Icons.category_rounded, color: Color(0xFF8B5CF6), size: 22),
+                title: Text(
+                  'Gestione Categorie',
+                  style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
+                ),
+                subtitle: Text(
+                  'Aggiungi, modifica ed elimina le categorie dei luoghi',
+                  style: TextStyle(color: textMuted, fontSize: 13),
+                ),
+                trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const CategoriesView()),
+                  );
+                },
               ),
-              title: Text(
-                'Gestione Categorie',
-                style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
-              ),
-              subtitle: Text(
-                'Aggiungi, modifica ed elimina le categorie dei luoghi',
-                style: TextStyle(color: textMuted, fontSize: 13),
-              ),
-              trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const CategoriesView()),
-                );
-              },
             ),
           ),
           const SizedBox(height: 24),
@@ -615,54 +630,57 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
             child: Consumer<NotificationService>(
               builder: (context, notifService, _) {
                 final unread = notifService.unreadCount;
-                return ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: isDark ? 0.2 : 0.1),
-                      borderRadius: BorderRadius.circular(10),
+                return Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: isDark ? 0.2 : 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        unread > 0 ? Icons.notifications_active_rounded : Icons.notifications_outlined,
+                        color: AppColors.primary,
+                        size: 20,
+                      ),
                     ),
-                    child: Icon(
-                      unread > 0 ? Icons.notifications_active_rounded : Icons.notifications_outlined,
-                      color: AppColors.primary,
-                      size: 20,
+                    title: Text(
+                      'Registro Notifiche',
+                      style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
                     ),
-                  ),
-                  title: Text(
-                    'Registro Notifiche',
-                    style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
-                  ),
-                  subtitle: Text(
-                    'Storico permanente di arrivi, partenze e abitudini',
-                    style: TextStyle(color: textMuted, fontSize: 13),
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (unread > 0)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            '$unread nuove',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
+                    subtitle: Text(
+                      'Storico permanente di arrivi, partenze e abitudini',
+                      style: TextStyle(color: textMuted, fontSize: 13),
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (unread > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '$unread nuove',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
-                        ),
-                      const SizedBox(width: 4),
-                      Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
-                    ],
+                        const SizedBox(width: 4),
+                        Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
+                      ],
+                    ),
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      NotificationLogSheet.show(context, isDark: widget.isDarkMode);
+                    },
                   ),
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    NotificationLogSheet.show(context, isDark: widget.isDarkMode);
-                  },
                 );
               },
             ),
@@ -677,70 +695,72 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: borderColor),
             ),
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.history_rounded, color: AppColors.primary),
-                  title: Text('Cronologia Completa Visite', style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary)),
-                  subtitle: Text('Visualizza e cerca tutte le sessioni passate', style: TextStyle(color: textMuted, fontSize: 13)),
-                  trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const HistoryView()),
-                    );
-                  },
-                ),
-                Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
-                ListTile(
-                  leading: const Icon(Icons.table_chart_rounded, color: AppColors.primary),
-                  title: Text('Esporta Visite in CSV', style: TextStyle(fontWeight: FontWeight.w600, color: textPrimary)),
-                  subtitle: Text('Compatibile con Excel e Google Fogli', style: TextStyle(color: textMuted, fontSize: 13)),
-                  trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
-                  onTap: _exportCsv,
-                ),
-                Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
-                ListTile(
-                  leading: const Icon(Icons.code_rounded, color: AppColors.info),
-                  title: Text('Esporta Tutto in JSON', style: TextStyle(fontWeight: FontWeight.w600, color: textPrimary)),
-                  subtitle: Text('Backup completo di luoghi e visite', style: TextStyle(color: textMuted, fontSize: 13)),
-                  trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
-                  onTap: _exportJson,
-                ),
-                Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
-                ListTile(
-                  leading: const Icon(Icons.auto_awesome_rounded, color: Color(0xFF6366F1)),
-                  title: Text('Simula Rilevamento Luogo Frequente', style: TextStyle(fontWeight: FontWeight.w600, color: textPrimary)),
-                  subtitle: Text('Simula una sosta abituale per testare i suggerimenti smart', style: TextStyle(color: textMuted, fontSize: 13)),
-                  trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
-                  onTap: () async {
-                    await HabitDetectionService.instance.simulateHabitStay();
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Luogo frequente simulato con successo! Controlla la schermata "Oggi".'),
-                          backgroundColor: Color(0xFF6366F1),
+            child: Material(
+              color: Colors.transparent,
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.history_rounded, color: AppColors.primary),
+                    title: Text('Cronologia Completa Visite', style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary)),
+                    subtitle: Text('Visualizza e cerca tutte le sessioni passate', style: TextStyle(color: textMuted, fontSize: 13)),
+                    trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const HistoryView()),
+                      );
+                    },
+                  ),
+                  Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
+                  ListTile(
+                    leading: const Icon(Icons.table_chart_rounded, color: AppColors.primary),
+                    title: Text('Esporta Visite in CSV', style: TextStyle(fontWeight: FontWeight.w600, color: textPrimary)),
+                    subtitle: Text('Compatibile con Excel e Google Fogli', style: TextStyle(color: textMuted, fontSize: 13)),
+                    trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
+                    onTap: _exportCsv,
+                  ),
+                  Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
+                  ListTile(
+                    leading: const Icon(Icons.code_rounded, color: AppColors.info),
+                    title: Text('Esporta Tutto in JSON', style: TextStyle(fontWeight: FontWeight.w600, color: textPrimary)),
+                    subtitle: Text('Backup completo di luoghi e visite', style: TextStyle(color: textMuted, fontSize: 13)),
+                    trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
+                    onTap: _exportJson,
+                  ),
+                  Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
+                  ListTile(
+                    leading: const Icon(Icons.auto_awesome_rounded, color: Color(0xFF6366F1)),
+                    title: Text('Simula Rilevamento Luogo Frequente', style: TextStyle(fontWeight: FontWeight.w600, color: textPrimary)),
+                    subtitle: Text('Simula una sosta abituale per testare i suggerimenti smart', style: TextStyle(color: textMuted, fontSize: 13)),
+                    trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
+                    onTap: () async {
+                      await HabitDetectionService.instance.simulateHabitStay();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Luogo frequente simulato con successo! Controlla la schermata "Oggi".'),
+                            backgroundColor: Color(0xFF6366F1),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                  Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
+                  ListTile(
+                    leading: const Icon(Icons.school_rounded, color: AppColors.primary),
+                    title: Text('Rivedi Guida & Onboarding', style: TextStyle(fontWeight: FontWeight.w600, color: textPrimary)),
+                    subtitle: Text('Rivedi le slide introduttive e la filosofia di Tempo', style: TextStyle(color: textMuted, fontSize: 13)),
+                    trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const OnboardingView(),
                         ),
                       );
-                    }
-                  },
-                ),
-                Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
-                ListTile(
-                  leading: const Icon(Icons.school_rounded, color: AppColors.primary),
-                  title: Text('Rivedi Guida & Onboarding', style: TextStyle(fontWeight: FontWeight.w600, color: textPrimary)),
-                  subtitle: Text('Rivedi le slide introduttive e la filosofia di Tempo', style: TextStyle(color: textMuted, fontSize: 13)),
-                  trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const OnboardingView(),
-                      ),
-                    );
-                  },
-                ),
-
-              ],
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 24),
@@ -755,14 +775,17 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
                 color: AppColors.danger.withValues(alpha: 0.35),
               ),
             ),
-            child: ListTile(
-              leading: const Icon(Icons.delete_forever_rounded, color: AppColors.danger),
-              title: const Text(
-                'Cancella Tutti i Dati',
-                style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.danger),
+            child: Material(
+              color: Colors.transparent,
+              child: ListTile(
+                leading: const Icon(Icons.delete_forever_rounded, color: AppColors.danger),
+                title: const Text(
+                  'Cancella Tutti i Dati',
+                  style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.danger),
+                ),
+                subtitle: Text('Elimina luoghi e cronologia dal dispositivo', style: TextStyle(color: textMuted, fontSize: 13)),
+                onTap: _confirmClearData,
               ),
-              subtitle: Text('Elimina luoghi e cronologia dal dispositivo', style: TextStyle(color: textMuted, fontSize: 13)),
-              onTap: _confirmClearData,
             ),
           ),
           const SizedBox(height: 36),
@@ -841,31 +864,34 @@ class _PermissionTile extends StatelessWidget {
     final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
     final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
 
-    return ListTile(
-      title: Text(title, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: textPrimary)),
-      subtitle: Text(subtitle, style: TextStyle(fontSize: 12, color: textMuted)),
-      trailing: isGranted
-          ? Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.success.withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(10),
+    return Material(
+      color: Colors.transparent,
+      child: ListTile(
+        title: Text(title, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: textPrimary)),
+        subtitle: Text(subtitle, style: TextStyle(fontSize: 12, color: textMuted)),
+        trailing: isGranted
+            ? Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Text(
+                  'Concesso',
+                  style: TextStyle(color: AppColors.success, fontSize: 11, fontWeight: FontWeight.w800),
+                ),
+              )
+            : ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+                onPressed: onTap,
+                child: const Text('Abilita'),
               ),
-              child: const Text(
-                'Concesso',
-                style: TextStyle(color: AppColors.success, fontSize: 11, fontWeight: FontWeight.w800),
-              ),
-            )
-          : ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-              ),
-              onPressed: onTap,
-              child: const Text('Abilita'),
-            ),
-      onTap: onTap,
+        onTap: onTap,
+      ),
     );
   }
 }

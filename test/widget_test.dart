@@ -15,7 +15,6 @@ import 'package:tempo/data/services/export_service.dart';
 import 'package:tempo/data/services/tracking_engine.dart';
 import 'package:tempo/ui/features/analytics/analytics_view_model.dart';
 import 'package:tempo/ui/features/onboarding/onboarding_view.dart';
-import 'package:tempo/ui/features/places/places_view_model.dart';
 
 void main() {
   group('Tempo Domain Models Unit Tests', () {

@@ -94,30 +94,33 @@ class TransportModePicker {
                         width: isSelected ? 1.8 : 1.0,
                       ),
                     ),
-                    child: ListTile(
-                      leading: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.15),
-                          shape: BoxShape.circle,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: ListTile(
+                        leading: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(icon, color: color, size: 20),
                         ),
-                        child: Icon(icon, color: color, size: 20),
-                      ),
-                      title: Text(
-                        mode,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                          color: isSelected ? color : textPrimary,
+                        title: Text(
+                          mode,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                            color: isSelected ? color : textPrimary,
+                          ),
                         ),
+                        trailing: isSelected
+                            ? Icon(Icons.check_circle_rounded, color: color)
+                            : null,
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          Navigator.pop(ctx, mode);
+                        },
                       ),
-                      trailing: isSelected
-                          ? Icon(Icons.check_circle_rounded, color: color)
-                          : null,
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        Navigator.pop(ctx, mode);
-                      },
                     ),
                   );
                 }),

@@ -133,41 +133,44 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                               width: isCurrent ? 2.0 : 1.0,
                             ),
                           ),
-                          child: ListTile(
-                            leading: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: place.color.withValues(alpha: 0.2),
-                                shape: BoxShape.circle,
+                          child: Material(
+                            color: Colors.transparent,
+                            child: ListTile(
+                              leading: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: place.color.withValues(alpha: 0.2),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(place.icon, color: place.color, size: 20),
                               ),
-                              child: Icon(place.icon, color: place.color, size: 20),
+                              title: Text(
+                                place.name,
+                                style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
+                              ),
+                              subtitle: Text(
+                                place.category.displayName,
+                                style: TextStyle(fontSize: 12, color: textMuted),
+                              ),
+                              trailing: isCurrent
+                                  ? const Chip(
+                                      label: Text('SEI QUI', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900)),
+                                      backgroundColor: AppColors.primary,
+                                      labelStyle: TextStyle(color: Colors.white),
+                                      padding: EdgeInsets.zero,
+                                      visualDensity: VisualDensity.compact,
+                                    )
+                                  : const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                              onTap: isCurrent
+                                  ? null
+                                  : () async {
+                                      Navigator.pop(ctx);
+                                      await trackingEngine.manualCheckIn(place);
+                                      if (context.mounted) {
+                                        Provider.of<AnalyticsViewModel>(context, listen: false).loadAnalytics();
+                                      }
+                                    },
                             ),
-                            title: Text(
-                              place.name,
-                              style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
-                            ),
-                            subtitle: Text(
-                              place.category.displayName,
-                              style: TextStyle(fontSize: 12, color: textMuted),
-                            ),
-                            trailing: isCurrent
-                                ? const Chip(
-                                    label: Text('SEI QUI', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900)),
-                                    backgroundColor: AppColors.primary,
-                                    labelStyle: TextStyle(color: Colors.white),
-                                    padding: EdgeInsets.zero,
-                                    visualDensity: VisualDensity.compact,
-                                  )
-                                : const Icon(Icons.arrow_forward_ios_rounded, size: 14),
-                            onTap: isCurrent
-                                ? null
-                                : () async {
-                                    Navigator.pop(ctx);
-                                    await trackingEngine.manualCheckIn(place);
-                                    if (context.mounted) {
-                                      Provider.of<AnalyticsViewModel>(context, listen: false).loadAnalytics();
-                                    }
-                                  },
                           ),
                         );
                       },

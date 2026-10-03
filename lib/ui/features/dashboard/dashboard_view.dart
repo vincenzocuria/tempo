@@ -257,44 +257,47 @@ class DashboardView extends StatelessWidget {
                               width: isCurrent ? 1.8 : 1.0,
                             ),
                           ),
-                          child: ListTile(
-                            leading: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: p.color.withValues(alpha: 0.2),
-                                shape: BoxShape.circle,
+                          child: Material(
+                            color: Colors.transparent,
+                            child: ListTile(
+                              leading: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: p.color.withValues(alpha: 0.2),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(p.icon, color: p.color, size: 20),
                               ),
-                              child: Icon(p.icon, color: p.color, size: 20),
-                            ),
-                            title: Text(
-                              p.name,
-                              style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
-                            ),
-                            subtitle: Text(
-                              p.category.displayName,
-                              style: TextStyle(fontSize: 12, color: textMuted),
-                            ),
-                            trailing: isCurrent
-                                ? Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: p.color,
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: const Text(
-                                      'Attuale',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w800,
+                              title: Text(
+                                p.name,
+                                style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
+                              ),
+                              subtitle: Text(
+                                p.category.displayName,
+                                style: TextStyle(fontSize: 12, color: textMuted),
+                              ),
+                              trailing: isCurrent
+                                  ? Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: p.color,
+                                        borderRadius: BorderRadius.circular(10),
                                       ),
-                                    ),
-                                  )
-                                : Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
-                            onTap: () {
-                              Navigator.pop(ctx);
-                              engine.manualCheckIn(p);
-                            },
+                                      child: const Text(
+                                        'Attuale',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    )
+                                  : Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
+                              onTap: () {
+                                Navigator.pop(ctx);
+                                engine.manualCheckIn(p);
+                              },
+                            ),
                           ),
                         );
                       },

@@ -27,65 +27,96 @@ import 'ui/features/settings/settings_view.dart';
 import 'ui/features/splash/splash_view.dart';
 import 'ui/features/onboarding/onboarding_view.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+void main() {
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize date formatting for Italian locale
-  await initializeDateFormatting('it_IT', null);
+    FlutterError.onError = (FlutterErrorDetails details) {
+      FlutterError.presentError(details);
+      debugPrint('[FlutterError] ${details.exceptionAsString()}');
+    };
 
-  // Initialize notifications
-  await NotificationService.instance.initialize();
+    // Initialize date formatting for Italian locale safely
+    try {
+      await initializeDateFormatting('it_IT', null);
+    } catch (e) {
+      debugPrint('[Init] DateFormatting error: $e');
+    }
 
-  // Initialize database
-  await DatabaseService.instance.database;
+    // Read preferences safely
+    SharedPreferences? prefs;
+    try {
+      prefs = await SharedPreferences.getInstance();
+    } catch (e) {
+      debugPrint('[Init] SharedPreferences error: $e');
+    }
+    final isDark = prefs?.getBool('is_dark_mode') ?? false;
+    final hasCompletedOnboarding = prefs?.getBool('has_completed_onboarding') ?? false;
 
-  // Repositories
-  final placeRepo = PlaceRepository();
-  final visitRepo = VisitRepository();
-  final tripRepo = TripRepository();
-  final categoryRepo = CategoryRepository();
-  await categoryRepo.initialize();
+    // Repositories
+    final placeRepo = PlaceRepository();
+    final visitRepo = VisitRepository();
+    final tripRepo = TripRepository();
+    final categoryRepo = CategoryRepository();
 
-  // Tracking Engine
-  final trackingEngine = TrackingEngine(
-    placeRepository: placeRepo,
-    visitRepository: visitRepo,
-    tripRepository: tripRepo,
-  );
-  await trackingEngine.initialize();
+    // Initialize DB & Category Repo safely
+    try {
+      await DatabaseService.instance.database;
+      await categoryRepo.initialize();
+    } catch (e) {
+      debugPrint('[Init] Database / Category error: $e');
+    }
 
-  // Read theme preference - DEFAULT TO LIGHT MODE!
-  final prefs = await SharedPreferences.getInstance();
-  final isDark = prefs.getBool('is_dark_mode') ?? false;
-  final hasCompletedOnboarding = prefs.getBool('has_completed_onboarding') ?? false;
+    // Initialize notifications safely
+    try {
+      await NotificationService.instance.initialize();
+    } catch (e) {
+      debugPrint('[Init] NotificationService error: $e');
+    }
 
-  runApp(
-    TempoApp(
+    // Tracking Engine - initialized safely without running GPS stream yet
+    final trackingEngine = TrackingEngine(
       placeRepository: placeRepo,
       visitRepository: visitRepo,
       tripRepository: tripRepo,
-      categoryRepository: categoryRepo,
-      trackingEngine: trackingEngine,
-      initialDarkMode: isDark,
-      hasCompletedOnboarding: hasCompletedOnboarding,
-    ),
-  );
-
-  // Initialize native OS geofencing and sync places with OS subsystem asynchronously
-  unawaited(() async {
+    );
     try {
-      final status = await Permission.locationAlways.status;
-      if (status.isGranted) {
-        await NativeGeofenceService.instance.initialize();
-        final allPlaces = await placeRepo.getAllPlaces();
-        await NativeGeofenceService.instance.syncAllPlaces(allPlaces);
-      } else {
-        debugPrint('[NativeGeofence] Startup sync skipped: locationAlways not granted yet.');
-      }
+      await trackingEngine.initialize();
     } catch (e) {
-      debugPrint('Native geofence initialization error: $e');
+      debugPrint('[Init] TrackingEngine error: $e');
     }
-  }());
+
+    // Launch UI immediately!
+    runApp(
+      TempoApp(
+        placeRepository: placeRepo,
+        visitRepository: visitRepo,
+        tripRepository: tripRepo,
+        categoryRepository: categoryRepo,
+        trackingEngine: trackingEngine,
+        initialDarkMode: isDark,
+        hasCompletedOnboarding: hasCompletedOnboarding,
+      ),
+    );
+
+    // Initialize native OS geofencing asynchronously if background permission is already present
+    unawaited(() async {
+      try {
+        final status = await Permission.locationAlways.status;
+        if (status.isGranted) {
+          await NativeGeofenceService.instance.initialize();
+          final allPlaces = await placeRepo.getAllPlaces();
+          await NativeGeofenceService.instance.syncAllPlaces(allPlaces);
+        } else {
+          debugPrint('[NativeGeofence] Startup sync skipped: locationAlways not granted yet.');
+        }
+      } catch (e) {
+        debugPrint('[NativeGeofence] Deferred initialization error: $e');
+      }
+    }());
+  }, (error, stack) {
+    debugPrint('[UnhandledAppError] $error\n$stack');
+  });
 }
 
 class TempoApp extends StatefulWidget {
@@ -207,12 +238,29 @@ class _MainShellState extends State<MainShell> {
   }
 
   Future<void> _checkProactivePermissions() async {
-    final status = await PermissionManager.instance.checkAllStatus();
-    if (!status.locationGranted) {
-      await PermissionManager.instance.requestForegroundLocation();
-    }
-    if (!status.notificationGranted) {
-      await PermissionManager.instance.requestNotifications();
+    try {
+      final status = await PermissionManager.instance.checkAllStatus();
+      if (!status.locationGranted) {
+        final granted = await PermissionManager.instance.requestForegroundLocation();
+        if (granted && mounted) {
+          context.read<TrackingEngine>().startMonitoring();
+        }
+      } else {
+        if (mounted) {
+          context.read<TrackingEngine>().startMonitoring();
+        }
+      }
+      if (!status.notificationGranted) {
+        await PermissionManager.instance.requestNotifications();
+      }
+      if (status.backgroundLocationGranted && mounted) {
+        final placeRepo = context.read<PlaceRepository>();
+        final places = await placeRepo.getAllPlaces();
+        await NativeGeofenceService.instance.initialize();
+        await NativeGeofenceService.instance.syncAllPlaces(places);
+      }
+    } catch (e) {
+      debugPrint('[MainShell] Proactive permissions error: $e');
     }
   }
 

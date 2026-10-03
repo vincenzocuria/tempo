@@ -98,49 +98,65 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
         _habitService = habitDetectionService ?? HabitDetectionService.instance;
 
   Future<void> initialize() async {
-    final prefs = await SharedPreferences.getInstance();
-    _isTrackingEnabled = prefs.getBool('tracking_enabled') ?? true;
-    _isTripTrackingEnabled = prefs.getBool('trip_tracking_enabled') ?? true;
-    _preferredMotorVehicle = prefs.getString('preferred_motor_vehicle') ?? TransportMode.auto;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _isTrackingEnabled = prefs.getBool('tracking_enabled') ?? true;
+      _isTripTrackingEnabled = prefs.getBool('trip_tracking_enabled') ?? true;
+      _preferredMotorVehicle = prefs.getString('preferred_motor_vehicle') ?? TransportMode.auto;
+    } catch (e) {
+      debugPrint('[TrackingEngine] Preferences load error: $e');
+    }
 
-    await _habitService.initialize();
+    try {
+      await _habitService.initialize();
+    } catch (e) {
+      debugPrint('[TrackingEngine] HabitService init error: $e');
+    }
 
     // Check existing active visit from DB
-    _activeVisit = await _visitRepository.getActiveVisit();
-    if (_activeVisit != null) {
-      _currentPlace = await _placeRepository.getPlaceById(_activeVisit!.placeId);
+    try {
+      _activeVisit = await _visitRepository.getActiveVisit();
+      if (_activeVisit != null) {
+        _currentPlace = await _placeRepository.getPlaceById(_activeVisit!.placeId);
+      }
+    } catch (e) {
+      debugPrint('[TrackingEngine] Active visit load error: $e');
     }
 
     // Check existing active trip from DB
-    _activeTrip = await _tripRepository.getActiveTrip();
-    if (_activeTrip != null) {
-      final tripAge = DateTime.now().difference(_activeTrip!.startTime);
-      if (tripAge.inHours >= 6) {
-        // Stale trip from a long time ago: close it
-        await _tripRepository.insertTrip(_activeTrip!.copyWith(
-          endTime: _activeTrip!.startTime.add(Duration(seconds: _activeTrip!.durationSeconds.clamp(60, 3600))),
-          destinationPlaceName: _activeTrip!.destinationPlaceName ?? 'Destinazione raggiunta',
-        ));
-        _activeTrip = null;
-      } else {
-        _activeRoutePoints = List.from(_activeTrip!.routePoints);
-        _activeTripDistance = _activeTrip!.distanceMeters;
-        if (_activeRoutePoints.isNotEmpty) {
-          final last = _activeRoutePoints.last;
-          _lastTripPointPosition = Position(
-            longitude: last.longitude,
-            latitude: last.latitude,
-            timestamp: last.timestamp,
-            accuracy: 0.0,
-            altitude: 0.0,
-            altitudeAccuracy: 0.0,
-            heading: 0.0,
-            headingAccuracy: 0.0,
-            speed: last.speed ?? 0.0,
-            speedAccuracy: 0.0,
-          );
+    try {
+      _activeTrip = await _tripRepository.getActiveTrip();
+      if (_activeTrip != null) {
+        final tripAge = DateTime.now().difference(_activeTrip!.startTime);
+        if (tripAge.inHours >= 6) {
+          // Stale trip from a long time ago: close it
+          await _tripRepository.insertTrip(_activeTrip!.copyWith(
+            endTime: _activeTrip!.startTime.add(Duration(seconds: _activeTrip!.durationSeconds.clamp(60, 3600))),
+            destinationPlaceName: _activeTrip!.destinationPlaceName ?? 'Destinazione raggiunta',
+          ));
+          _activeTrip = null;
+        } else {
+          _activeRoutePoints = List.from(_activeTrip!.routePoints);
+          _activeTripDistance = _activeTrip!.distanceMeters;
+          if (_activeRoutePoints.isNotEmpty) {
+            final last = _activeRoutePoints.last;
+            _lastTripPointPosition = Position(
+              longitude: last.longitude,
+              latitude: last.latitude,
+              timestamp: last.timestamp,
+              accuracy: 0.0,
+              altitude: 0.0,
+              altitudeAccuracy: 0.0,
+              heading: 0.0,
+              headingAccuracy: 0.0,
+              speed: last.speed ?? 0.0,
+              speedAccuracy: 0.0,
+            );
+          }
         }
       }
+    } catch (e) {
+      debugPrint('[TrackingEngine] Active trip load error: $e');
     }
 
     // Register lifecycle observer for foreground-only ticker and power management
@@ -151,7 +167,12 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
     _startTicker();
 
     if (_isTrackingEnabled) {
-      await startMonitoring();
+      final hasPerm = await _locationService.hasPermission();
+      if (hasPerm) {
+        await startMonitoring();
+      } else {
+        debugPrint('[TrackingEngine] Location permission not granted yet. Monitoring deferred until permission granted.');
+      }
     }
   }
 
@@ -278,6 +299,12 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> startMonitoring() async {
+    final hasPerm = await _locationService.hasPermission();
+    if (!hasPerm) {
+      debugPrint('[TrackingEngine] Cannot start monitoring: location permission not granted');
+      return;
+    }
+
     await _positionSubscription?.cancel();
     _periodicCheckTimer?.cancel();
 
@@ -332,9 +359,12 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  void _restartLocationStream() {
+  Future<void> _restartLocationStream() async {
     if (!_isTrackingEnabled) return;
-    _positionSubscription?.cancel();
+    final hasPerm = await _locationService.hasPermission();
+    if (!hasPerm) return;
+
+    await _positionSubscription?.cancel();
     try {
       _positionSubscription = _locationService
           .getPositionStream(
@@ -363,6 +393,9 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> checkCurrentLocation({LocationAccuracy accuracy = LocationAccuracy.high}) async {
     if (_isChecking) return;
+    final hasPerm = await _locationService.hasPermission();
+    if (!hasPerm) return;
+
     _isChecking = true;
     notifyListeners();
 

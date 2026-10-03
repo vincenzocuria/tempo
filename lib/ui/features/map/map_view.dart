@@ -284,7 +284,12 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
     _positionStreamSub = null;
   }
 
-  void _startForegroundLocationStream() {
+  void _startForegroundLocationStream() async {
+    final hasPerm = await LocationService.instance.hasPermission();
+    if (!hasPerm) {
+      debugPrint('[MapView] Location permission not granted, skipping foreground stream');
+      return;
+    }
     _positionStreamSub?.cancel();
     try {
       _positionStreamSub = LocationService.instance
@@ -375,6 +380,8 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
   }
 
   Future<void> _fetchUserLocation() async {
+    final hasPerm = await LocationService.instance.hasPermission();
+    if (!hasPerm) return;
     final pos = await LocationService.instance.getCurrentPosition();
     if (pos != null && mounted) {
       final safeHeading = (pos.heading.isNaN || pos.heading < 0) ? 0.0 : pos.heading;
@@ -1190,7 +1197,9 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                                     width: isSelected ? 2.0 : 1.0,
                                   ),
                                 ),
-                                child: ListTile(
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: ListTile(
                                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
                                   leading: Container(
                                     width: 42,
@@ -1240,7 +1249,8 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                                     _fitTripOnMap(trip);
                                   },
                                 ),
-                              );
+                              ),
+                            );
                             },
                           ),
                   ),
@@ -1340,26 +1350,29 @@ class _MapViewState extends State<MapView> with TickerProviderStateMixin, Widget
                       width: isSelected ? 1.8 : 1.0,
                     ),
                   ),
-                  child: ListTile(
-                    leading: Icon(
-                      layerIcon,
-                      color: isSelected ? AppColors.primary : textMuted,
-                    ),
-                    title: Text(
-                      layer.displayName,
-                      style: TextStyle(
-                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                        color: isSelected ? AppColors.primary : textPrimary,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: ListTile(
+                      leading: Icon(
+                        layerIcon,
+                        color: isSelected ? AppColors.primary : textMuted,
                       ),
+                      title: Text(
+                        layer.displayName,
+                        style: TextStyle(
+                          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                          color: isSelected ? AppColors.primary : textPrimary,
+                        ),
+                      ),
+                      trailing: isSelected
+                          ? const Icon(Icons.check_circle_rounded, color: AppColors.primary)
+                          : null,
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() => _customLayerType = layer);
+                        Navigator.pop(ctx);
+                      },
                     ),
-                    trailing: isSelected
-                        ? const Icon(Icons.check_circle_rounded, color: AppColors.primary)
-                        : null,
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      setState(() => _customLayerType = layer);
-                      Navigator.pop(ctx);
-                    },
                   ),
                 );
               }),

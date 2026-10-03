@@ -777,38 +777,41 @@ class _PlaceFormDialogState extends State<PlaceFormDialog> {
                         borderRadius: BorderRadius.circular(18),
                         border: Border.all(color: borderColor),
                       ),
-                      child: Column(
-                        children: [
-                          SwitchListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                            title: Text(
-                              'Notifica all\'arrivo',
-                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: textPrimary),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: Column(
+                          children: [
+                            SwitchListTile(
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                              title: Text(
+                                'Notifica all\'arrivo',
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: textPrimary),
+                              ),
+                              subtitle: Text(
+                                'Avvisa quando comincia il conteggio delle ore',
+                                style: TextStyle(fontSize: 12, color: textMuted),
+                              ),
+                              value: _notifyOnEntry,
+                              activeColor: _selectedColor,
+                              onChanged: (v) => setState(() => _notifyOnEntry = v),
                             ),
-                            subtitle: Text(
-                              'Avvisa quando comincia il conteggio delle ore',
-                              style: TextStyle(fontSize: 12, color: textMuted),
+                            Divider(height: 1, color: borderColor),
+                            SwitchListTile(
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                              title: Text(
+                                'Notifica alla partenza',
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: textPrimary),
+                              ),
+                              subtitle: Text(
+                                'Invia il riepilogo del tempo totale trascorso',
+                                style: TextStyle(fontSize: 12, color: textMuted),
+                              ),
+                              value: _notifyOnExit,
+                              activeColor: _selectedColor,
+                              onChanged: (v) => setState(() => _notifyOnExit = v),
                             ),
-                            value: _notifyOnEntry,
-                            activeColor: _selectedColor,
-                            onChanged: (v) => setState(() => _notifyOnEntry = v),
-                          ),
-                          Divider(height: 1, color: borderColor),
-                          SwitchListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                            title: Text(
-                              'Notifica alla partenza',
-                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: textPrimary),
-                            ),
-                            subtitle: Text(
-                              'Invia il riepilogo del tempo totale trascorso',
-                              style: TextStyle(fontSize: 12, color: textMuted),
-                            ),
-                            value: _notifyOnExit,
-                            activeColor: _selectedColor,
-                            onChanged: (v) => setState(() => _notifyOnExit = v),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 24),
