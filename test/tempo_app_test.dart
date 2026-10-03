@@ -26,8 +26,9 @@ Future<void> waitForTimeline(WidgetTester tester) async {
     );
     await tester.pump(const Duration(milliseconds: 50));
     if (controls.evaluate().isNotEmpty &&
-        find.byType(CircularProgressIndicator).evaluate().isEmpty)
+        find.byType(CircularProgressIndicator).evaluate().isEmpty) {
       return;
+    }
   }
   expect(controls, findsOneWidget, reason: 'Timeline controls must be present');
   expect(
