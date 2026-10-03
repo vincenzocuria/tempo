@@ -495,16 +495,18 @@ class PlacesView extends StatelessWidget {
                                   onChanged: (val) =>
                                       viewModel.toggleTracking(place),
                                 ),
-                                Text(
-                                  place.isTrackingEnabled
-                                      ? 'Tracciamento attivo'
-                                      : 'In pausa',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: place.isTrackingEnabled
-                                        ? textPrimary
-                                        : textMuted,
+                                Flexible(
+                                  child: Text(
+                                    place.isTrackingEnabled
+                                        ? 'Tracciamento attivo'
+                                        : 'In pausa',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: place.isTrackingEnabled
+                                          ? textPrimary
+                                          : textMuted,
+                                    ),
                                   ),
                                 ),
                               ],
