@@ -162,6 +162,7 @@ void main() {
         await tester.tap(
           find.byTooltip('La mia giornata (Timeline Google Maps)'),
         );
+        await tester.pump();
         await tester.runAsync(
           () async => Future<void>.delayed(const Duration(milliseconds: 100)),
         );
