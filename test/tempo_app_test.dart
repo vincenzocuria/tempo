@@ -25,9 +25,16 @@ Future<void> waitForTimeline(WidgetTester tester) async {
       () async => Future<void>.delayed(const Duration(milliseconds: 20)),
     );
     await tester.pump(const Duration(milliseconds: 50));
-    if (controls.evaluate().isNotEmpty) return;
+    if (controls.evaluate().isNotEmpty &&
+        find.byType(CircularProgressIndicator).evaluate().isEmpty)
+      return;
   }
-  expect(controls, findsOneWidget, reason: 'Timeline must finish loading');
+  expect(controls, findsOneWidget, reason: 'Timeline controls must be present');
+  expect(
+    find.byType(CircularProgressIndicator),
+    findsNothing,
+    reason: 'Timeline must finish loading',
+  );
 }
 
 void main() {
@@ -193,5 +200,11 @@ void main() {
         expect(tester.takeException(), isNull);
       }
     }
+    await tester.pumpWidget(const SizedBox.shrink());
+    trackingEngine.dispose();
+    await tester.runAsync(
+      () async => Future<void>.delayed(const Duration(milliseconds: 200)),
+    );
+    await tester.pump();
   });
 }
