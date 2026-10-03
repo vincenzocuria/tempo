@@ -225,10 +225,11 @@ class _SettingsViewState extends State<SettingsView>
       );
       _showExportPreview('Esportazione CSV', csv);
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Esportazione non riuscita. Riprova.')),
         );
+      }
     }
   }
 
@@ -255,10 +256,11 @@ class _SettingsViewState extends State<SettingsView>
       );
       _showExportPreview('Esportazione JSON', json);
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Esportazione non riuscita. Riprova.')),
         );
+      }
     }
   }
 
@@ -366,10 +368,6 @@ class _SettingsViewState extends State<SettingsView>
                       onPressed: () async {
                         final messenger = ScaffoldMessenger.of(context);
                         Navigator.pop(ctx);
-                        final visitRepo = Provider.of<VisitRepository>(
-                          context,
-                          listen: false,
-                        );
                         final dashboardVm = Provider.of<DashboardViewModel>(
                           context,
                           listen: false,
@@ -387,8 +385,9 @@ class _SettingsViewState extends State<SettingsView>
                           listen: false,
                         );
 
-                        await visitRepo.clearAllData();
-                        await trackingEngine.manualCheckOut();
+                        await trackingEngine.clearAllData();
+                        if (!mounted) return;
+                        context.read<CategoryRepository>().clearRegistry();
                         await dashboardVm.loadData();
                         await placesVm.loadPlaces();
                         await analyticsVm.loadAnalytics();

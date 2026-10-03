@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
+
 import '../models/place_category.dart';
 import '../services/database_service.dart';
 import 'place_repository.dart';
@@ -8,7 +9,7 @@ class CategoryRepository extends ChangeNotifier {
   final DatabaseService _dbService;
 
   CategoryRepository({DatabaseService? databaseService})
-      : _dbService = databaseService ?? DatabaseService.instance;
+    : _dbService = databaseService ?? DatabaseService.instance;
 
   bool _isInitialized = false;
   bool get isInitialized => _isInitialized;
@@ -70,21 +71,11 @@ class CategoryRepository extends ChangeNotifier {
     await _dbService.deleteCustomCategory(categoryId);
     PlaceCategory.unregisterCustomCategory(categoryId);
 
-    // If places are associated with this category, reassign them safely to PlaceCategory.altro
-    if (placeRepository != null) {
-      try {
-        final allPlaces = await placeRepository.getAllPlaces();
-        for (final p in allPlaces) {
-          if (p.category.id == categoryId || p.category.name == categoryId) {
-            final updated = p.copyWith(category: PlaceCategory.altro);
-            await placeRepository.updatePlace(updated);
-          }
-        }
-      } catch (e) {
-        debugPrint('Error reassigning places on category delete: $e');
-      }
-    }
+    notifyListeners();
+  }
 
+  void clearRegistry() {
+    PlaceCategory.clearCustomCategories();
     notifyListeners();
   }
 

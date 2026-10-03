@@ -126,8 +126,9 @@ class DashboardViewModel extends ChangeNotifier {
         now: now,
       );
       totalSec += seconds;
-      if (seconds > 0)
+      if (seconds > 0) {
         placeCounts[v.placeName] = (placeCounts[v.placeName] ?? 0) + seconds;
+      }
     }
 
     _totalTrackedToday = Duration(seconds: totalSec);
@@ -137,10 +138,11 @@ class DashboardViewModel extends ChangeNotifier {
     int tripSec = 0;
     final trips = {for (final t in _todayTrips) t.id: t};
     final activeTrip = _trackingEngine.activeTrip;
-    if (activeTrip != null)
+    if (activeTrip != null) {
       trips[activeTrip.id] = activeTrip.copyWith(
         distanceMeters: _trackingEngine.activeTripDistance,
       );
+    }
     for (final t in trips.values) {
       distSum += SessionTime.distance(
         t.distanceMeters,

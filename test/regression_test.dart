@@ -13,6 +13,8 @@ import 'package:tempo/data/services/session_time.dart';
 import 'package:tempo/data/repositories/trip_repository.dart';
 import 'package:tempo/data/repositories/visit_repository.dart';
 import 'package:tempo/ui/features/analytics/analytics_view_model.dart';
+import 'package:tempo/data/services/tracking_engine.dart';
+import 'package:tempo/data/repositories/place_repository.dart';
 
 VisitSession visit(
   DateTime start,
@@ -29,6 +31,7 @@ VisitSession visit(
 );
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   final now = DateTime(2026, 9, 26, 12);
   test(
     'Session crossing midnight is clipped and split between calendar days',
@@ -143,6 +146,90 @@ void main() {
       await (await db.database).close();
       await directory.delete(recursive: true);
     });
+    test(
+      'Finishing a very short trip removes its persistent active session',
+      () async {
+        final engine = TrackingEngine(tripRepository: TripRepository());
+        await engine.startManualTrip(originName: 'Test');
+        expect(await db.getActiveTrip(), isNotNull);
+        await engine.manualFinishTrip();
+        expect(await db.getActiveTrip(), isNull);
+        expect(engine.activeTrip, isNull);
+        engine.dispose();
+      },
+    );
+    test(
+      'Removing a category reassigns stored places and history atomically',
+      () async {
+        final custom = PlaceCategory.casa.copyWith(
+          id: 'cat_test',
+          name: 'cat_test',
+          isCustom: true,
+        );
+        PlaceCategory.registerCustomCategory(custom);
+        await db.insertCustomCategory(custom);
+        await db.insertPlace(
+          Place(
+            id: 'custom-place',
+            name: 'Test',
+            category: custom,
+            latitude: 45,
+            longitude: 9,
+          ),
+        );
+        await db.insertVisit(
+          visit(
+            now.subtract(const Duration(hours: 1)),
+            now,
+          ).copyWith(category: custom),
+        );
+        await db.deleteCustomCategory(custom.id);
+        expect((await db.getAllPlaces()).single.category, PlaceCategory.altro);
+        expect((await db.getVisits()).single.category, PlaceCategory.altro);
+        PlaceCategory.unregisterCustomCategory(custom.id);
+      },
+    );
+    test(
+      'Engine snapshot does not double-count live trips in analytics',
+      () async {
+        await db.insertTrip(
+          Trip(
+            originPlaceName: 'Test',
+            startTime: DateTime.now().subtract(const Duration(minutes: 10)),
+            distanceMeters: 1234,
+          ),
+        );
+        final engine = TrackingEngine(
+          tripRepository: TripRepository(),
+          placeRepository: PlaceRepository(),
+        );
+        await engine.reloadActiveStateFromDb();
+        final vm = AnalyticsViewModel(
+          visitRepository: VisitRepository(),
+          tripRepository: TripRepository(),
+          trackingEngine: engine,
+        );
+        while (vm.isLoading) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        vm.setFilter(AnalyticsTimeFilter.allTime);
+        while (vm.isLoading) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        expect(vm.totalTripsCount, 1);
+        expect(vm.totalTripDistanceMeters, closeTo(1234, 0.01));
+        expect(vm.totalTripDurationSeconds, greaterThanOrEqualTo(600));
+        expect(
+          vm.allTransportStats.fold<int>(
+            0,
+            (sum, stats) => sum + stats.tripCount,
+          ),
+          1,
+        );
+        vm.dispose();
+        engine.dispose();
+      },
+    );
     test(
       'From-only and to-only queries include intersecting sessions',
       () async {

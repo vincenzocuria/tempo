@@ -45,7 +45,13 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
   });
 
-  testWidgets('TempoApp cold launch test with completed onboarding', (tester) async {
+  testWidgets('TempoApp cold launch test with completed onboarding', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     SharedPreferences.setMockInitialValues({'has_completed_onboarding': true});
 
     final placeRepo = PlaceRepository();
@@ -73,5 +79,19 @@ void main() {
     expect(find.byType(MaterialApp), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 500));
     await tester.pump(const Duration(seconds: 2));
+    await tester.runAsync(
+      () async => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    for (final index in [1, 2, 3, 4, 0]) {
+      await tester.tap(find.byType(NavigationDestination).at(index));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: 'Page $index must fit on a 360dp screen',
+      );
+    }
   });
 }

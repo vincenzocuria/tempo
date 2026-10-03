@@ -1,3 +1,5 @@
+import 'native_geofence_service.dart';
+
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
@@ -251,6 +253,27 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  Future<void> clearAllData() async {
+    await stopMonitoring();
+    await NativeGeofenceService.instance.syncAllPlaces([]);
+    await _visitRepository.clearAllData();
+    _activeVisit = null;
+    _currentPlace = null;
+    _activeTrip = null;
+    _activeRoutePoints = [];
+    _activeTripDistance = 0;
+    _lastTripPointPosition = null;
+    _activeTripManualMode = null;
+    _outsideAnchorPosition = null;
+    _outsideAnchorTime = null;
+    _candidatePlaceId = null;
+    _candidatePlaceHits = 0;
+    _statusMessage = 'Fuori dai luoghi registrati';
+    ++_placesVersion;
+    if (!_isDisposed) notifyListeners();
+    await startMonitoring();
+  }
+
   Future<void> setTrackingEnabled(bool enabled) async {
     _isTrackingEnabled = enabled;
     final prefs = await SharedPreferences.getInstance();
@@ -260,6 +283,10 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
       await startMonitoring();
     } else {
       await stopMonitoring();
+      await _visitRepository.endActiveVisit();
+      _activeVisit = null;
+      _currentPlace = null;
+      await manualFinishTrip();
     }
     notifyListeners();
   }
@@ -268,6 +295,7 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
     _isTripTrackingEnabled = enabled;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('trip_tracking_enabled', enabled);
+    if (!enabled) await manualFinishTrip();
     notifyListeners();
   }
 
@@ -1055,6 +1083,8 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
 
     if (_activeTripDistance >= 50.0 || dur >= 30) {
       await _tripRepository.insertTrip(completedTrip);
+    } else {
+      await _tripRepository.deleteTrip(completedTrip.id);
     }
 
     _activeTrip = null;

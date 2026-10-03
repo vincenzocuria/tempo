@@ -16,7 +16,7 @@ check_launch() {
   adb shell uiautomator dump /sdcard/window.xml >/dev/null
   adb pull /sdcard/window.xml "$evidence/$name-ui.xml"
   adb exec-out screencap -p > "$evidence/$name.png"
-  if grep -E 'FATAL EXCEPTION|Fatal signal|Unhandled Exception|Zone mismatch' "$evidence/$name-logcat.txt"; then
+  if grep -E 'FATAL EXCEPTION|Fatal signal|Unhandled Exception|Zone mismatch|A RenderFlex overflowed' "$evidence/$name-logcat.txt"; then
     echo "Crash detected: $name" >&2
     return 1
   fi
@@ -56,3 +56,23 @@ check_launch granted-cold-start
 adb shell input keyevent KEYCODE_HOME
 sleep 2
 check_launch resume
+for page in Mappa Luoghi Statistiche Opzioni; do
+  python3 .github/scripts/tap-ui.py "$page"
+  check_launch "page-$page"
+done
+grep -q 'Impostazioni' "$evidence/page-Opzioni-ui.xml"
+python3 .github/scripts/tap-ui.py 'Gestione Categorie' --scroll
+check_launch categories
+grep -q 'Gestione Categorie' "$evidence/categories-ui.xml"
+adb shell input keyevent KEYCODE_BACK
+python3 .github/scripts/tap-ui.py 'Cronologia Completa Visite' --scroll
+check_launch history
+grep -q 'Cronologia' "$evidence/history-ui.xml"
+adb shell input keyevent KEYCODE_BACK
+python3 .github/scripts/tap-ui.py 'Esporta Visite in CSV' --scroll
+check_launch export-csv
+grep -q 'Esportazione CSV' "$evidence/export-csv-ui.xml"
+adb shell input keyevent KEYCODE_BACK
+python3 .github/scripts/tap-ui.py 'Esporta Tutto in JSON' --scroll
+check_launch export-json
+grep -q 'Esportazione JSON' "$evidence/export-json-ui.xml"

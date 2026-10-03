@@ -92,8 +92,9 @@ class CategoryTimeStats {
   }
 
   String get dailyAverageFormatted {
-    if (distinctDaysCount <= 0 || durationSeconds <= 0)
+    if (distinctDaysCount <= 0 || durationSeconds <= 0) {
       return formattedDuration;
+    }
     final avgSec = durationSeconds ~/ distinctDaysCount;
     final h = avgSec ~/ 3600;
     final m = (avgSec % 3600) ~/ 60;

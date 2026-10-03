@@ -398,8 +398,9 @@ class DatabaseService {
         to: to,
         now: now,
       );
-      if (seconds > 0)
+      if (seconds > 0) {
         result[v.placeName] = (result[v.placeName] ?? 0) + seconds;
+      }
     }
     return result;
   }
@@ -672,20 +673,40 @@ class DatabaseService {
 
   Future<int> deleteCustomCategory(String id) async {
     final db = await database;
-    return await db.delete(
-      'custom_categories',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    return db.transaction((txn) async {
+      final rows = await txn.query(
+        'custom_categories',
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      if (rows.isEmpty) return 0;
+      final name = rows.first['name'] as String;
+      for (final table in ['places', 'visit_sessions']) {
+        await txn.update(
+          table,
+          {'category': PlaceCategory.altro.name},
+          where: 'category = ? OR category = ?',
+          whereArgs: [id, name],
+        );
+      }
+      return txn.delete('custom_categories', where: 'id = ?', whereArgs: [id]);
+    });
   }
 
   Future<void> clearAllData() async {
     final db = await database;
-    await db.delete('visit_sessions');
-    await db.delete('trips');
-    await db.delete('places');
-    await db.delete('habit_suggestions');
-    await db.delete('custom_categories');
+    await db.transaction((txn) async {
+      for (final table in [
+        'visit_sessions',
+        'trips',
+        'places',
+        'habit_suggestions',
+        'custom_categories',
+        'app_notifications',
+      ]) {
+        await txn.delete(table);
+      }
+    });
   }
 
   Future<void> seedDemoData() async {
