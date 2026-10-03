@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/date_symbol_data_local.dart';
+
 import 'data/repositories/category_repository.dart';
 import 'data/repositories/place_repository.dart';
 import 'data/repositories/trip_repository.dart';
@@ -27,97 +30,102 @@ import 'ui/features/settings/settings_view.dart';
 import 'ui/features/splash/splash_view.dart';
 import 'ui/features/onboarding/onboarding_view.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  runZonedGuarded(() async {
+  PlatformDispatcher.instance.onError = (error, stack) {
+    debugPrint(
+      '[UnhandledAppError] $error\n$stack',
+    );
+    return true;
+  };
 
-    FlutterError.onError = (FlutterErrorDetails details) {
-      FlutterError.presentError(details);
-      debugPrint('[FlutterError] ${details.exceptionAsString()}');
-    };
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    debugPrint('[FlutterError] ${details.exceptionAsString()}');
+  };
 
-    // Initialize date formatting for Italian locale safely
-    try {
-      await initializeDateFormatting('it_IT', null);
-    } catch (e) {
-      debugPrint('[Init] DateFormatting error: $e');
-    }
+  // Initialize date formatting for Italian locale safely
+  try {
+    await initializeDateFormatting('it_IT', null);
+  } catch (e) {
+    debugPrint('[Init] DateFormatting error: $e');
+  }
 
-    // Read preferences safely
-    SharedPreferences? prefs;
-    try {
-      prefs = await SharedPreferences.getInstance();
-    } catch (e) {
-      debugPrint('[Init] SharedPreferences error: $e');
-    }
-    final isDark = prefs?.getBool('is_dark_mode') ?? false;
-    final hasCompletedOnboarding = prefs?.getBool('has_completed_onboarding') ?? false;
+  // Read preferences safely
+  SharedPreferences? prefs;
+  try {
+    prefs = await SharedPreferences.getInstance();
+  } catch (e) {
+    debugPrint('[Init] SharedPreferences error: $e');
+  }
+  final isDark = prefs?.getBool('is_dark_mode') ?? false;
+  final hasCompletedOnboarding =
+      prefs?.getBool('has_completed_onboarding') ?? false;
 
-    // Repositories
-    final placeRepo = PlaceRepository();
-    final visitRepo = VisitRepository();
-    final tripRepo = TripRepository();
-    final categoryRepo = CategoryRepository();
+  // Repositories
+  final placeRepo = PlaceRepository();
+  final visitRepo = VisitRepository();
+  final tripRepo = TripRepository();
+  final categoryRepo = CategoryRepository();
 
-    // Initialize DB & Category Repo safely
-    try {
-      await DatabaseService.instance.database;
-      await categoryRepo.initialize();
-    } catch (e) {
-      debugPrint('[Init] Database / Category error: $e');
-    }
+  // Initialize DB & Category Repo safely
+  try {
+    await DatabaseService.instance.database;
+    await categoryRepo.initialize();
+  } catch (e) {
+    debugPrint('[Init] Database / Category error: $e');
+  }
 
-    // Initialize notifications safely
-    try {
-      await NotificationService.instance.initialize();
-    } catch (e) {
-      debugPrint('[Init] NotificationService error: $e');
-    }
+  // Initialize notifications safely
+  try {
+    await NotificationService.instance.initialize();
+  } catch (e) {
+    debugPrint('[Init] NotificationService error: $e');
+  }
 
-    // Tracking Engine - initialized safely without running GPS stream yet
-    final trackingEngine = TrackingEngine(
+  // Tracking Engine - initialized safely without running GPS stream yet
+  final trackingEngine = TrackingEngine(
+    placeRepository: placeRepo,
+    visitRepository: visitRepo,
+    tripRepository: tripRepo,
+  );
+  try {
+    await trackingEngine.initialize();
+  } catch (e) {
+    debugPrint('[Init] TrackingEngine error: $e');
+  }
+
+  // Launch UI immediately!
+  runApp(
+    TempoApp(
       placeRepository: placeRepo,
       visitRepository: visitRepo,
       tripRepository: tripRepo,
-    );
+      categoryRepository: categoryRepo,
+      trackingEngine: trackingEngine,
+      initialDarkMode: isDark,
+      hasCompletedOnboarding: hasCompletedOnboarding,
+    ),
+  );
+
+  // Initialize native OS geofencing asynchronously if background permission is already present
+  unawaited(() async {
     try {
-      await trackingEngine.initialize();
-    } catch (e) {
-      debugPrint('[Init] TrackingEngine error: $e');
-    }
-
-    // Launch UI immediately!
-    runApp(
-      TempoApp(
-        placeRepository: placeRepo,
-        visitRepository: visitRepo,
-        tripRepository: tripRepo,
-        categoryRepository: categoryRepo,
-        trackingEngine: trackingEngine,
-        initialDarkMode: isDark,
-        hasCompletedOnboarding: hasCompletedOnboarding,
-      ),
-    );
-
-    // Initialize native OS geofencing asynchronously if background permission is already present
-    unawaited(() async {
-      try {
-        final status = await Permission.locationAlways.status;
-        if (status.isGranted) {
-          await NativeGeofenceService.instance.initialize();
-          final allPlaces = await placeRepo.getAllPlaces();
-          await NativeGeofenceService.instance.syncAllPlaces(allPlaces);
-        } else {
-          debugPrint('[NativeGeofence] Startup sync skipped: locationAlways not granted yet.');
-        }
-      } catch (e) {
-        debugPrint('[NativeGeofence] Deferred initialization error: $e');
+      final status = await Permission.locationAlways.status;
+      if (status.isGranted) {
+        await NativeGeofenceService.instance.initialize();
+        final allPlaces = await placeRepo.getAllPlaces();
+        await NativeGeofenceService.instance.syncAllPlaces(allPlaces);
+      } else {
+        debugPrint(
+          '[NativeGeofence] Startup sync skipped: locationAlways not granted yet.',
+        );
       }
-    }());
-  }, (error, stack) {
-    debugPrint('[UnhandledAppError] $error\n$stack');
-  });
+    } catch (e) {
+      debugPrint('[NativeGeofence] Deferred initialization error: $e');
+    }
+  }());
 }
 
 class TempoApp extends StatefulWidget {
@@ -166,9 +174,15 @@ class _TempoAppState extends State<TempoApp> {
         Provider<PlaceRepository>.value(value: widget.placeRepository),
         Provider<VisitRepository>.value(value: widget.visitRepository),
         Provider<TripRepository>.value(value: widget.tripRepository),
-        ChangeNotifierProvider<CategoryRepository>.value(value: widget.categoryRepository),
-        ChangeNotifierProvider<TrackingEngine>.value(value: widget.trackingEngine),
-        ChangeNotifierProvider<NotificationService>.value(value: NotificationService.instance),
+        ChangeNotifierProvider<CategoryRepository>.value(
+          value: widget.categoryRepository,
+        ),
+        ChangeNotifierProvider<TrackingEngine>.value(
+          value: widget.trackingEngine,
+        ),
+        ChangeNotifierProvider<NotificationService>.value(
+          value: NotificationService.instance,
+        ),
         ChangeNotifierProvider(
           create: (_) => DashboardViewModel(
             visitRepository: widget.visitRepository,
@@ -199,10 +213,7 @@ class _TempoAppState extends State<TempoApp> {
         themeMode: _isDarkMode ? ThemeMode.dark : ThemeMode.light,
         home: SplashView(
           nextScreen: widget.hasCompletedOnboarding
-              ? MainShell(
-                  isDarkMode: _isDarkMode,
-                  onThemeToggle: _toggleTheme,
-                )
+              ? MainShell(isDarkMode: _isDarkMode, onThemeToggle: _toggleTheme)
               : OnboardingView(
                   nextScreen: MainShell(
                     isDarkMode: _isDarkMode,
@@ -242,13 +253,14 @@ class _MainShellState extends State<MainShell> {
     try {
       final status = await PermissionManager.instance.checkAllStatus();
       if (!status.locationGranted) {
-        final granted = await PermissionManager.instance.requestForegroundLocation();
+        final granted = await PermissionManager.instance
+            .requestForegroundLocation();
         if (granted && mounted) {
-          context.read<TrackingEngine>().startMonitoring();
+          await context.read<TrackingEngine>().startMonitoring();
         }
       } else {
         if (mounted) {
-          context.read<TrackingEngine>().startMonitoring();
+          await context.read<TrackingEngine>().startMonitoring();
         }
       }
       if (!status.notificationGranted) {
@@ -294,13 +306,11 @@ class _MainShellState extends State<MainShell> {
     ];
 
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: pages,
-      ),
+      body: IndexedStack(index: _currentIndex, children: pages),
       bottomNavigationBar: Consumer<TrackingEngine>(
         builder: (context, engine, _) {
-          final isInside = engine.activeVisit != null && engine.currentPlace != null;
+          final isInside =
+              engine.activeVisit != null && engine.currentPlace != null;
           final isTraveling = engine.activeTrip != null;
 
           final Color badgeColor;

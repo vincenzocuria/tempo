@@ -1,7 +1,9 @@
 import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../models/place.dart';
 import '../models/trip.dart';
 import '../models/visit_session.dart';
@@ -24,6 +26,7 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
   Timer? _tickerTimer;
   Timer? _periodicCheckTimer;
   bool _isDisposed = false;
+  int _streamGeneration = 0;
 
   int _activeDistanceFilter = 15;
   int get activeDistanceFilter => _activeDistanceFilter;
@@ -63,7 +66,8 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
   bool get isInTransit => _activeTrip != null && _currentPlace == null;
 
   List<TripPoint> _activeRoutePoints = [];
-  List<TripPoint> get activeRoutePoints => List.unmodifiable(_activeRoutePoints);
+  List<TripPoint> get activeRoutePoints =>
+      List.unmodifiable(_activeRoutePoints);
 
   double _activeTripDistance = 0.0;
   double get activeTripDistance => _activeTripDistance;
@@ -90,19 +94,21 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
     LocationService? locationService,
     NotificationService? notificationService,
     HabitDetectionService? habitDetectionService,
-  })  : _placeRepository = placeRepository ?? PlaceRepository(),
-        _visitRepository = visitRepository ?? VisitRepository(),
-        _tripRepository = tripRepository ?? TripRepository(),
-        _locationService = locationService ?? LocationService.instance,
-        _notificationService = notificationService ?? NotificationService.instance,
-        _habitService = habitDetectionService ?? HabitDetectionService.instance;
+  }) : _placeRepository = placeRepository ?? PlaceRepository(),
+       _visitRepository = visitRepository ?? VisitRepository(),
+       _tripRepository = tripRepository ?? TripRepository(),
+       _locationService = locationService ?? LocationService.instance,
+       _notificationService =
+           notificationService ?? NotificationService.instance,
+       _habitService = habitDetectionService ?? HabitDetectionService.instance;
 
   Future<void> initialize() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       _isTrackingEnabled = prefs.getBool('tracking_enabled') ?? true;
       _isTripTrackingEnabled = prefs.getBool('trip_tracking_enabled') ?? true;
-      _preferredMotorVehicle = prefs.getString('preferred_motor_vehicle') ?? TransportMode.auto;
+      _preferredMotorVehicle =
+          prefs.getString('preferred_motor_vehicle') ?? TransportMode.auto;
     } catch (e) {
       debugPrint('[TrackingEngine] Preferences load error: $e');
     }
@@ -117,7 +123,9 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
     try {
       _activeVisit = await _visitRepository.getActiveVisit();
       if (_activeVisit != null) {
-        _currentPlace = await _placeRepository.getPlaceById(_activeVisit!.placeId);
+        _currentPlace = await _placeRepository.getPlaceById(
+          _activeVisit!.placeId,
+        );
       }
     } catch (e) {
       debugPrint('[TrackingEngine] Active visit load error: $e');
@@ -130,10 +138,15 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
         final tripAge = DateTime.now().difference(_activeTrip!.startTime);
         if (tripAge.inHours >= 6) {
           // Stale trip from a long time ago: close it
-          await _tripRepository.insertTrip(_activeTrip!.copyWith(
-            endTime: _activeTrip!.startTime.add(Duration(seconds: _activeTrip!.durationSeconds.clamp(60, 3600))),
-            destinationPlaceName: _activeTrip!.destinationPlaceName ?? 'Destinazione raggiunta',
-          ));
+          await _tripRepository.insertTrip(
+            _activeTrip!.copyWith(
+              endTime: _activeTrip!.startTime.add(
+                Duration(seconds: _activeTrip!.durationSeconds.clamp(60, 3600)),
+              ),
+              destinationPlaceName:
+                  _activeTrip!.destinationPlaceName ?? 'Destinazione raggiunta',
+            ),
+          );
           _activeTrip = null;
         } else {
           _activeRoutePoints = List.from(_activeTrip!.routePoints);
@@ -165,15 +178,6 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
     } catch (_) {}
 
     _startTicker();
-
-    if (_isTrackingEnabled) {
-      final hasPerm = await _locationService.hasPermission();
-      if (hasPerm) {
-        await startMonitoring();
-      } else {
-        debugPrint('[TrackingEngine] Location permission not granted yet. Monitoring deferred until permission granted.');
-      }
-    }
   }
 
   void _startTicker() {
@@ -187,7 +191,8 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
       // Pause 1-second ticker when app is in background to save CPU and battery
       _tickerTimer?.cancel();
       _tickerTimer = null;
@@ -205,7 +210,9 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
       if (_isDisposed) return;
       _activeVisit = active;
       if (_activeVisit != null) {
-        _currentPlace = await _placeRepository.getPlaceById(_activeVisit!.placeId);
+        _currentPlace = await _placeRepository.getPlaceById(
+          _activeVisit!.placeId,
+        );
       } else {
         _currentPlace = null;
       }
@@ -299,9 +306,12 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> startMonitoring() async {
+    if (_isDisposed || !_isTrackingEnabled) return;
     final hasPerm = await _locationService.hasPermission();
-    if (!hasPerm) {
-      debugPrint('[TrackingEngine] Cannot start monitoring: location permission not granted');
+    if (!hasPerm || _isDisposed || !_isTrackingEnabled) {
+      debugPrint(
+        '[TrackingEngine] Cannot start monitoring: location permission not granted',
+      );
       return;
     }
 
@@ -315,16 +325,22 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
     _applyAdaptiveTrackingSettings(forceRestart: true);
 
     // Battery-optimized watchdog timer: check every 10 minutes instead of every 150 seconds
-    _periodicCheckTimer = Timer.periodic(const Duration(minutes: 10), (_) async {
+    _periodicCheckTimer = Timer.periodic(const Duration(minutes: 10), (
+      _,
+    ) async {
       final now = DateTime.now();
       // If we haven't received movement in 10 minutes, verify health without hammering GNSS hardware
-      if (_lastMovementTimestamp == null || now.difference(_lastMovementTimestamp!).inMinutes >= 10) {
+      if (_lastMovementTimestamp == null ||
+          now.difference(_lastMovementTimestamp!).inMinutes >= 10) {
         final lastKnown = await _locationService.getLastKnownPosition();
-        if (lastKnown != null && now.difference(lastKnown.timestamp).inMinutes < 10) {
+        if (lastKnown != null &&
+            now.difference(lastKnown.timestamp).inMinutes < 10) {
           await _processNewPosition(lastKnown);
         } else {
           await checkCurrentLocation(
-            accuracy: _currentPlace != null ? LocationAccuracy.medium : LocationAccuracy.high,
+            accuracy: _currentPlace != null
+                ? LocationAccuracy.medium
+                : LocationAccuracy.high,
           );
         }
       }
@@ -332,7 +348,7 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _applyAdaptiveTrackingSettings({bool forceRestart = false}) {
-    if (!_isTrackingEnabled) return;
+    if (!_isTrackingEnabled || _isDisposed) return;
 
     int targetFilter;
     LocationAccuracy targetAccuracy;
@@ -340,7 +356,9 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
     if (_currentPlace != null) {
       // Stationary inside a known place: conserve battery!
       // Relax filter to 35m-70m and switch to medium accuracy (Wi-Fi/Cell assisted, low GNSS power)
-      targetFilter = (_currentPlace!.radiusInMeters * 0.4).clamp(35.0, 70.0).round();
+      targetFilter = (_currentPlace!.radiusInMeters * 0.4)
+          .clamp(35.0, 70.0)
+          .round();
       targetAccuracy = LocationAccuracy.medium;
     } else if (_activeTrip != null) {
       // Active travel: high precision tracking
@@ -352,7 +370,9 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
       targetAccuracy = LocationAccuracy.high;
     }
 
-    if (forceRestart || targetFilter != _activeDistanceFilter || targetAccuracy != _activeAccuracy) {
+    if (forceRestart ||
+        targetFilter != _activeDistanceFilter ||
+        targetAccuracy != _activeAccuracy) {
       _activeDistanceFilter = targetFilter;
       _activeAccuracy = targetAccuracy;
       _restartLocationStream();
@@ -360,11 +380,22 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> _restartLocationStream() async {
-    if (!_isTrackingEnabled) return;
+    if (!_isTrackingEnabled || _isDisposed) return;
+    final generation = ++_streamGeneration;
     final hasPerm = await _locationService.hasPermission();
-    if (!hasPerm) return;
+    if (!hasPerm ||
+        _isDisposed ||
+        !_isTrackingEnabled ||
+        generation != _streamGeneration) {
+      return;
+    }
 
-    await _positionSubscription?.cancel();
+    final previous = _positionSubscription;
+    _positionSubscription = null;
+    await previous?.cancel();
+    if (_isDisposed || !_isTrackingEnabled || generation != _streamGeneration) {
+      return;
+    }
     try {
       _positionSubscription = _locationService
           .getPositionStream(
@@ -372,8 +403,17 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
             accuracy: _activeAccuracy,
           )
           .listen(
-            (position) => _processNewPosition(position),
+            (position) async {
+              try {
+                await _processNewPosition(position);
+              } catch (error, stack) {
+                debugPrint(
+                  '[TrackingEngine] Position processing error: $error\n$stack',
+                );
+              }
+            },
             onError: (err) {
+              if (_isDisposed) return;
               debugPrint('Location stream error: $err');
               _statusMessage = 'GPS non disponibile o permessi mancanti';
               notifyListeners();
@@ -385,14 +425,17 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> stopMonitoring() async {
+    ++_streamGeneration;
     await _positionSubscription?.cancel();
     _positionSubscription = null;
     _periodicCheckTimer?.cancel();
     _periodicCheckTimer = null;
   }
 
-  Future<void> checkCurrentLocation({LocationAccuracy accuracy = LocationAccuracy.high}) async {
-    if (_isChecking) return;
+  Future<void> checkCurrentLocation({
+    LocationAccuracy accuracy = LocationAccuracy.high,
+  }) async {
+    if (_isChecking || _isDisposed) return;
     final hasPerm = await _locationService.hasPermission();
     if (!hasPerm) return;
 
@@ -413,13 +456,18 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> _processNewPosition(Position position) async {
+    if (_isDisposed) return;
     _lastKnownPosition = position;
 
     final places = await _placeRepository.getAllPlaces();
+    if (_isDisposed) return;
     final activePlaces = places.where((p) => p.isTrackingEnabled).toList();
 
     // Check GPS accuracy: if accuracy is extremely poor (> 50m), avoid false geofence triggers
-    final isAccurateFix = position.accuracy <= 0.0 || position.accuracy.isNaN || position.accuracy <= 50.0;
+    final isAccurateFix =
+        position.accuracy <= 0.0 ||
+        position.accuracy.isNaN ||
+        position.accuracy <= 50.0;
 
     Place? matchedPlace;
     double minDistance = double.infinity;
@@ -450,10 +498,15 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
 
     // Protection against immediate false return to the origin place:
     if (matchedPlace != null && _currentPlace?.id != matchedPlace.id) {
-      if (_activeTrip != null && matchedPlace.id == _activeTrip!.originPlaceId) {
-        final elapsedTripSec = DateTime.now().difference(_activeTrip!.startTime).inSeconds;
+      if (_activeTrip != null &&
+          matchedPlace.id == _activeTrip!.originPlaceId) {
+        final elapsedTripSec = DateTime.now()
+            .difference(_activeTrip!.startTime)
+            .inSeconds;
         // User must have either reached beyond the outer perimeter buffer, traveled >= 180m, or been in transit >= 4 min
-        final hasLeftPerimeter = _activeTripMaxDistanceFromOrigin >= (matchedPlace.radiusInMeters + 60.0) ||
+        final hasLeftPerimeter =
+            _activeTripMaxDistanceFromOrigin >=
+                (matchedPlace.radiusInMeters + 60.0) ||
             _activeTripDistance >= 180.0 ||
             elapsedTripSec >= 240;
 
@@ -509,18 +562,21 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
           final now = DateTime.now();
           final durationSec = now.difference(_activeTrip!.startTime).inSeconds;
 
-          _activeRoutePoints.add(TripPoint(
-            latitude: position.latitude,
-            longitude: position.longitude,
-            timestamp: now,
-            speed: position.speed,
-          ));
+          _activeRoutePoints.add(
+            TripPoint(
+              latitude: position.latitude,
+              longitude: position.longitude,
+              timestamp: now,
+              speed: position.speed,
+            ),
+          );
 
           final avgSpeedKmH = durationSec > 10
               ? (_activeTripDistance / 1000.0) / (durationSec / 3600.0)
               : 0.0;
 
-          final finalMode = _activeTripManualMode ??
+          final finalMode =
+              _activeTripManualMode ??
               inferTransportMode(
                 avgSpeedKmH: avgSpeedKmH,
                 maxSpeedKmH: _activeTripMaxSpeedKmH,
@@ -596,7 +652,10 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
       _candidatePlaceId = null;
       _candidatePlaceHits = 0;
 
-      await _habitService.processUnregisteredLocation(position.latitude, position.longitude);
+      await _habitService.processUnregisteredLocation(
+        position.latitude,
+        position.longitude,
+      );
 
       if (_currentPlace != null && _activeVisit != null) {
         // USER JUST EXITED THE AREA!
@@ -674,7 +733,8 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
             );
 
             // As soon as user walks 25m or moves with speed >= 0.8 m/s over 15m
-            if (displacement >= 25.0 || (position.speed > 0.8 && displacement >= 15.0)) {
+            if (displacement >= 25.0 ||
+                (position.speed > 0.8 && displacement >= 15.0)) {
               Place? nearbyPlace;
               double nearestDist = double.infinity;
               for (final p in activePlaces) {
@@ -722,7 +782,8 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
     final startPt = TripPoint(
       latitude: startPosition.latitude,
       longitude: startPosition.longitude,
-      timestamp: _outsideAnchorTime ?? now.subtract(const Duration(seconds: 15)),
+      timestamp:
+          _outsideAnchorTime ?? now.subtract(const Duration(seconds: 15)),
       speed: startPosition.speed > 0 ? startPosition.speed : null,
     );
     final curPt = TripPoint(
@@ -763,7 +824,8 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
     _activeTrip = Trip(
       originPlaceId: originPlaceId,
       originPlaceName: originName,
-      startTime: _outsideAnchorTime ?? now.subtract(const Duration(seconds: 15)),
+      startTime:
+          _outsideAnchorTime ?? now.subtract(const Duration(seconds: 15)),
       distanceMeters: dist,
       transportMode: mode,
       routePoints: _activeRoutePoints,
@@ -775,12 +837,17 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  Future<void> _updateActiveTripProgress(Position position, {List<Place>? places}) async {
+  Future<void> _updateActiveTripProgress(
+    Position position, {
+    List<Place>? places,
+  }) async {
     if (_activeTrip == null) return;
 
     // Track max displacement away from origin place
     if (_activeTrip!.originPlaceId != null && places != null) {
-      final originPlace = places.where((p) => p.id == _activeTrip!.originPlaceId).firstOrNull;
+      final originPlace = places
+          .where((p) => p.id == _activeTrip!.originPlaceId)
+          .firstOrNull;
       if (originPlace != null) {
         final dist = _locationService.calculateDistance(
           originPlace.latitude,
@@ -815,9 +882,13 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
         }
 
         if (_lastTripPointPosition != null) {
-          final dt = now.difference(_lastMovementTimestamp ?? now).inMilliseconds / 1000.0;
+          final dt =
+              now.difference(_lastMovementTimestamp ?? now).inMilliseconds /
+              1000.0;
           if (dt > 0.5) {
-            final lastSpd = (_lastTripPointPosition!.speed > 0) ? _lastTripPointPosition!.speed : 0.0;
+            final lastSpd = (_lastTripPointPosition!.speed > 0)
+                ? _lastTripPointPosition!.speed
+                : 0.0;
             final dv = (spd - lastSpd).abs();
             final accel = dv / dt;
             if (accel > _activeTripMaxAcceleration && accel < 15.0) {
@@ -834,7 +905,8 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
             ? (_activeTripDistance / 1000.0) / (durSec / 3600.0)
             : spdKmH;
 
-        final detectedMode = _activeTripManualMode ??
+        final detectedMode =
+            _activeTripManualMode ??
             inferTransportMode(
               avgSpeedKmH: avgSpd,
               maxSpeedKmH: _activeTripMaxSpeedKmH,
@@ -842,12 +914,14 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
               preferredMotorVehicle: _preferredMotorVehicle,
             );
 
-        _activeRoutePoints.add(TripPoint(
-          latitude: position.latitude,
-          longitude: position.longitude,
-          timestamp: now,
-          speed: position.speed,
-        ));
+        _activeRoutePoints.add(
+          TripPoint(
+            latitude: position.latitude,
+            longitude: position.longitude,
+            timestamp: now,
+            speed: position.speed,
+          ),
+        );
 
         _activeTrip = _activeTrip!.copyWith(
           distanceMeters: _activeTripDistance,
@@ -855,7 +929,8 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
           routePoints: List.from(_activeRoutePoints),
         );
 
-        if (_activeRoutePoints.length % 3 == 0 || _activeRoutePoints.length <= 3) {
+        if (_activeRoutePoints.length % 3 == 0 ||
+            _activeRoutePoints.length <= 3) {
           await _tripRepository.insertTrip(_activeTrip!);
         }
 
@@ -883,7 +958,8 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
         ? (_activeTripDistance / 1000.0) / (dur / 3600.0)
         : 0.0;
 
-    final finalMode = _activeTripManualMode ??
+    final finalMode =
+        _activeTripManualMode ??
         inferTransportMode(
           avgSpeedKmH: avgSpeedKmH,
           maxSpeedKmH: _activeTripMaxSpeedKmH,
@@ -923,7 +999,8 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
         ? (_activeTripDistance / 1000.0) / (dur / 3600.0)
         : 0.0;
 
-    final finalMode = _activeTripManualMode ??
+    final finalMode =
+        _activeTripManualMode ??
         inferTransportMode(
           avgSpeedKmH: avgSpeedKmH,
           maxSpeedKmH: _activeTripMaxSpeedKmH,
@@ -1047,9 +1124,13 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
       _activeVisit = null;
 
       // Start trip if leaving
-      if (leftPlace != null && _isTripTrackingEnabled && _lastKnownPosition != null) {
+      if (leftPlace != null &&
+          _isTripTrackingEnabled &&
+          _lastKnownPosition != null) {
         final now = DateTime.now();
-        final spd = _lastKnownPosition!.speed > 0 ? _lastKnownPosition!.speed : 0.0;
+        final spd = _lastKnownPosition!.speed > 0
+            ? _lastKnownPosition!.speed
+            : 0.0;
         final spdKmH = spd * 3.6;
         final startPoint = TripPoint(
           latitude: _lastKnownPosition!.latitude,
@@ -1138,11 +1219,17 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   @override
+  void notifyListeners() {
+    if (!_isDisposed) super.notifyListeners();
+  }
+
+  @override
   void dispose() {
     try {
       WidgetsBinding.instance.removeObserver(this);
     } catch (_) {}
     _isDisposed = true;
+    ++_streamGeneration;
     _tickerTimer?.cancel();
     _periodicCheckTimer?.cancel();
     _positionSubscription?.cancel();
