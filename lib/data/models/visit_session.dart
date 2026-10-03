@@ -1,5 +1,8 @@
 import 'package:uuid/uuid.dart';
+
 import 'place_category.dart';
+
+const _unset = Object();
 
 class VisitSession {
   final String id;
@@ -22,11 +25,10 @@ class VisitSession {
     int? durationSeconds,
     this.isManual = false,
     this.notes,
-  })  : id = id ?? const Uuid().v4(),
-        durationSeconds = durationSeconds ??
-            (endTime != null
-                ? endTime.difference(startTime).inSeconds
-                : 0);
+  }) : id = id ?? const Uuid().v4(),
+       durationSeconds =
+           durationSeconds ??
+           (endTime != null ? endTime.difference(startTime).inSeconds : 0);
 
   bool get isOngoing => endTime == null;
 
@@ -35,9 +37,7 @@ class VisitSession {
       return Duration(seconds: durationSeconds);
     }
     final now = DateTime.now();
-    return now.isAfter(startTime)
-        ? now.difference(startTime)
-        : Duration.zero;
+    return now.isAfter(startTime) ? now.difference(startTime) : Duration.zero;
   }
 
   String get formattedDuration {
@@ -63,10 +63,10 @@ class VisitSession {
     String? placeName,
     PlaceCategory? category,
     DateTime? startTime,
-    DateTime? endTime,
+    Object? endTime = _unset,
     int? durationSeconds,
     bool? isManual,
-    String? notes,
+    Object? notes = _unset,
   }) {
     return VisitSession(
       id: id ?? this.id,
@@ -74,10 +74,14 @@ class VisitSession {
       placeName: placeName ?? this.placeName,
       category: category ?? this.category,
       startTime: startTime ?? this.startTime,
-      endTime: endTime ?? this.endTime,
-      durationSeconds: durationSeconds ?? this.durationSeconds,
+      endTime: identical(endTime, _unset) ? this.endTime : endTime as DateTime?,
+      durationSeconds:
+          durationSeconds ??
+          (startTime != null || !identical(endTime, _unset)
+              ? null
+              : this.durationSeconds),
       isManual: isManual ?? this.isManual,
-      notes: notes ?? this.notes,
+      notes: identical(notes, _unset) ? this.notes : notes as String?,
     );
   }
 
@@ -99,7 +103,8 @@ class VisitSession {
     final start = DateTime.parse(map['startTime'] as String);
     final endStr = map['endTime'] as String?;
     final end = endStr != null ? DateTime.tryParse(endStr) : null;
-    final durSec = map['durationSeconds'] as int? ??
+    final durSec =
+        map['durationSeconds'] as int? ??
         (end != null ? end.difference(start).inSeconds : 0);
 
     return VisitSession(

@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
@@ -144,7 +145,10 @@ void main() {
         places: [place],
       );
 
-      expect(csv.contains('ID,Luogo,Categoria,Inizio,Fine,Durata_Secondi'), true);
+      expect(
+        csv.contains('ID,Luogo,Categoria,Inizio,Fine,Durata_Secondi'),
+        true,
+      );
       expect(csv.contains('Ufficio'), true);
       expect(csv.contains('Lavoro'), true);
       expect(csv.contains('4h'), true);
@@ -223,7 +227,10 @@ void main() {
 
     test('Multi-home and multi-job categories support', () {
       expect(PlaceCategory.secondaCasa.displayName, 'Seconda Casa');
-      expect(PlaceCategory.secondoLavoro.displayName, 'Secondo Lavoro / Ufficio');
+      expect(
+        PlaceCategory.secondoLavoro.displayName,
+        'Secondo Lavoro / Ufficio',
+      );
       expect(PlaceCategory.servizi.displayName, 'Spesa & Servizi');
 
       final home2 = Place(
@@ -348,8 +355,18 @@ void main() {
         distanceMeters: 5400.0,
         transportMode: 'In auto / Mezzo',
         routePoints: [
-          TripPoint(latitude: 45.45, longitude: 9.18, timestamp: start, speed: 8.5),
-          TripPoint(latitude: 45.464, longitude: 9.19, timestamp: end, speed: 10.2),
+          TripPoint(
+            latitude: 45.45,
+            longitude: 9.18,
+            timestamp: start,
+            speed: 8.5,
+          ),
+          TripPoint(
+            latitude: 45.464,
+            longitude: 9.19,
+            timestamp: end,
+            speed: 10.2,
+          ),
         ],
       );
 
@@ -393,24 +410,27 @@ void main() {
       expect(fromMap.routePoints.last.longitude, 9.20);
     });
 
-    test('TrackingEngine startManualTrip initializes active trip with origin', () async {
-      final engine = TrackingEngine(
-        placeRepository: PlaceRepository(),
-        visitRepository: VisitRepository(),
-        tripRepository: TripRepository(),
-      );
+    test(
+      'TrackingEngine startManualTrip initializes active trip with origin',
+      () async {
+        final engine = TrackingEngine(
+          placeRepository: PlaceRepository(),
+          visitRepository: VisitRepository(),
+          tripRepository: _FakeBatteryTripRepository(),
+        );
 
-      expect(engine.activeTrip, isNull);
-      await engine.startManualTrip(originName: 'Posizione esterna');
+        expect(engine.activeTrip, isNull);
+        await engine.startManualTrip(originName: 'Posizione esterna');
 
-      expect(engine.activeTrip, isNotNull);
-      expect(engine.activeTrip!.originPlaceName, 'Posizione esterna');
-      expect(engine.activeTrip!.distanceMeters, 0.0);
-      expect(engine.activeTrip!.transportMode, TransportMode.piedi);
+        expect(engine.activeTrip, isNotNull);
+        expect(engine.activeTrip!.originPlaceName, 'Posizione esterna');
+        expect(engine.activeTrip!.distanceMeters, 0.0);
+        expect(engine.activeTrip!.transportMode, TransportMode.piedi);
 
-      await engine.manualFinishTrip();
-      expect(engine.activeTrip, isNull);
-    });
+        await engine.manualFinishTrip();
+        expect(engine.activeTrip, isNull);
+      },
+    );
 
     test('Custom category registration, serialization, and lookup', () {
       final customCat = PlaceCategory(
@@ -517,7 +537,7 @@ void main() {
       final engine = TrackingEngine(
         placeRepository: PlaceRepository(),
         visitRepository: VisitRepository(),
-        tripRepository: TripRepository(),
+        tripRepository: _FakeBatteryTripRepository(),
       );
 
       final homePlace = Place(
@@ -535,7 +555,10 @@ void main() {
 
       // Test onPlaceUpdated updates placesVersion
       final initialVersion = engine.placesVersion;
-      final renamedHome = homePlace.copyWith(name: 'Casa Nuova', category: PlaceCategory.secondaCasa);
+      final renamedHome = homePlace.copyWith(
+        name: 'Casa Nuova',
+        category: PlaceCategory.secondaCasa,
+      );
       engine.onPlaceUpdated(renamedHome);
       expect(engine.placesVersion, initialVersion + 1);
 
@@ -644,19 +667,21 @@ void main() {
       engine.dispose();
     });
 
-    testWidgets('OnboardingView renders initial slide with privacy badge and skip button', (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: OnboardingView(),
-        ),
-      );
-      await tester.pumpAndSettle();
+    testWidgets(
+      'OnboardingView renders initial slide with privacy badge and skip button',
+      (tester) async {
+        await tester.pumpWidget(const MaterialApp(home: OnboardingView()));
+        await tester.pumpAndSettle();
 
-      expect(find.text('TEMPO'), findsOneWidget);
-      expect(find.text('Salta'), findsOneWidget);
-      expect(find.text('PRIVACY AL 100%'), findsOneWidget);
-      expect(find.text('Il tuo tempo nei luoghi che contano'), findsOneWidget);
-    });
+        expect(find.text('TEMPO'), findsOneWidget);
+        expect(find.text('Salta'), findsOneWidget);
+        expect(find.text('PRIVACY AL 100%'), findsOneWidget);
+        expect(
+          find.text('Il tuo tempo nei luoghi che contano'),
+          findsOneWidget,
+        );
+      },
+    );
   });
 }
 
@@ -687,9 +712,12 @@ class _FakeBatteryVisitRepository extends VisitRepository {
 
 class _FakeBatteryTripRepository extends TripRepository {
   @override
+  Future<void> deleteTrip(String id) async {}
+  @override
+  Future<void> updateTrip(Trip trip) async {}
+  @override
   Future<void> insertTrip(Trip trip) async {}
 
   @override
   Future<Trip?> getActiveTrip() async => null;
 }
-

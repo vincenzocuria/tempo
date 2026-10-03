@@ -1,7 +1,10 @@
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:uuid/uuid.dart';
+
+const _unset = Object();
 
 class TripPoint {
   final double latitude;
@@ -64,12 +67,11 @@ class Trip {
     this.transportMode = 'In spostamento',
     List<TripPoint>? routePoints,
     this.notes,
-  })  : id = id ?? const Uuid().v4(),
-        routePoints = routePoints ?? [],
-        durationSeconds = durationSeconds ??
-            (endTime != null
-                ? endTime.difference(startTime).inSeconds
-                : 0);
+  }) : id = id ?? const Uuid().v4(),
+       routePoints = routePoints ?? [],
+       durationSeconds =
+           durationSeconds ??
+           (endTime != null ? endTime.difference(startTime).inSeconds : 0);
 
   bool get isOngoing => endTime == null;
 
@@ -78,9 +80,7 @@ class Trip {
       return Duration(seconds: durationSeconds);
     }
     final now = DateTime.now();
-    return now.isAfter(startTime)
-        ? now.difference(startTime)
-        : Duration.zero;
+    return now.isAfter(startTime) ? now.difference(startTime) : Duration.zero;
   }
 
   String get formattedDuration {
@@ -121,36 +121,48 @@ class Trip {
 
   Trip copyWith({
     String? id,
-    String? originPlaceId,
+    Object? originPlaceId = _unset,
     String? originPlaceName,
-    String? destinationPlaceId,
-    String? destinationPlaceName,
+    Object? destinationPlaceId = _unset,
+    Object? destinationPlaceName = _unset,
     DateTime? startTime,
-    DateTime? endTime,
+    Object? endTime = _unset,
     int? durationSeconds,
     double? distanceMeters,
     String? transportMode,
     List<TripPoint>? routePoints,
-    String? notes,
+    Object? notes = _unset,
   }) {
     return Trip(
       id: id ?? this.id,
-      originPlaceId: originPlaceId ?? this.originPlaceId,
+      originPlaceId: identical(originPlaceId, _unset)
+          ? this.originPlaceId
+          : originPlaceId as String?,
       originPlaceName: originPlaceName ?? this.originPlaceName,
-      destinationPlaceId: destinationPlaceId ?? this.destinationPlaceId,
-      destinationPlaceName: destinationPlaceName ?? this.destinationPlaceName,
+      destinationPlaceId: identical(destinationPlaceId, _unset)
+          ? this.destinationPlaceId
+          : destinationPlaceId as String?,
+      destinationPlaceName: identical(destinationPlaceName, _unset)
+          ? this.destinationPlaceName
+          : destinationPlaceName as String?,
       startTime: startTime ?? this.startTime,
-      endTime: endTime ?? this.endTime,
-      durationSeconds: durationSeconds ?? this.durationSeconds,
+      endTime: identical(endTime, _unset) ? this.endTime : endTime as DateTime?,
+      durationSeconds:
+          durationSeconds ??
+          (startTime != null || !identical(endTime, _unset)
+              ? null
+              : this.durationSeconds),
       distanceMeters: distanceMeters ?? this.distanceMeters,
       transportMode: transportMode ?? this.transportMode,
       routePoints: routePoints ?? this.routePoints,
-      notes: notes ?? this.notes,
+      notes: identical(notes, _unset) ? this.notes : notes as String?,
     );
   }
 
   Map<String, dynamic> toMap() {
-    final encodedPoints = jsonEncode(routePoints.map((p) => p.toMap()).toList());
+    final encodedPoints = jsonEncode(
+      routePoints.map((p) => p.toMap()).toList(),
+    );
     return {
       'id': id,
       'originPlaceId': originPlaceId,
@@ -209,23 +221,22 @@ class TransportMode {
   static const String corsa = 'Corsa';
   static const String altro = 'In spostamento';
 
-  static const List<String> allModes = [
-    auto,
-    moto,
-    bici,
-    piedi,
-    corsa,
-  ];
+  static const List<String> allModes = [auto, moto, bici, piedi, corsa];
 
   static IconData getIcon(String mode) {
     final m = mode.toLowerCase();
     if (m.contains('moto') || m.contains('scooter')) {
       return Icons.two_wheeler_rounded;
     }
-    if (m.contains('auto') || m.contains('macchina') || m.contains('mezzo') || m.contains('veicolo')) {
+    if (m.contains('auto') ||
+        m.contains('macchina') ||
+        m.contains('mezzo') ||
+        m.contains('veicolo')) {
       return Icons.directions_car_rounded;
     }
-    if (m.contains('bici') || m.contains('bicicletta') || m.contains('cycling')) {
+    if (m.contains('bici') ||
+        m.contains('bicicletta') ||
+        m.contains('cycling')) {
       return Icons.directions_bike_rounded;
     }
     if (m.contains('corsa') || m.contains('running')) {
@@ -257,4 +268,3 @@ class TransportMode {
     return const Color(0xFF8B5CF6); // Viola Altro
   }
 }
-

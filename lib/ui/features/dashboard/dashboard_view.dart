@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+
 import '../../../data/repositories/place_repository.dart';
 import '../../../data/services/notification_service.dart';
 import '../../../data/services/tracking_engine.dart';
@@ -35,7 +36,7 @@ class DashboardView extends StatelessWidget {
       'Giovedì',
       'Venerdì',
       'Sabato',
-      'Domenica'
+      'Domenica',
     ];
     const months = [
       'Gennaio',
@@ -49,7 +50,7 @@ class DashboardView extends StatelessWidget {
       'Settembre',
       'Ottobre',
       'Novembre',
-      'Dicembre'
+      'Dicembre',
     ];
     final dayName = days[dt.weekday - 1];
     final monthName = months[dt.month - 1];
@@ -121,7 +122,9 @@ class DashboardView extends StatelessWidget {
   Widget _buildNotificationBell(BuildContext context, bool isDark) {
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
-    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final textMuted = isDark
+        ? AppColors.textDarkMuted
+        : AppColors.textLightMuted;
 
     return Consumer<NotificationService>(
       builder: (context, notifService, _) {
@@ -150,7 +153,9 @@ class DashboardView extends StatelessWidget {
               ),
             ),
             child: Icon(
-              unread > 0 ? Icons.notifications_active_rounded : Icons.notifications_outlined,
+              unread > 0
+                  ? Icons.notifications_active_rounded
+                  : Icons.notifications_outlined,
               size: 19,
               color: unread > 0 ? AppColors.primary : textMuted,
             ),
@@ -160,7 +165,10 @@ class DashboardView extends StatelessWidget {
     );
   }
 
-  void _showQuickCheckInSheet(BuildContext context, TrackingEngine engine) async {
+  void _showQuickCheckInSheet(
+    BuildContext context,
+    TrackingEngine engine,
+  ) async {
     final placeRepo = Provider.of<PlaceRepository>(context, listen: false);
     final places = await placeRepo.getAllPlaces();
 
@@ -169,15 +177,21 @@ class DashboardView extends StatelessWidget {
     if (places.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Aggiungi prima un luogo (es. Casa, Ufficio, Studio) per fare il check-in.'),
+          content: Text(
+            'Aggiungi prima un luogo (es. Casa, Ufficio, Studio) per fare il check-in.',
+          ),
         ),
       );
       return;
     }
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
-    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
+    final textMuted = isDark
+        ? AppColors.textDarkMuted
+        : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
@@ -211,7 +225,9 @@ class DashboardView extends StatelessWidget {
                       width: 44,
                       height: 4.5,
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+                        color: isDark
+                            ? const Color(0xFF475569)
+                            : const Color(0xFFCBD5E1),
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -229,10 +245,16 @@ class DashboardView extends StatelessWidget {
                       ),
                       IconButton(
                         style: IconButton.styleFrom(
-                          backgroundColor: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                          backgroundColor: isDark
+                              ? AppColors.darkSurfaceElevated
+                              : AppColors.lightSurfaceElevated,
                           padding: const EdgeInsets.all(6),
                         ),
-                        icon: Icon(Icons.close_rounded, size: 20, color: textPrimary),
+                        icon: Icon(
+                          Icons.close_rounded,
+                          size: 20,
+                          color: textPrimary,
+                        ),
                         onPressed: () => Navigator.pop(ctx),
                       ),
                     ],
@@ -250,7 +272,9 @@ class DashboardView extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: isCurrent
                                 ? p.color.withValues(alpha: isDark ? 0.2 : 0.1)
-                                : (isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated),
+                                : (isDark
+                                      ? AppColors.darkSurfaceElevated
+                                      : AppColors.lightSurfaceElevated),
                             borderRadius: BorderRadius.circular(18),
                             border: Border.all(
                               color: isCurrent ? p.color : borderColor,
@@ -270,15 +294,24 @@ class DashboardView extends StatelessWidget {
                               ),
                               title: Text(
                                 p.name,
-                                style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: textPrimary,
+                                ),
                               ),
                               subtitle: Text(
                                 p.category.displayName,
-                                style: TextStyle(fontSize: 12, color: textMuted),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: textMuted,
+                                ),
                               ),
                               trailing: isCurrent
                                   ? Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 4,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: p.color,
                                         borderRadius: BorderRadius.circular(10),
@@ -292,7 +325,11 @@ class DashboardView extends StatelessWidget {
                                         ),
                                       ),
                                     )
-                                  : Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
+                                  : Icon(
+                                      Icons.arrow_forward_ios_rounded,
+                                      size: 14,
+                                      color: textMuted,
+                                    ),
                               onTap: () {
                                 Navigator.pop(ctx);
                                 engine.manualCheckIn(p);
@@ -319,8 +356,12 @@ class DashboardView extends StatelessWidget {
 
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
-    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
+    final textMuted = isDark
+        ? AppColors.textDarkMuted
+        : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
@@ -376,36 +417,41 @@ class DashboardView extends StatelessWidget {
                           color: textPrimary,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: AppColors.success.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: AppColors.success.withValues(alpha: 0.3),
+                      if (MediaQuery.sizeOf(context).width >= 400) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
                           ),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.shield_rounded,
-                              size: 11,
-                              color: AppColors.success,
+                          decoration: BoxDecoration(
+                            color: AppColors.success.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: AppColors.success.withValues(alpha: 0.3),
                             ),
-                            SizedBox(width: 4),
-                            Text(
-                              '100% Locale',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.shield_rounded,
+                                size: 11,
                                 color: AppColors.success,
                               ),
-                            ),
-                          ],
+                              SizedBox(width: 4),
+                              Text(
+                                '100% Locale',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.success,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
 
@@ -451,9 +497,13 @@ class DashboardView extends StatelessWidget {
                           visualDensity: VisualDensity.compact,
                         ),
                         icon: Icon(
-                          isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                          isDarkMode
+                              ? Icons.light_mode_rounded
+                              : Icons.dark_mode_rounded,
                           size: 19,
-                          color: isDarkMode ? AppColors.warning : AppColors.primary,
+                          color: isDarkMode
+                              ? AppColors.warning
+                              : AppColors.primary,
                         ),
                         onPressed: onThemeToggle,
                       ),
@@ -500,7 +550,8 @@ class DashboardView extends StatelessWidget {
               // Live Status Card
               LiveStatusCard(
                 trackingEngine: trackingEngine,
-                onQuickCheckInTap: () => _showQuickCheckInSheet(context, trackingEngine),
+                onQuickCheckInTap: () =>
+                    _showQuickCheckInSheet(context, trackingEngine),
               ),
               const SizedBox(height: 18),
 
@@ -508,17 +559,20 @@ class DashboardView extends StatelessWidget {
               ListenableBuilder(
                 listenable: trackingEngine.habitService,
                 builder: (context, _) {
-                  final suggestions = trackingEngine.habitService.pendingSuggestions;
+                  final suggestions =
+                      trackingEngine.habitService.pendingSuggestions;
                   if (suggestions.isEmpty) return const SizedBox.shrink();
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 18),
                     child: Column(
                       children: suggestions
-                          .map((s) => HabitSuggestionCard(
-                                suggestion: s,
-                                onDismissed: () => viewModel.refresh(),
-                                onSaved: () => viewModel.refresh(),
-                              ))
+                          .map(
+                            (s) => HabitSuggestionCard(
+                              suggestion: s,
+                              onDismissed: () => viewModel.refresh(),
+                              onSaved: () => viewModel.refresh(),
+                            ),
+                          )
                           .toList(),
                     ),
                   );
@@ -532,14 +586,13 @@ class DashboardView extends StatelessWidget {
                 visitCount: viewModel.todayVisits.length,
                 tripCount: viewModel.todayTrips.length,
                 formattedDistance: viewModel.formattedTotalDistanceToday,
-                formattedTripDuration: viewModel.formattedTotalTripDurationToday,
+                formattedTripDuration:
+                    viewModel.formattedTotalTripDurationToday,
                 onTapTrips: () {
                   HapticFeedback.selectionClick();
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) => const DayTimelineView(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const DayTimelineView()),
                   );
                 },
               ),
@@ -563,7 +616,8 @@ class DashboardView extends StatelessWidget {
                       icon: Icons.touch_app_rounded,
                       label: 'Check-in',
                       accentColor: const Color(0xFF6366F1),
-                      onTap: () => _showQuickCheckInSheet(context, trackingEngine),
+                      onTap: () =>
+                          _showQuickCheckInSheet(context, trackingEngine),
                       isDark: isDark,
                     ),
                   ),
@@ -593,11 +647,15 @@ class DashboardView extends StatelessWidget {
                   ),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: isDark ? const Color(0xFF1E3A8A) : const Color(0xFFBAE6FD),
+                    color: isDark
+                        ? const Color(0xFF1E3A8A)
+                        : const Color(0xFFBAE6FD),
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+                      color: Colors.black.withValues(
+                        alpha: isDark ? 0.2 : 0.04,
+                      ),
                       blurRadius: 10,
                       offset: const Offset(0, 3),
                     ),
@@ -617,13 +675,17 @@ class DashboardView extends StatelessWidget {
                       );
                     },
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
                       child: Row(
                         children: [
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF0EA5E9).withValues(alpha: 0.18),
+                              color: const Color(0xFF0EA5E9)
+                                  .withValues(alpha: 0.18),
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(
@@ -649,9 +711,13 @@ class DashboardView extends StatelessWidget {
                                     ),
                                     const SizedBox(width: 6),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFF0EA5E9).withValues(alpha: 0.15),
+                                        color: const Color(0xFF0EA5E9)
+                                            .withValues(alpha: 0.15),
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: const Text(
@@ -720,7 +786,9 @@ class _QuickActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 

@@ -5,7 +5,7 @@ class TripRepository {
   final DatabaseService _dbService;
 
   TripRepository({DatabaseService? dbService})
-      : _dbService = dbService ?? DatabaseService.instance;
+    : _dbService = dbService ?? DatabaseService.instance;
 
   Future<Trip?> getActiveTrip() async {
     try {
@@ -16,21 +16,15 @@ class TripRepository {
   }
 
   Future<void> insertTrip(Trip trip) async {
-    try {
-      await _dbService.insertTrip(trip);
-    } catch (_) {}
+    await _dbService.insertTrip(trip);
   }
 
   Future<void> updateTrip(Trip trip) async {
-    try {
-      await _dbService.updateTrip(trip);
-    } catch (_) {}
+    await _dbService.updateTrip(trip);
   }
 
   Future<void> deleteTrip(String id) async {
-    try {
-      await _dbService.deleteTrip(id);
-    } catch (_) {}
+    await _dbService.deleteTrip(id);
   }
 
   Future<List<Trip>> getTrips({

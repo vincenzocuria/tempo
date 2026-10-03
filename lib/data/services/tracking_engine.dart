@@ -220,6 +220,28 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
       }
       final trip = await _tripRepository.getActiveTrip();
       if (_isDisposed) return;
+      if (_activeTrip?.id != trip?.id ||
+          (trip?.routePoints.length ?? 0) > _activeRoutePoints.length) {
+        _activeRoutePoints = List.from(trip?.routePoints ?? <TripPoint>[]);
+        _activeTripDistance = trip?.distanceMeters ?? 0;
+        _lastTripPointPosition = null;
+        if (_activeRoutePoints.isNotEmpty) {
+          final last = _activeRoutePoints.last;
+          _lastTripPointPosition = Position(
+            longitude: last.longitude,
+            latitude: last.latitude,
+            timestamp: last.timestamp,
+            accuracy: 0,
+            altitude: 0,
+            altitudeAccuracy: 0,
+            heading: 0,
+            headingAccuracy: 0,
+            speed: last.speed ?? 0,
+            speedAccuracy: 0,
+          );
+        }
+        _activeTripManualMode = null;
+      }
       _activeTrip = trip;
       if (!_isDisposed) {
         notifyListeners();

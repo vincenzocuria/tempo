@@ -1,7 +1,11 @@
+import '../../../data/repositories/category_repository.dart';
+import '../../../data/repositories/trip_repository.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+
 import '../../../data/models/trip.dart';
 import '../../../data/repositories/place_repository.dart';
 import '../../../data/repositories/visit_repository.dart';
@@ -33,7 +37,8 @@ class SettingsView extends StatefulWidget {
   State<SettingsView> createState() => _SettingsViewState();
 }
 
-class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver {
+class _SettingsViewState extends State<SettingsView>
+    with WidgetsBindingObserver {
   PermissionStatus _locationStatus = PermissionStatus.denied;
   PermissionStatus _bgLocationStatus = PermissionStatus.denied;
   PermissionStatus _notificationStatus = PermissionStatus.denied;
@@ -64,9 +69,15 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
 
     if (mounted) {
       setState(() {
-        _locationStatus = status.locationGranted ? PermissionStatus.granted : PermissionStatus.denied;
-        _bgLocationStatus = status.backgroundLocationGranted ? PermissionStatus.granted : PermissionStatus.denied;
-        _notificationStatus = status.notificationGranted ? PermissionStatus.granted : PermissionStatus.denied;
+        _locationStatus = status.locationGranted
+            ? PermissionStatus.granted
+            : PermissionStatus.denied;
+        _bgLocationStatus = status.backgroundLocationGranted
+            ? PermissionStatus.granted
+            : PermissionStatus.denied;
+        _notificationStatus = status.notificationGranted
+            ? PermissionStatus.granted
+            : PermissionStatus.denied;
         _batteryOptimizationIgnored = status.batteryOptimizationIgnored;
       });
     }
@@ -94,9 +105,13 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
 
   void _showExportPreview(String title, String content) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
-    final elevatedBg = isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated;
+    final elevatedBg = isDark
+        ? AppColors.darkSurfaceElevated
+        : AppColors.lightSurfaceElevated;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     showModalBottomSheet(
@@ -112,7 +127,9 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
           return Container(
             decoration: BoxDecoration(
               color: cardBg,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(28),
+              ),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
@@ -131,7 +148,9 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
                     width: 44,
                     height: 4.5,
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+                      color: isDark
+                          ? const Color(0xFF475569)
+                          : const Color(0xFFCBD5E1),
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
@@ -153,7 +172,9 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
                       onPressed: () {
                         Clipboard.setData(ClipboardData(text: content));
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Copiato negli appunti!')),
+                          const SnackBar(
+                            content: Text('Copiato negli appunti!'),
+                          ),
                         );
                       },
                     ),
@@ -190,34 +211,65 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
   }
 
   void _exportCsv() async {
-    final placeRepo = Provider.of<PlaceRepository>(context, listen: false);
-    final visitRepo = Provider.of<VisitRepository>(context, listen: false);
+    try {
+      final placeRepo = Provider.of<PlaceRepository>(context, listen: false);
+      final visitRepo = Provider.of<VisitRepository>(context, listen: false);
 
-    final places = await placeRepo.getAllPlaces();
-    final visits = await visitRepo.getVisits();
+      final places = await placeRepo.getAllPlaces();
+      final visits = await visitRepo.getVisits();
 
-    if (!mounted) return;
-    final csv = ExportService.exportVisitsToCsv(visits: visits, places: places);
-    _showExportPreview('Esportazione CSV', csv);
+      if (!mounted) return;
+      final csv = ExportService.exportVisitsToCsv(
+        visits: visits,
+        places: places,
+      );
+      _showExportPreview('Esportazione CSV', csv);
+    } catch (_) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Esportazione non riuscita. Riprova.')),
+        );
+    }
   }
 
   void _exportJson() async {
-    final placeRepo = Provider.of<PlaceRepository>(context, listen: false);
-    final visitRepo = Provider.of<VisitRepository>(context, listen: false);
+    try {
+      final placeRepo = Provider.of<PlaceRepository>(context, listen: false);
+      final visitRepo = Provider.of<VisitRepository>(context, listen: false);
 
-    final places = await placeRepo.getAllPlaces();
-    final visits = await visitRepo.getVisits();
+      final tripRepo = context.read<TripRepository>();
+      final categories = context
+          .read<CategoryRepository>()
+          .customCategories
+          .toList();
+      final places = await placeRepo.getAllPlaces();
+      final visits = await visitRepo.getVisits();
+      final trips = await tripRepo.getTrips();
 
-    if (!mounted) return;
-    final json = ExportService.exportDataToJson(places: places, visits: visits);
-    _showExportPreview('Esportazione JSON', json);
+      if (!mounted) return;
+      final json = ExportService.exportDataToJson(
+        places: places,
+        visits: visits,
+        trips: trips,
+        customCategories: categories,
+      );
+      _showExportPreview('Esportazione JSON', json);
+    } catch (_) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Esportazione non riuscita. Riprova.')),
+        );
+    }
   }
-
 
   void _confirmClearData() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
-    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
+    final textMuted = isDark
+        ? AppColors.textDarkMuted
+        : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
 
     showModalBottomSheet(
@@ -245,7 +297,9 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
                 height: 4.5,
                 margin: const EdgeInsets.only(bottom: 18),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+                  color: isDark
+                      ? const Color(0xFF475569)
+                      : const Color(0xFFCBD5E1),
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -255,7 +309,11 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
                   color: AppColors.danger.withValues(alpha: 0.14),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.delete_forever_rounded, color: AppColors.danger, size: 34),
+                child: const Icon(
+                  Icons.delete_forever_rounded,
+                  color: AppColors.danger,
+                  size: 34,
+                ),
               ),
               const SizedBox(height: 14),
               Text(
@@ -280,10 +338,18 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
                     child: OutlinedButton(
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                       ),
                       onPressed: () => Navigator.pop(ctx),
-                      child: Text('Annulla', style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary)),
+                      child: Text(
+                        'Annulla',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: textPrimary,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -293,16 +359,33 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
                         backgroundColor: AppColors.danger,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                       ),
                       onPressed: () async {
                         final messenger = ScaffoldMessenger.of(context);
                         Navigator.pop(ctx);
-                        final visitRepo = Provider.of<VisitRepository>(context, listen: false);
-                        final dashboardVm = Provider.of<DashboardViewModel>(context, listen: false);
-                        final placesVm = Provider.of<PlacesViewModel>(context, listen: false);
-                        final analyticsVm = Provider.of<AnalyticsViewModel>(context, listen: false);
-                        final trackingEngine = Provider.of<TrackingEngine>(context, listen: false);
+                        final visitRepo = Provider.of<VisitRepository>(
+                          context,
+                          listen: false,
+                        );
+                        final dashboardVm = Provider.of<DashboardViewModel>(
+                          context,
+                          listen: false,
+                        );
+                        final placesVm = Provider.of<PlacesViewModel>(
+                          context,
+                          listen: false,
+                        );
+                        final analyticsVm = Provider.of<AnalyticsViewModel>(
+                          context,
+                          listen: false,
+                        );
+                        final trackingEngine = Provider.of<TrackingEngine>(
+                          context,
+                          listen: false,
+                        );
 
                         await visitRepo.clearAllData();
                         await trackingEngine.manualCheckOut();
@@ -311,10 +394,20 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
                         await analyticsVm.loadAnalytics();
 
                         messenger.showSnackBar(
-                          const SnackBar(content: Text('Tutti i dati sono stati cancellati.')),
+                          const SnackBar(
+                            content: Text(
+                              'Tutti i dati sono stati cancellati.',
+                            ),
+                          ),
                         );
                       },
-                      child: const Text('Cancella Tutto', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                      child: const Text(
+                        'Cancella Tutto',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -331,15 +424,17 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
     final engine = Provider.of<TrackingEngine>(context);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
-    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
+    final textMuted = isDark
+        ? AppColors.textDarkMuted
+        : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Impostazioni & Privacy'),
-      ),
+      appBar: AppBar(title: const Text('Impostazioni & Privacy')),
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         children: [
@@ -364,7 +459,11 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
               children: [
                 const Row(
                   children: [
-                    Icon(Icons.verified_user_rounded, color: AppColors.success, size: 24),
+                    Icon(
+                      Icons.verified_user_rounded,
+                      color: AppColors.success,
+                      size: 24,
+                    ),
                     SizedBox(width: 10),
                     Text(
                       '100% Privacy & Locale',
@@ -382,7 +481,9 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
                   style: TextStyle(
                     fontSize: 13,
                     height: 1.4,
-                    color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                    color: isDark
+                        ? const Color(0xFFCBD5E1)
+                        : const Color(0xFF334155),
                   ),
                 ),
               ],
@@ -402,96 +503,124 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
               color: Colors.transparent,
               child: Column(
                 children: [
-                SwitchListTile(
-                  title: Text(
-                    'Tracciamento Luoghi',
-                    style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
-                  ),
-                  subtitle: Text(
-                    engine.isTrackingEnabled
-                        ? 'Attivo • Monitora soste e geofence'
-                        : 'Sospeso • Nessun calcolo in background',
-                    style: TextStyle(color: textMuted, fontSize: 13),
-                  ),
-                  value: engine.isTrackingEnabled,
-                  activeColor: AppColors.primary,
-                  onChanged: (val) => engine.setTrackingEnabled(val),
-                ),
-                Divider(height: 1, color: borderColor),
-                SwitchListTile(
-                  title: Text(
-                    'Registra Tragitti & Spostamenti',
-                    style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
-                  ),
-                  subtitle: Text(
-                    engine.isTripTrackingEnabled
-                        ? 'Attivo • Traccia tragitti, distanze e tempi all\'uscita dall\'area'
-                        : 'Disattivato • Non registra gli spostamenti tra luoghi',
-                    style: TextStyle(color: textMuted, fontSize: 13),
-                  ),
-                  value: engine.isTripTrackingEnabled,
-                  activeColor: const Color(0xFF0EA5E9),
-                  onChanged: (val) => engine.setTripTrackingEnabled(val),
-                ),
-                Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: (engine.preferredMotorVehicle == TransportMode.moto
-                              ? const Color(0xFFF97316)
-                              : const Color(0xFF0284C7))
-                          .withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(12),
+                  SwitchListTile(
+                    title: Text(
+                      'Tracciamento Luoghi',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: textPrimary,
+                      ),
                     ),
-                    child: Icon(
+                    subtitle: Text(
+                      engine.isTrackingEnabled
+                          ? 'Attivo • Monitora soste e geofence'
+                          : 'Sospeso • Nessun calcolo in background',
+                      style: TextStyle(color: textMuted, fontSize: 13),
+                    ),
+                    value: engine.isTrackingEnabled,
+                    activeColor: AppColors.primary,
+                    onChanged: (val) => engine.setTrackingEnabled(val),
+                  ),
+                  Divider(height: 1, color: borderColor),
+                  SwitchListTile(
+                    title: Text(
+                      'Registra Tragitti & Spostamenti',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: textPrimary,
+                      ),
+                    ),
+                    subtitle: Text(
+                      engine.isTripTrackingEnabled
+                          ? 'Attivo • Traccia tragitti, distanze e tempi all\'uscita dall\'area'
+                          : 'Disattivato • Non registra gli spostamenti tra luoghi',
+                      style: TextStyle(color: textMuted, fontSize: 13),
+                    ),
+                    value: engine.isTripTrackingEnabled,
+                    activeColor: const Color(0xFF0EA5E9),
+                    onChanged: (val) => engine.setTripTrackingEnabled(val),
+                  ),
+                  Divider(
+                    height: 1,
+                    indent: 16,
+                    endIndent: 16,
+                    color: borderColor,
+                  ),
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color:
+                            (engine.preferredMotorVehicle == TransportMode.moto
+                                    ? const Color(0xFFF97316)
+                                    : const Color(0xFF0284C7))
+                                .withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        engine.preferredMotorVehicle == TransportMode.moto
+                            ? Icons.two_wheeler_rounded
+                            : Icons.directions_car_rounded,
+                        color:
+                            engine.preferredMotorVehicle == TransportMode.moto
+                            ? const Color(0xFFF97316)
+                            : const Color(0xFF0284C7),
+                        size: 22,
+                      ),
+                    ),
+                    title: Text(
+                      'Mezzo a Motore Predefinito',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: textPrimary,
+                      ),
+                    ),
+                    subtitle: Text(
                       engine.preferredMotorVehicle == TransportMode.moto
-                          ? Icons.two_wheeler_rounded
-                          : Icons.directions_car_rounded,
-                      color: engine.preferredMotorVehicle == TransportMode.moto
-                          ? const Color(0xFFF97316)
-                          : const Color(0xFF0284C7),
-                      size: 22,
+                          ? 'Moto / Scooter (priorità due ruote)'
+                          : 'Auto (priorità automobile)',
+                      style: TextStyle(color: textMuted, fontSize: 12),
+                    ),
+                    trailing: SegmentedButton<String>(
+                      segments: const [
+                        ButtonSegment<String>(
+                          value: TransportMode.auto,
+                          icon: Icon(Icons.directions_car_rounded, size: 16),
+                          label: Text(
+                            'Auto',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        ButtonSegment<String>(
+                          value: TransportMode.moto,
+                          icon: Icon(Icons.two_wheeler_rounded, size: 16),
+                          label: Text(
+                            'Moto',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                      selected: {engine.preferredMotorVehicle},
+                      onSelectionChanged: (newSelection) {
+                        if (newSelection.isNotEmpty) {
+                          engine.setPreferredMotorVehicle(newSelection.first);
+                        }
+                      },
+                      style: SegmentedButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                      ),
                     ),
                   ),
-                  title: Text(
-                    'Mezzo a Motore Predefinito',
-                    style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
-                  ),
-                  subtitle: Text(
-                    engine.preferredMotorVehicle == TransportMode.moto
-                        ? 'Moto / Scooter (priorità due ruote)'
-                        : 'Auto (priorità automobile)',
-                    style: TextStyle(color: textMuted, fontSize: 12),
-                  ),
-                  trailing: SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment<String>(
-                        value: TransportMode.auto,
-                        icon: Icon(Icons.directions_car_rounded, size: 16),
-                        label: Text('Auto', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                      ),
-                      ButtonSegment<String>(
-                        value: TransportMode.moto,
-                        icon: Icon(Icons.two_wheeler_rounded, size: 16),
-                        label: Text('Moto', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                      ),
-                    ],
-                    selected: {engine.preferredMotorVehicle},
-                    onSelectionChanged: (newSelection) {
-                      if (newSelection.isNotEmpty) {
-                        engine.setPreferredMotorVehicle(newSelection.first);
-                      }
-                    },
-                    style: SegmentedButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
           const SizedBox(height: 24),
 
           // Permissions
@@ -506,54 +635,82 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
               color: Colors.transparent,
               child: Column(
                 children: [
-                _PermissionTile(
-                  title: 'Posizione GPS',
-                  subtitle: 'Richiesta per determinare le coordinate',
-                  isGranted: _locationStatus.isGranted,
-                  onTap: _requestLocation,
-                ),
-                Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
-                _PermissionTile(
-                  title: 'Posizione in Background (Sempre)',
-                  subtitle: 'Consente di calcolare le ore a schermo spento',
-                  isGranted: _bgLocationStatus.isGranted,
-                  onTap: _requestBgLocation,
-                ),
-                Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
-                _PermissionTile(
-                  title: 'Notifiche',
-                  subtitle: 'Avvisi di ingresso e riepilogo uscita',
-                  isGranted: _notificationStatus.isGranted,
-                  onTap: _requestNotification,
-                ),
-                Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
-                _PermissionTile(
-                  title: 'Nessuna Restrizione Batteria',
-                  subtitle: 'Essenziale per Samsung / OneUI per non chiudere il servizio',
-                  isGranted: _batteryOptimizationIgnored,
-                  onTap: _requestBatteryOptimization,
-                ),
-                Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
-                Material(
-                  color: Colors.transparent,
-                  child: ListTile(
-                    leading: const Icon(Icons.settings_suggest_rounded, color: AppColors.primary),
-                    title: Text(
-                      'Apri Impostazioni App di Sistema',
-                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: textPrimary),
-                    ),
-                    subtitle: Text(
-                      'Gestisci manualmente tutti i permessi nelle impostazioni Android',
-                      style: TextStyle(fontSize: 12, color: textMuted),
-                    ),
-                    trailing: const Icon(Icons.open_in_new_rounded, size: 18),
-                    onTap: () => PermissionManager.instance.openSystemSettings(),
+                  _PermissionTile(
+                    title: 'Posizione GPS',
+                    subtitle: 'Richiesta per determinare le coordinate',
+                    isGranted: _locationStatus.isGranted,
+                    onTap: _requestLocation,
                   ),
-                ),
-              ],
+                  Divider(
+                    height: 1,
+                    indent: 16,
+                    endIndent: 16,
+                    color: borderColor,
+                  ),
+                  _PermissionTile(
+                    title: 'Posizione in Background (Sempre)',
+                    subtitle: 'Consente di calcolare le ore a schermo spento',
+                    isGranted: _bgLocationStatus.isGranted,
+                    onTap: _requestBgLocation,
+                  ),
+                  Divider(
+                    height: 1,
+                    indent: 16,
+                    endIndent: 16,
+                    color: borderColor,
+                  ),
+                  _PermissionTile(
+                    title: 'Notifiche',
+                    subtitle: 'Avvisi di ingresso e riepilogo uscita',
+                    isGranted: _notificationStatus.isGranted,
+                    onTap: _requestNotification,
+                  ),
+                  Divider(
+                    height: 1,
+                    indent: 16,
+                    endIndent: 16,
+                    color: borderColor,
+                  ),
+                  _PermissionTile(
+                    title: 'Nessuna Restrizione Batteria',
+                    subtitle: 'Essenziale per Samsung / OneUI per non chiudere il servizio',
+                    isGranted: _batteryOptimizationIgnored,
+                    onTap: _requestBatteryOptimization,
+                  ),
+                  Divider(
+                    height: 1,
+                    indent: 16,
+                    endIndent: 16,
+                    color: borderColor,
+                  ),
+                  Material(
+                    color: Colors.transparent,
+                    child: ListTile(
+                      leading: const Icon(
+                        Icons.settings_suggest_rounded,
+                        color: AppColors.primary,
+                      ),
+                      title: Text(
+                        'Apri Impostazioni App di Sistema',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: textPrimary,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Gestisci manualmente tutti i permessi nelle impostazioni Android',
+                        style: TextStyle(fontSize: 12, color: textMuted),
+                      ),
+                      trailing: const Icon(Icons.open_in_new_rounded, size: 18),
+                      onTap: () =>
+                          PermissionManager.instance.openSystemSettings(),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
           const SizedBox(height: 24),
 
           // Appearance
@@ -569,9 +726,15 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
               child: SwitchListTile(
                 title: Text(
                   'Tema Scuro',
-                  style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: textPrimary,
+                  ),
                 ),
-                subtitle: Text(widget.isDarkMode ? 'Attivo' : 'Disattivato (Tema Chiaro)', style: TextStyle(color: textMuted, fontSize: 13)),
+                subtitle: Text(
+                  widget.isDarkMode ? 'Attivo' : 'Disattivato (Tema Chiaro)',
+                  style: TextStyle(color: textMuted, fontSize: 13),
+                ),
                 value: widget.isDarkMode,
                 activeColor: AppColors.primary,
                 onChanged: (_) => widget.onThemeToggle(),
@@ -597,17 +760,28 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
                     color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.category_rounded, color: Color(0xFF8B5CF6), size: 22),
+                  child: const Icon(
+                    Icons.category_rounded,
+                    color: Color(0xFF8B5CF6),
+                    size: 22,
+                  ),
                 ),
                 title: Text(
                   'Gestione Categorie',
-                  style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: textPrimary,
+                  ),
                 ),
                 subtitle: Text(
                   'Aggiungi, modifica ed elimina le categorie dei luoghi',
                   style: TextStyle(color: textMuted, fontSize: 13),
                 ),
-                trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
+                trailing: Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 14,
+                  color: textMuted,
+                ),
                 onTap: () {
                   Navigator.push(
                     context,
@@ -636,18 +810,25 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
                     leading: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: isDark ? 0.2 : 0.1),
+                        color: AppColors.primary.withValues(
+                          alpha: isDark ? 0.2 : 0.1,
+                        ),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Icon(
-                        unread > 0 ? Icons.notifications_active_rounded : Icons.notifications_outlined,
+                        unread > 0
+                            ? Icons.notifications_active_rounded
+                            : Icons.notifications_outlined,
                         color: AppColors.primary,
                         size: 20,
                       ),
                     ),
                     title: Text(
                       'Registro Notifiche',
-                      style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: textPrimary,
+                      ),
                     ),
                     subtitle: Text(
                       'Storico permanente di arrivi, partenze e abitudini',
@@ -658,7 +839,10 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
                       children: [
                         if (unread > 0)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.primary,
                               borderRadius: BorderRadius.circular(12),
@@ -673,12 +857,19 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
                             ),
                           ),
                         const SizedBox(width: 4),
-                        Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
+                        Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 14,
+                          color: textMuted,
+                        ),
                       ],
                     ),
                     onTap: () {
                       HapticFeedback.lightImpact();
-                      NotificationLogSheet.show(context, isDark: widget.isDarkMode);
+                      NotificationLogSheet.show(
+                        context,
+                        isDark: widget.isDarkMode,
+                      );
                     },
                   ),
                 );
@@ -700,10 +891,26 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
               child: Column(
                 children: [
                   ListTile(
-                    leading: const Icon(Icons.history_rounded, color: AppColors.primary),
-                    title: Text('Cronologia Completa Visite', style: TextStyle(fontWeight: FontWeight.w700, color: textPrimary)),
-                    subtitle: Text('Visualizza e cerca tutte le sessioni passate', style: TextStyle(color: textMuted, fontSize: 13)),
-                    trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
+                    leading: const Icon(
+                      Icons.history_rounded,
+                      color: AppColors.primary,
+                    ),
+                    title: Text(
+                      'Cronologia Completa Visite',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: textPrimary,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Visualizza e cerca tutte le sessioni passate',
+                      style: TextStyle(color: textMuted, fontSize: 13),
+                    ),
+                    trailing: Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 14,
+                      color: textMuted,
+                    ),
                     onTap: () {
                       Navigator.push(
                         context,
@@ -711,46 +918,132 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
                       );
                     },
                   ),
-                  Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
+                  Divider(
+                    height: 1,
+                    indent: 16,
+                    endIndent: 16,
+                    color: borderColor,
+                  ),
                   ListTile(
-                    leading: const Icon(Icons.table_chart_rounded, color: AppColors.primary),
-                    title: Text('Esporta Visite in CSV', style: TextStyle(fontWeight: FontWeight.w600, color: textPrimary)),
-                    subtitle: Text('Compatibile con Excel e Google Fogli', style: TextStyle(color: textMuted, fontSize: 13)),
-                    trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
+                    leading: const Icon(
+                      Icons.table_chart_rounded,
+                      color: AppColors.primary,
+                    ),
+                    title: Text(
+                      'Esporta Visite in CSV',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: textPrimary,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Compatibile con Excel e Google Fogli',
+                      style: TextStyle(color: textMuted, fontSize: 13),
+                    ),
+                    trailing: Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 14,
+                      color: textMuted,
+                    ),
                     onTap: _exportCsv,
                   ),
-                  Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
+                  Divider(
+                    height: 1,
+                    indent: 16,
+                    endIndent: 16,
+                    color: borderColor,
+                  ),
                   ListTile(
-                    leading: const Icon(Icons.code_rounded, color: AppColors.info),
-                    title: Text('Esporta Tutto in JSON', style: TextStyle(fontWeight: FontWeight.w600, color: textPrimary)),
-                    subtitle: Text('Backup completo di luoghi e visite', style: TextStyle(color: textMuted, fontSize: 13)),
-                    trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
+                    leading: const Icon(
+                      Icons.code_rounded,
+                      color: AppColors.info,
+                    ),
+                    title: Text(
+                      'Esporta Tutto in JSON',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: textPrimary,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Backup completo di luoghi e visite',
+                      style: TextStyle(color: textMuted, fontSize: 13),
+                    ),
+                    trailing: Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 14,
+                      color: textMuted,
+                    ),
                     onTap: _exportJson,
                   ),
-                  Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
+                  Divider(
+                    height: 1,
+                    indent: 16,
+                    endIndent: 16,
+                    color: borderColor,
+                  ),
                   ListTile(
-                    leading: const Icon(Icons.auto_awesome_rounded, color: Color(0xFF6366F1)),
-                    title: Text('Simula Rilevamento Luogo Frequente', style: TextStyle(fontWeight: FontWeight.w600, color: textPrimary)),
-                    subtitle: Text('Simula una sosta abituale per testare i suggerimenti smart', style: TextStyle(color: textMuted, fontSize: 13)),
-                    trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
+                    leading: const Icon(
+                      Icons.auto_awesome_rounded,
+                      color: Color(0xFF6366F1),
+                    ),
+                    title: Text(
+                      'Simula Rilevamento Luogo Frequente',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: textPrimary,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Simula una sosta abituale per testare i suggerimenti smart',
+                      style: TextStyle(color: textMuted, fontSize: 13),
+                    ),
+                    trailing: Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 14,
+                      color: textMuted,
+                    ),
                     onTap: () async {
                       await HabitDetectionService.instance.simulateHabitStay();
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Luogo frequente simulato con successo! Controlla la schermata "Oggi".'),
+                            content: Text(
+                              'Luogo frequente simulato con successo! Controlla la schermata "Oggi".',
+                            ),
                             backgroundColor: Color(0xFF6366F1),
                           ),
                         );
                       }
                     },
                   ),
-                  Divider(height: 1, indent: 16, endIndent: 16, color: borderColor),
+                  Divider(
+                    height: 1,
+                    indent: 16,
+                    endIndent: 16,
+                    color: borderColor,
+                  ),
                   ListTile(
-                    leading: const Icon(Icons.school_rounded, color: AppColors.primary),
-                    title: Text('Rivedi Guida & Onboarding', style: TextStyle(fontWeight: FontWeight.w600, color: textPrimary)),
-                    subtitle: Text('Rivedi le slide introduttive e la filosofia di Tempo', style: TextStyle(color: textMuted, fontSize: 13)),
-                    trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: textMuted),
+                    leading: const Icon(
+                      Icons.school_rounded,
+                      color: AppColors.primary,
+                    ),
+                    title: Text(
+                      'Rivedi Guida & Onboarding',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: textPrimary,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Rivedi le slide introduttive e la filosofia di Tempo',
+                      style: TextStyle(color: textMuted, fontSize: 13),
+                    ),
+                    trailing: Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 14,
+                      color: textMuted,
+                    ),
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
@@ -778,12 +1071,21 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
             child: Material(
               color: Colors.transparent,
               child: ListTile(
-                leading: const Icon(Icons.delete_forever_rounded, color: AppColors.danger),
+                leading: const Icon(
+                  Icons.delete_forever_rounded,
+                  color: AppColors.danger,
+                ),
                 title: const Text(
                   'Cancella Tutti i Dati',
-                  style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.danger),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.danger,
+                  ),
                 ),
-                subtitle: Text('Elimina luoghi e cronologia dal dispositivo', style: TextStyle(color: textMuted, fontSize: 13)),
+                subtitle: Text(
+                  'Elimina luoghi e cronologia dal dispositivo',
+                  style: TextStyle(color: textMuted, fontSize: 13),
+                ),
                 onTap: _confirmClearData,
               ),
             ),
@@ -795,7 +1097,7 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
             child: Column(
               children: [
                 Text(
-                  'Tempo v1.0.24',
+                  'Tempo v1.0.25',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
@@ -805,10 +1107,7 @@ class _SettingsViewState extends State<SettingsView> with WidgetsBindingObserver
                 const SizedBox(height: 2),
                 Text(
                   'Presenza & Tempo • Senza Cloud • 100% Privacy',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: textMuted,
-                  ),
+                  style: TextStyle(fontSize: 11, color: textMuted),
                 ),
               ],
             ),
@@ -828,7 +1127,9 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final textMuted = isDark
+        ? AppColors.textDarkMuted
+        : AppColors.textLightMuted;
 
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 8),
@@ -861,31 +1162,60 @@ class _PermissionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
-    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
+    final textMuted = isDark
+        ? AppColors.textDarkMuted
+        : AppColors.textLightMuted;
 
     return Material(
       color: Colors.transparent,
       child: ListTile(
-        title: Text(title, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: textPrimary)),
-        subtitle: Text(subtitle, style: TextStyle(fontSize: 12, color: textMuted)),
+        title: Text(
+          title,
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
+            color: textPrimary,
+          ),
+        ),
+        subtitle: Text(
+          subtitle,
+          style: TextStyle(fontSize: 12, color: textMuted),
+        ),
         trailing: isGranted
             ? Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.success.withValues(alpha: 0.16),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Text(
                   'Concesso',
-                  style: TextStyle(color: AppColors.success, fontSize: 11, fontWeight: FontWeight.w800),
+                  style: TextStyle(
+                    color: AppColors.success,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               )
             : ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 onPressed: onTap,
                 child: const Text('Abilita'),

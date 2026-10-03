@@ -1,8 +1,12 @@
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:native_geofence/native_geofence.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:uuid/uuid.dart';
+
 import '../models/place.dart';
 import '../models/visit_session.dart';
 import 'database_service.dart';
@@ -13,15 +17,20 @@ import 'notification_service.dart';
 @pragma('vm:entry-point')
 Future<void> tempoGeofenceCallback(GeofenceCallbackParams params) async {
   WidgetsFlutterBinding.ensureInitialized();
-  debugPrint('[NativeGeofence] Triggered: ${params.event.name} for ${params.geofences.length} geofence(s)');
+  debugPrint(
+    '[NativeGeofence] Triggered: ${params.event.name} for ${params.geofences.length} geofence(s)',
+  );
 
   try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    if (!(prefs.getBool('tracking_enabled') ?? true)) return;
     final dbService = DatabaseService.instance;
     final notifService = NotificationService.instance;
 
     for (final geofence in params.geofences) {
       final place = await dbService.getPlaceById(geofence.id);
-      if (place == null) continue;
+      if (place == null || !place.isTrackingEnabled) continue;
 
       if (params.event == GeofenceEvent.enter) {
         final activeVisit = await dbService.getActiveVisit();
@@ -35,22 +44,23 @@ Future<void> tempoGeofenceCallback(GeofenceCallbackParams params) async {
         // Close any prior active visit in another place
         if (activeVisit != null && activeVisit.placeId != place.id) {
           final dur = now.difference(activeVisit.startTime).inSeconds;
-          await dbService.updateVisit(activeVisit.copyWith(
-            endTime: now,
-            durationSeconds: dur,
-          ));
+          await dbService.updateVisit(
+            activeVisit.copyWith(endTime: now, durationSeconds: dur),
+          );
         }
 
         // Close any ongoing active trip in DB
         final activeTrip = await dbService.getActiveTrip();
         if (activeTrip != null) {
           final tripDur = now.difference(activeTrip.startTime).inSeconds;
-          await dbService.insertTrip(activeTrip.copyWith(
-            endTime: now,
-            durationSeconds: tripDur,
-            destinationPlaceId: place.id,
-            destinationPlaceName: place.name,
-          ));
+          await dbService.insertTrip(
+            activeTrip.copyWith(
+              endTime: now,
+              durationSeconds: tripDur,
+              destinationPlaceId: place.id,
+              destinationPlaceName: place.name,
+            ),
+          );
         }
 
         // Insert new visit session for this place
@@ -108,7 +118,9 @@ class NativeGeofenceService {
     try {
       final bgPermission = await Permission.locationAlways.status;
       if (!bgPermission.isGranted) {
-        debugPrint('[NativeGeofence] Background location permission not granted. Skipping initialization.');
+        debugPrint(
+          '[NativeGeofence] Background location permission not granted. Skipping initialization.',
+        );
         return;
       }
       await NativeGeofenceManager.instance.initialize();
@@ -126,7 +138,9 @@ class NativeGeofenceService {
     try {
       final bgPermission = await Permission.locationAlways.status;
       if (!bgPermission.isGranted) {
-        debugPrint('[NativeGeofence] Background location not granted, skipping sync.');
+        debugPrint(
+          '[NativeGeofence] Background location not granted, skipping sync.',
+        );
         return;
       }
       if (!_isInitialized) await initialize();
@@ -139,7 +153,9 @@ class NativeGeofenceService {
           await registerPlace(place);
         }
       }
-      debugPrint('[NativeGeofence] Synchronized ${places.length} places with OS geofencing');
+      debugPrint(
+        '[NativeGeofence] Synchronized ${places.length} places with OS geofencing',
+      );
     } catch (e) {
       debugPrint('[NativeGeofence] Error syncing places: $e');
     }
@@ -149,7 +165,9 @@ class NativeGeofenceService {
     try {
       final bgPermission = await Permission.locationAlways.status;
       if (!bgPermission.isGranted) {
-        debugPrint('[NativeGeofence] Background location not granted, cannot register place ${place.name}.');
+        debugPrint(
+          '[NativeGeofence] Background location not granted, cannot register place ${place.name}.',
+        );
         return;
       }
       if (!_isInitialized) await initialize();
@@ -162,7 +180,10 @@ class NativeGeofenceService {
 
       final geofence = Geofence(
         id: place.id,
-        location: Location(latitude: place.latitude, longitude: place.longitude),
+        location: Location(
+          latitude: place.latitude,
+          longitude: place.longitude,
+        ),
         radiusMeters: place.radiusInMeters.clamp(50.0, 5000.0),
         triggers: const {GeofenceEvent.enter, GeofenceEvent.exit},
         iosSettings: const IosGeofenceSettings(initialTrigger: true),
@@ -177,9 +198,13 @@ class NativeGeofenceService {
         geofence,
         tempoGeofenceCallback,
       );
-      debugPrint('[NativeGeofence] Registered OS geofence for: ${place.name} (${place.radiusInMeters}m)');
+      debugPrint(
+        '[NativeGeofence] Registered OS geofence for: ${place.name} (${place.radiusInMeters}m)',
+      );
     } catch (e) {
-      debugPrint('[NativeGeofence] Failed to register geofence for ${place.name}: $e');
+      debugPrint(
+        '[NativeGeofence] Failed to register geofence for ${place.name}: $e',
+      );
     }
   }
 
@@ -193,4 +218,3 @@ class NativeGeofenceService {
     }
   }
 }
-

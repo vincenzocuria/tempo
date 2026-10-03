@@ -37,7 +37,7 @@ adb shell am force-stop "$package"
 "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign --ks "$ci_key" --ks-pass pass:android --key-pass pass:android --out "$evidence/new-ci.apk" build/app/outputs/flutter-apk/app-release.apk
 adb install -r "$evidence/new-ci.apk"
 rm "$evidence/baseline-ci.apk" "$evidence/new-ci.apk"
-check_launch upgrade-1.0.24
+check_launch upgrade-1.0.25
 adb shell pm clear "$package"
 check_launch fresh-onboarding
 python3 .github/scripts/tap-ui.py Salta

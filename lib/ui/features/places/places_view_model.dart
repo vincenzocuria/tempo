@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../data/models/place.dart';
 import '../../../data/repositories/place_repository.dart';
 import '../../../data/repositories/visit_repository.dart';
@@ -16,19 +17,23 @@ class PlacesViewModel extends ChangeNotifier {
   Map<String, int> get placeTotalDurations => _placeTotalDurations;
 
   bool _isLoading = false;
+  bool _disposed = false;
+  int _loadGeneration = 0;
   bool get isLoading => _isLoading;
 
   PlacesViewModel({
     required PlaceRepository placeRepository,
     required VisitRepository visitRepository,
     required TrackingEngine trackingEngine,
-  })  : _placeRepository = placeRepository,
-        _visitRepository = visitRepository,
-        _trackingEngine = trackingEngine {
+  }) : _placeRepository = placeRepository,
+       _visitRepository = visitRepository,
+       _trackingEngine = trackingEngine {
     loadPlaces();
   }
 
   Future<void> loadPlaces({bool forceRefresh = false}) async {
+    if (_disposed) return;
+    final generation = ++_loadGeneration;
     // Only show full loading spinner if we don't have any places in memory yet
     if (_places.isEmpty || forceRefresh) {
       _isLoading = true;
@@ -37,14 +42,19 @@ class PlacesViewModel extends ChangeNotifier {
 
     try {
       // 1. Fetch places first and display immediately (takes < 2ms)
-      _places = await _placeRepository.getAllPlaces();
+      final places = await _placeRepository.getAllPlaces();
+      if (_disposed || generation != _loadGeneration) return;
+      _places = places;
       _isLoading = false;
       notifyListeners();
 
       // 2. Fetch duration aggregates in background without delaying list display
-      _placeTotalDurations = await _visitRepository.getTotalDurationByPlace();
+      final durations = await _visitRepository.getTotalDurationByPlace();
+      if (_disposed || generation != _loadGeneration) return;
+      _placeTotalDurations = durations;
       notifyListeners();
     } catch (e) {
+      if (_disposed || generation != _loadGeneration) return;
       _isLoading = false;
       notifyListeners();
     }
@@ -53,52 +63,54 @@ class PlacesViewModel extends ChangeNotifier {
   Future<void> addPlace(Place place) async {
     // Deduplication check: ignore if an exact duplicate is already in list
     final existingIndex = _places.indexWhere(
-      (p) => p.id == place.id || (p.name.trim().toLowerCase() == place.name.trim().toLowerCase() &&
-          (p.latitude - place.latitude).abs() < 0.0001 &&
-          (p.longitude - place.longitude).abs() < 0.0001),
+      (p) =>
+          p.id == place.id ||
+          (p.name.trim().toLowerCase() == place.name.trim().toLowerCase() &&
+              (p.latitude - place.latitude).abs() < 0.0001 &&
+              (p.longitude - place.longitude).abs() < 0.0001),
     );
 
-    if (existingIndex != -1 && _places[existingIndex].id == place.id) {
+    if (existingIndex != -1) {
       return;
     }
 
-    // Optimistic insert into UI list
-    _places.removeWhere((p) => p.id == place.id);
+    await _placeRepository.savePlace(place);
+    ++_loadGeneration;
+    if (_disposed) return;
     _places.insert(0, place);
     notifyListeners();
-
-    await _placeRepository.savePlace(place);
-    loadPlaces();
-    // Fire tracking location check in background without blocking the UI
+    await loadPlaces();
     _trackingEngine.checkCurrentLocation();
   }
 
   Future<void> updatePlace(Place place) async {
-    final idx = _places.indexWhere((p) => p.id == place.id);
-    if (idx != -1) {
-      _places[idx] = place;
-      notifyListeners();
-    }
     await _placeRepository.updatePlace(place);
+    ++_loadGeneration;
+    if (_disposed) return;
+    final index = _places.indexWhere((p) => p.id == place.id);
+    if (index != -1) _places[index] = place;
     _trackingEngine.onPlaceUpdated(place);
-    loadPlaces();
+    notifyListeners();
+    await loadPlaces();
     _trackingEngine.checkCurrentLocation();
   }
 
   Future<void> deletePlace(String id) async {
-    // 1. Immediate optimistic removal: disappears from screen in 0ms!
-    _places.removeWhere((p) => p.id == id);
-    notifyListeners();
-
-    // 2. Notify tracking engine to clear active place/visit if this place was active
-    _trackingEngine.onPlaceDeleted(id);
-
-    // 3. Delete from persistent database
     await _placeRepository.deletePlace(id);
-
-    // 4. Background sync without blocking UI
-    loadPlaces();
+    ++_loadGeneration;
+    if (_disposed) return;
+    _places.removeWhere((p) => p.id == id);
+    _trackingEngine.onPlaceDeleted(id);
+    notifyListeners();
+    await loadPlaces();
     _trackingEngine.checkCurrentLocation();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    ++_loadGeneration;
+    super.dispose();
   }
 
   Future<void> toggleTracking(Place place) async {

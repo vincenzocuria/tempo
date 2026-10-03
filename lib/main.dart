@@ -299,10 +299,10 @@ class _MainShellState extends State<MainShell> {
             tabLabel = 'Oggi';
           } else if (isTraveling) {
             badgeColor = const Color(0xFF0EA5E9);
-            tabLabel = 'In viaggio';
+            tabLabel = 'Viaggio';
           } else {
             badgeColor = const Color(0xFFF59E0B);
-            tabLabel = 'Oggi • Fuori';
+            tabLabel = 'Oggi';
           }
 
           return NavigationBar(
@@ -345,7 +345,7 @@ class _MainShellState extends State<MainShell> {
               const NavigationDestination(
                 icon: Icon(Icons.settings_outlined),
                 selectedIcon: Icon(Icons.settings_rounded),
-                label: 'Impostazioni',
+                label: 'Opzioni',
               ),
             ],
           );

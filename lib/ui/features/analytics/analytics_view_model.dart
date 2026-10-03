@@ -1,4 +1,7 @@
+import '../../../data/services/session_time.dart';
+
 import 'package:flutter/material.dart';
+
 import '../../../data/models/place_category.dart';
 import '../../../data/models/trip.dart';
 import '../../../data/models/visit_session.dart';
@@ -89,7 +92,8 @@ class CategoryTimeStats {
   }
 
   String get dailyAverageFormatted {
-    if (distinctDaysCount <= 0 || durationSeconds <= 0) return formattedDuration;
+    if (distinctDaysCount <= 0 || durationSeconds <= 0)
+      return formattedDuration;
     final avgSec = durationSeconds ~/ distinctDaysCount;
     final h = avgSec ~/ 3600;
     final m = (avgSec % 3600) ~/ 60;
@@ -199,21 +203,35 @@ class AnalyticsViewModel extends ChangeNotifier {
   List<VisitSession> get recentFilteredVisits => _recentFilteredVisits;
 
   int _lastPlacesVersion = 0;
+  bool _disposed = false;
+  bool _reloadPending = false;
+  String? _lastActiveVisitId;
+  String? _lastActiveTripId;
+  int _lastRefreshMinute = -1;
 
   AnalyticsViewModel({
     required VisitRepository visitRepository,
     TripRepository? tripRepository,
     TrackingEngine? trackingEngine,
-  })  : _visitRepository = visitRepository,
-        _tripRepository = tripRepository,
-        _trackingEngine = trackingEngine {
+  }) : _visitRepository = visitRepository,
+       _tripRepository = tripRepository,
+       _trackingEngine = trackingEngine {
     _trackingEngine?.addListener(_onTrackingEngineUpdated);
     loadAnalytics();
   }
 
   void _onTrackingEngineUpdated() {
     final currentPlacesVersion = _trackingEngine?.placesVersion ?? 0;
-    if (currentPlacesVersion != _lastPlacesVersion) {
+    final visitId = _trackingEngine?.activeVisit?.id;
+    final tripId = _trackingEngine?.activeTrip?.id;
+    final minute = DateTime.now().millisecondsSinceEpoch ~/ 60000;
+    if (currentPlacesVersion != _lastPlacesVersion ||
+        visitId != _lastActiveVisitId ||
+        tripId != _lastActiveTripId ||
+        minute != _lastRefreshMinute) {
+      _lastActiveVisitId = visitId;
+      _lastActiveTripId = tripId;
+      _lastRefreshMinute = minute;
       _lastPlacesVersion = currentPlacesVersion;
       loadAnalytics();
     }
@@ -228,8 +246,18 @@ class AnalyticsViewModel extends ChangeNotifier {
   String get filterDateRangeLabel {
     final now = DateTime.now();
     const months = [
-      'Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu',
-      'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'
+      'Gen',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mag',
+      'Giu',
+      'Lug',
+      'Ago',
+      'Set',
+      'Ott',
+      'Nov',
+      'Dic',
     ];
     switch (_selectedFilter) {
       case AnalyticsTimeFilter.today:
@@ -249,7 +277,10 @@ class AnalyticsViewModel extends ChangeNotifier {
     for (final s in _categoryStatsList) {
       final name = s.category.displayName.toLowerCase();
       final id = s.category.id.toLowerCase();
-      if (id == 'lavoro' || id == 'secondolavoro' || name.contains('lavoro') || name.contains('ufficio')) {
+      if (id == 'lavoro' ||
+          id == 'secondolavoro' ||
+          name.contains('lavoro') ||
+          name.contains('ufficio')) {
         return s;
       }
     }
@@ -271,7 +302,10 @@ class AnalyticsViewModel extends ChangeNotifier {
     for (final s in _categoryStatsList) {
       final name = s.category.displayName.toLowerCase();
       final id = s.category.id.toLowerCase();
-      if (id == 'palestra' || name.contains('palestra') || name.contains('sport') || name.contains('fitness')) {
+      if (id == 'palestra' ||
+          name.contains('palestra') ||
+          name.contains('sport') ||
+          name.contains('fitness')) {
         return s;
       }
     }
@@ -279,6 +313,11 @@ class AnalyticsViewModel extends ChangeNotifier {
   }
 
   Future<void> loadAnalytics() async {
+    if (_disposed) return;
+    if (_isLoading) {
+      _reloadPending = true;
+      return;
+    }
     _isLoading = true;
     notifyListeners();
 
@@ -290,18 +329,20 @@ class AnalyticsViewModel extends ChangeNotifier {
       switch (_selectedFilter) {
         case AnalyticsTimeFilter.today:
           from = DateTime(now.year, now.month, now.day, 0, 0, 0);
-          to = DateTime(now.year, now.month, now.day, 23, 59, 59);
+          to = DateTime(now.year, now.month, now.day + 1);
           break;
         case AnalyticsTimeFilter.thisWeek:
           final monday = now.subtract(Duration(days: now.weekday - 1));
           from = DateTime(monday.year, monday.month, monday.day, 0, 0, 0);
           final sunday = monday.add(const Duration(days: 6));
-          to = DateTime(sunday.year, sunday.month, sunday.day, 23, 59, 59);
+          to = DateTime(sunday.year, sunday.month, sunday.day + 1);
           break;
         case AnalyticsTimeFilter.thisMonth:
           from = DateTime(now.year, now.month, 1, 0, 0, 0);
-          final nextMonth = now.month < 12 ? DateTime(now.year, now.month + 1, 1) : DateTime(now.year + 1, 1, 1);
-          to = nextMonth.subtract(const Duration(seconds: 1));
+          final nextMonth = now.month < 12
+              ? DateTime(now.year, now.month + 1, 1)
+              : DateTime(now.year + 1, 1, 1);
+          to = nextMonth;
           break;
         case AnalyticsTimeFilter.allTime:
           from = null;
@@ -309,34 +350,41 @@ class AnalyticsViewModel extends ChangeNotifier {
           break;
       }
 
-      final rawPlaces = await _visitRepository.getTotalDurationByPlace(from: from, to: to);
-      final rawCategories = await _visitRepository.getTotalDurationByCategory(from: from, to: to);
-      final allFilteredVisits = await _visitRepository.getVisits(from: from, to: to);
-      _recentFilteredVisits = allFilteredVisits;
-      _dailyDurations = await _visitRepository.getDailyDurationsForLastDays(7);
-
-      final placesMap = Map<String, int>.from(rawPlaces);
-      final categoriesMap = Map<PlaceCategory, int>.from(rawCategories);
-
-      // Include active ongoing visit if within time window
       final engine = _trackingEngine;
-      if (engine != null) {
-        final activeVisit = engine.activeVisit;
-        final currentPlace = engine.currentPlace;
-        if (activeVisit != null && currentPlace != null) {
-          final isInsideWindow = from == null || activeVisit.startTime.isAfter(from);
-          if (isInsideWindow) {
-            final activeSec = activeVisit.currentDuration.inSeconds;
-            if (activeSec > 0) {
-              placesMap[currentPlace.name] = (placesMap[currentPlace.name] ?? 0) + activeSec;
-              categoriesMap[currentPlace.category] = (categoriesMap[currentPlace.category] ?? 0) + activeSec;
-
-              final todayKey = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
-              _dailyDurations[todayKey] = (_dailyDurations[todayKey] ?? 0) + activeSec;
-            }
-          }
-        }
+      final storedVisits = await _visitRepository.getVisits(from: from, to: to);
+      if (_disposed) return;
+      final byId = {for (final v in storedVisits) v.id: v};
+      final active = engine?.activeVisit;
+      if (active != null) byId[active.id] = active;
+      final allFilteredVisits = byId.values
+          .where(
+            (v) =>
+                SessionTime.seconds(
+                  v.startTime,
+                  v.endTime,
+                  from: from,
+                  to: to,
+                  now: now,
+                ) >
+                0,
+          )
+          .toList();
+      _recentFilteredVisits = allFilteredVisits;
+      final placesMap = <String, int>{};
+      final categoriesMap = <PlaceCategory, int>{};
+      for (final v in allFilteredVisits) {
+        final seconds = SessionTime.seconds(
+          v.startTime,
+          v.endTime,
+          from: from,
+          to: to,
+          now: now,
+        );
+        placesMap[v.placeName] = (placesMap[v.placeName] ?? 0) + seconds;
+        categoriesMap[v.category] = (categoriesMap[v.category] ?? 0) + seconds;
       }
+      _dailyDurations = await _visitRepository.getDailyDurationsForLastDays(7);
+      if (_disposed) return;
 
       // Filter out zero-duration places and categories so only actual data is shown
       _durationByPlace = Map.fromEntries(
@@ -346,21 +394,16 @@ class AnalyticsViewModel extends ChangeNotifier {
         categoriesMap.entries.where((e) => e.value > 0),
       );
 
-      _totalDurationSeconds = _durationByPlace.values.fold(0, (sum, val) => sum + val);
+      _totalDurationSeconds = _durationByPlace.values.fold(
+        0,
+        (sum, val) => sum + val,
+      );
 
       // Build granular category stats (with visit counts and distinct days)
       final Map<PlaceCategory, List<VisitSession>> visitsByCat = {};
       for (final v in allFilteredVisits) {
         visitsByCat.putIfAbsent(v.category, () => []).add(v);
       }
-      if (engine != null && engine.activeVisit != null && engine.currentPlace != null) {
-        final active = engine.activeVisit!;
-        final isInside = from == null || active.startTime.isAfter(from);
-        if (isInside) {
-          visitsByCat.putIfAbsent(active.category, () => []).add(active);
-        }
-      }
-
       final catStats = <CategoryTimeStats>[];
       for (final entry in visitsByCat.entries) {
         final cat = entry.key;
@@ -370,20 +413,36 @@ class AnalyticsViewModel extends ChangeNotifier {
         final distinctDays = <String>{};
 
         for (final v in list) {
-          durSec += v.durationSeconds;
-          distinctDays.add(
-            "${v.startTime.year}-${v.startTime.month.toString().padLeft(2, '0')}-${v.startTime.day.toString().padLeft(2, '0')}",
+          durSec += SessionTime.seconds(
+            v.startTime,
+            v.endTime,
+            from: from,
+            to: to,
+            now: now,
+          );
+          distinctDays.addAll(
+            SessionTime.daily(
+              v.startTime,
+              v.endTime,
+              from: from,
+              to: to,
+              now: now,
+            ).keys,
           );
         }
 
-        final pct = _totalDurationSeconds > 0 ? (durSec / _totalDurationSeconds) : 0.0;
-        catStats.add(CategoryTimeStats(
-          category: cat,
-          durationSeconds: durSec,
-          visitCount: list.length,
-          distinctDaysCount: distinctDays.length,
-          percentageOfTotal: pct,
-        ));
+        final pct = _totalDurationSeconds > 0
+            ? (durSec / _totalDurationSeconds)
+            : 0.0;
+        catStats.add(
+          CategoryTimeStats(
+            category: cat,
+            durationSeconds: durSec,
+            visitCount: list.length,
+            distinctDaysCount: distinctDays.length,
+            percentageOfTotal: pct,
+          ),
+        );
       }
       catStats.sort((a, b) => b.durationSeconds.compareTo(a.durationSeconds));
       _categoryStatsList = catStats;
@@ -391,11 +450,57 @@ class AnalyticsViewModel extends ChangeNotifier {
       // Load trips data & group by transport mode
       final tripRepo = _tripRepository;
       if (tripRepo != null) {
-        final trips = await tripRepo.getTrips(from: from, to: to);
+        final storedTrips = await tripRepo.getTrips(from: from, to: to);
+        if (_disposed) return;
+        final tripsById = {for (final t in storedTrips) t.id: t};
+        final activeTrip = engine?.activeTrip;
+        if (activeTrip != null) {
+          tripsById[activeTrip.id] = activeTrip.copyWith(
+            distanceMeters: engine!.activeTripDistance,
+          );
+        }
+        final trips = tripsById.values
+            .where(
+              (t) =>
+                  SessionTime.seconds(
+                    t.startTime,
+                    t.endTime,
+                    from: from,
+                    to: to,
+                    now: now,
+                  ) >
+                  0,
+            )
+            .map(
+              (t) => t.copyWith(
+                durationSeconds: SessionTime.seconds(
+                  t.startTime,
+                  t.endTime,
+                  from: from,
+                  to: to,
+                  now: now,
+                ),
+                distanceMeters: SessionTime.distance(
+                  t.distanceMeters,
+                  t.startTime,
+                  t.endTime,
+                  from: from,
+                  to: to,
+                  now: now,
+                ),
+              ),
+            )
+            .toList();
         _recentFilteredTrips = trips;
         _totalTripsCount = trips.length;
-        _totalTripDurationSeconds = await tripRepo.getTotalTripDuration(from: from, to: to);
-        _totalTripDistanceMeters = await tripRepo.getTotalDistance(from: from, to: to);
+        _totalTripDurationSeconds = trips.fold(
+          0,
+          (sum, t) => sum + t.durationSeconds,
+        );
+        _totalTripDistanceMeters = trips.fold(
+          0.0,
+          (sum, t) => sum + t.distanceMeters,
+        );
 
         int carSec = 0;
         double carDist = 0.0;
@@ -427,11 +532,15 @@ class AnalyticsViewModel extends ChangeNotifier {
             motoSec += t.durationSeconds;
             motoDist += t.distanceMeters;
             motoTrips++;
-          } else if (mode.contains('auto') || mode.contains('macchina') || mode.contains('veicolo')) {
+          } else if (mode.contains('auto') ||
+              mode.contains('macchina') ||
+              mode.contains('veicolo')) {
             carSec += t.durationSeconds;
             carDist += t.distanceMeters;
             carTrips++;
-          } else if (mode.contains('bici') || mode.contains('bicicletta') || mode.contains('cycling')) {
+          } else if (mode.contains('bici') ||
+              mode.contains('bicicletta') ||
+              mode.contains('cycling')) {
             bikeSec += t.durationSeconds;
             bikeDist += t.distanceMeters;
             bikeTrips++;
@@ -439,7 +548,9 @@ class AnalyticsViewModel extends ChangeNotifier {
             runSec += t.durationSeconds;
             runDist += t.distanceMeters;
             runTrips++;
-          } else if (mode.contains('piedi') || mode.contains('cammin') || mode.contains('walk')) {
+          } else if (mode.contains('piedi') ||
+              mode.contains('cammin') ||
+              mode.contains('walk')) {
             walkSec += t.durationSeconds;
             walkDist += t.distanceMeters;
             walkTrips++;
@@ -456,7 +567,8 @@ class AnalyticsViewModel extends ChangeNotifier {
           } else {
             // Speed inference fallback if old trips had generic mode
             if (t.distanceMeters > 0 && t.durationSeconds > 0) {
-              final avgSpd = (t.distanceMeters / 1000.0) / (t.durationSeconds / 3600.0);
+              final avgSpd =
+                  (t.distanceMeters / 1000.0) / (t.durationSeconds / 3600.0);
               if (avgSpd > 22.0) {
                 if (engine?.preferredMotorVehicle == TransportMode.moto) {
                   motoSec += t.durationSeconds;
@@ -481,41 +593,6 @@ class AnalyticsViewModel extends ChangeNotifier {
               otherDist += t.distanceMeters;
               otherTrips++;
             }
-          }
-        }
-
-        // Include ongoing active trip if in time window
-        if (engine != null && engine.activeTrip != null) {
-          final active = engine.activeTrip!;
-          final isInside = from == null || active.startTime.isAfter(from);
-          if (isInside) {
-            final sec = active.durationSeconds;
-            final dist = engine.activeTripDistance;
-            final mode = active.transportMode.toLowerCase();
-            if (mode.contains('moto') || mode.contains('scooter')) {
-              motoSec += sec;
-              motoDist += dist;
-              motoTrips++;
-            } else if (mode.contains('auto') || mode.contains('macchina') || mode.contains('mezzo')) {
-              carSec += sec;
-              carDist += dist;
-              carTrips++;
-            } else if (mode.contains('bici')) {
-              bikeSec += sec;
-              bikeDist += dist;
-              bikeTrips++;
-            } else if (mode.contains('corsa')) {
-              runSec += sec;
-              runDist += dist;
-              runTrips++;
-            } else {
-              walkSec += sec;
-              walkDist += dist;
-              walkTrips++;
-            }
-            _totalTripsCount += 1;
-            _totalTripDurationSeconds += sec;
-            _totalTripDistanceMeters += dist;
           }
         }
 
@@ -576,15 +653,17 @@ class AnalyticsViewModel extends ChangeNotifier {
         if (walkTrips > 0 || walkSec > 0) list.add(_walkStats);
         if (runTrips > 0 || runSec > 0) list.add(_runStats);
         if (otherTrips > 0 || otherSec > 0) {
-          list.add(TransportModeStats(
-            modeName: 'Altri spostamenti',
-            modeKey: 'other',
-            icon: Icons.route_rounded,
-            color: const Color(0xFF8B5CF6),
-            durationSeconds: otherSec,
-            distanceMeters: otherDist,
-            tripCount: otherTrips,
-          ));
+          list.add(
+            TransportModeStats(
+              modeName: 'Altri spostamenti',
+              modeKey: 'other',
+              icon: Icons.route_rounded,
+              color: const Color(0xFF8B5CF6),
+              durationSeconds: otherSec,
+              distanceMeters: otherDist,
+              tripCount: otherTrips,
+            ),
+          );
         }
         _allTransportStats = list;
       }
@@ -592,7 +671,13 @@ class AnalyticsViewModel extends ChangeNotifier {
       debugPrint('Error loading analytics: $e');
     } finally {
       _isLoading = false;
-      notifyListeners();
+      if (!_disposed) {
+        notifyListeners();
+        if (_reloadPending) {
+          _reloadPending = false;
+          loadAnalytics();
+        }
+      }
     }
   }
 
@@ -634,6 +719,7 @@ class AnalyticsViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _trackingEngine?.removeListener(_onTrackingEngineUpdated);
     super.dispose();
   }

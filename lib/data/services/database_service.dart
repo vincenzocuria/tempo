@@ -1,6 +1,9 @@
+import 'session_time.dart';
+
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
+
 import '../models/app_notification.dart';
 import '../models/habit_suggestion.dart';
 import '../models/place.dart';
@@ -252,21 +255,21 @@ class DatabaseService {
       await db.update(
         'visit_sessions',
         visitUpdateData,
-        where: 'placeId = ? OR placeName = ?',
-        whereArgs: [place.id, oldName],
+        where: 'placeId = ?',
+        whereArgs: [place.id],
       );
 
       await db.update(
         'trips',
         {'originPlaceName': place.name},
-        where: 'originPlaceId = ? OR originPlaceName = ?',
+        where: 'originPlaceId = ? OR (originPlaceId IS NULL AND originPlaceName = ?)',
         whereArgs: [place.id, oldName],
       );
 
       await db.update(
         'trips',
         {'destinationPlaceName': place.name},
-        where: 'destinationPlaceId = ? OR destinationPlaceName = ?',
+        where: 'destinationPlaceId = ? OR (destinationPlaceId IS NULL AND destinationPlaceName = ?)',
         whereArgs: [place.id, oldName],
       );
     } else {
@@ -349,12 +352,19 @@ class DatabaseService {
     String? whereClause;
     List<dynamic>? whereArgs;
 
-    if (from != null && to != null) {
-      whereClause = 'startTime >= ? AND startTime <= ?';
-      whereArgs = [from.toIso8601String(), to.toIso8601String()];
-    } else if (from != null) {
-      whereClause = 'startTime >= ?';
-      whereArgs = [from.toIso8601String()];
+    final conditions = <String>[];
+    final args = <dynamic>[];
+    if (from != null) {
+      conditions.add('(endTime IS NULL OR endTime > ?)');
+      args.add(from.toIso8601String());
+    }
+    if (to != null) {
+      conditions.add('startTime < ?');
+      args.add(to.toIso8601String());
+    }
+    if (conditions.isNotEmpty) {
+      whereClause = conditions.join(' AND ');
+      whereArgs = args;
     }
 
     final maps = await db.query(
@@ -370,84 +380,67 @@ class DatabaseService {
   Future<List<VisitSession>> getTodayVisits() async {
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
-    return getVisits(from: startOfDay);
+    return getVisits(from: startOfDay, to: now);
   }
 
   Future<Map<String, int>> getTotalDurationByPlace({
     DateTime? from,
     DateTime? to,
   }) async {
-    final db = await database;
-    String query = '''
-      SELECT placeName, SUM(durationSeconds) as totalDuration
-      FROM visit_sessions
-      WHERE endTime IS NOT NULL
-    ''';
-    List<dynamic> args = [];
-    if (from != null && to != null) {
-      query += ' AND startTime >= ? AND startTime <= ?';
-      args.addAll([from.toIso8601String(), to.toIso8601String()]);
+    final visits = await getVisits(from: from, to: to);
+    final result = <String, int>{};
+    final now = DateTime.now();
+    for (final v in visits) {
+      final seconds = SessionTime.seconds(
+        v.startTime,
+        v.endTime,
+        from: from,
+        to: to,
+        now: now,
+      );
+      if (seconds > 0)
+        result[v.placeName] = (result[v.placeName] ?? 0) + seconds;
     }
-    query += ' GROUP BY placeName ORDER BY totalDuration DESC';
-
-    final result = await db.rawQuery(query, args);
-    final map = <String, int>{};
-    for (final row in result) {
-      final name = row['placeName'] as String;
-      final duration = (row['totalDuration'] as num?)?.toInt() ?? 0;
-      map[name] = duration;
-    }
-    return map;
+    return result;
   }
 
   Future<Map<PlaceCategory, int>> getTotalDurationByCategory({
     DateTime? from,
     DateTime? to,
   }) async {
-    final db = await database;
-    String query = '''
-      SELECT category, SUM(durationSeconds) as totalDuration
-      FROM visit_sessions
-      WHERE endTime IS NOT NULL
-    ''';
-    List<dynamic> args = [];
-    if (from != null && to != null) {
-      query += ' AND startTime >= ? AND startTime <= ?';
-      args.addAll([from.toIso8601String(), to.toIso8601String()]);
+    final visits = await getVisits(from: from, to: to);
+    final result = <PlaceCategory, int>{};
+    final now = DateTime.now();
+    for (final v in visits) {
+      final seconds = SessionTime.seconds(
+        v.startTime,
+        v.endTime,
+        from: from,
+        to: to,
+        now: now,
+      );
+      if (seconds > 0) result[v.category] = (result[v.category] ?? 0) + seconds;
     }
-    query += ' GROUP BY category ORDER BY totalDuration DESC';
-
-    final result = await db.rawQuery(query, args);
-    final map = <PlaceCategory, int>{};
-    for (final row in result) {
-      final cat = PlaceCategory.fromString(row['category'] as String?);
-      final duration = (row['totalDuration'] as num?)?.toInt() ?? 0;
-      map[cat] = duration;
-    }
-    return map;
+    return result;
   }
 
   Future<Map<String, int>> getDailyDurationsForLastDays(int days) async {
-    final db = await database;
+    if (days <= 0) return {};
     final now = DateTime.now();
-    final start = DateTime(now.year, now.month, now.day).subtract(Duration(days: days - 1));
-
-    final query = '''
-      SELECT SUBSTR(startTime, 1, 10) as dayDate, SUM(durationSeconds) as totalDuration
-      FROM visit_sessions
-      WHERE startTime >= ? AND endTime IS NOT NULL
-      GROUP BY dayDate
-      ORDER BY dayDate ASC
-    ''';
-
-    final result = await db.rawQuery(query, [start.toIso8601String()]);
-    final map = <String, int>{};
-    for (final row in result) {
-      final date = row['dayDate'] as String;
-      final dur = (row['totalDuration'] as num?)?.toInt() ?? 0;
-      map[date] = dur;
+    final from = DateTime(now.year, now.month, now.day - days + 1);
+    final visits = await getVisits(from: from, to: now);
+    final result = <String, int>{};
+    for (final v in visits) {
+      for (final entry in SessionTime.daily(
+        v.startTime,
+        v.endTime,
+        from: from,
+        now: now,
+      ).entries) {
+        result[entry.key] = (result[entry.key] ?? 0) + entry.value;
+      }
     }
-    return map;
+    return result;
   }
 
   // --- HABIT SUGGESTIONS CRUD ---
@@ -513,7 +506,11 @@ class DatabaseService {
     );
   }
 
-  Future<HabitSuggestion?> findNearbyHabitSuggestion(double lat, double lng, {double maxDistanceMeters = 120.0}) async {
+  Future<HabitSuggestion?> findNearbyHabitSuggestion(
+    double lat,
+    double lng, {
+    double maxDistanceMeters = 120.0,
+  }) async {
     final db = await database;
     final maps = await db.query('habit_suggestions');
     for (final map in maps) {
@@ -578,12 +575,19 @@ class DatabaseService {
     String? whereClause;
     List<dynamic>? whereArgs;
 
-    if (from != null && to != null) {
-      whereClause = 'startTime >= ? AND startTime <= ?';
-      whereArgs = [from.toIso8601String(), to.toIso8601String()];
-    } else if (from != null) {
-      whereClause = 'startTime >= ?';
-      whereArgs = [from.toIso8601String()];
+    final conditions = <String>[];
+    final args = <dynamic>[];
+    if (from != null) {
+      conditions.add('(endTime IS NULL OR endTime > ?)');
+      args.add(from.toIso8601String());
+    }
+    if (to != null) {
+      conditions.add('startTime < ?');
+      args.add(to.toIso8601String());
+    }
+    if (conditions.isNotEmpty) {
+      whereClause = conditions.join(' AND ');
+      whereArgs = args;
     }
 
     final maps = await db.query(
@@ -599,43 +603,42 @@ class DatabaseService {
   Future<List<Trip>> getTodayTrips() async {
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
-    return getTrips(from: startOfDay);
+    return getTrips(from: startOfDay, to: now);
   }
 
   Future<double> getTotalDistance({DateTime? from, DateTime? to}) async {
-    final db = await database;
-    String query = 'SELECT SUM(distanceMeters) as totalDist FROM trips WHERE endTime IS NOT NULL';
-    List<dynamic> args = [];
-    if (from != null && to != null) {
-      query += ' AND startTime >= ? AND startTime <= ?';
-      args.addAll([from.toIso8601String(), to.toIso8601String()]);
-    } else if (from != null) {
-      query += ' AND startTime >= ?';
-      args.add(from.toIso8601String());
-    }
-    final res = await db.rawQuery(query, args);
-    if (res.isNotEmpty) {
-      return (res.first['totalDist'] as num?)?.toDouble() ?? 0.0;
-    }
-    return 0.0;
+    final trips = await getTrips(from: from, to: to);
+    final now = DateTime.now();
+    return trips.fold<double>(
+      0,
+      (sum, t) =>
+          sum +
+          SessionTime.distance(
+            t.distanceMeters,
+            t.startTime,
+            t.endTime,
+            from: from,
+            to: to,
+            now: now,
+          ),
+    );
   }
 
   Future<int> getTotalTripDuration({DateTime? from, DateTime? to}) async {
-    final db = await database;
-    String query = 'SELECT SUM(durationSeconds) as totalDur FROM trips WHERE endTime IS NOT NULL';
-    List<dynamic> args = [];
-    if (from != null && to != null) {
-      query += ' AND startTime >= ? AND startTime <= ?';
-      args.addAll([from.toIso8601String(), to.toIso8601String()]);
-    } else if (from != null) {
-      query += ' AND startTime >= ?';
-      args.add(from.toIso8601String());
-    }
-    final res = await db.rawQuery(query, args);
-    if (res.isNotEmpty) {
-      return (res.first['totalDur'] as num?)?.toInt() ?? 0;
-    }
-    return 0;
+    final trips = await getTrips(from: from, to: to);
+    final now = DateTime.now();
+    return trips.fold<int>(
+      0,
+      (sum, t) =>
+          sum +
+          SessionTime.seconds(
+            t.startTime,
+            t.endTime,
+            from: from,
+            to: to,
+            now: now,
+          ),
+    );
   }
 
   // --- CUSTOM CATEGORIES CRUD ---
@@ -669,7 +672,11 @@ class DatabaseService {
 
   Future<int> deleteCustomCategory(String id) async {
     final db = await database;
-    return await db.delete('custom_categories', where: 'id = ?', whereArgs: [id]);
+    return await db.delete(
+      'custom_categories',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 
   Future<void> clearAllData() async {
@@ -720,89 +727,139 @@ class DatabaseService {
     final now = DateTime.now();
     // Generate realistic visit and trip data for the last 5 days
     for (int i = 4; i >= 0; i--) {
-      final day = DateTime(now.year, now.month, now.day).subtract(Duration(days: i));
+      final day = DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).subtract(Duration(days: i));
 
       // Work session (e.g. 09:15 to 17:30)
       if (day.weekday <= 5) {
         // Morning commute trip: Casa -> Ufficio
         final tripStart = day.add(const Duration(hours: 8, minutes: 45));
         final tripEnd = day.add(const Duration(hours: 9, minutes: 12));
-        await insertTrip(Trip(
-          originPlaceId: p2.id,
-          originPlaceName: p2.name,
-          destinationPlaceId: p1.id,
-          destinationPlaceName: p1.name,
-          startTime: tripStart,
-          endTime: tripEnd,
-          durationSeconds: tripEnd.difference(tripStart).inSeconds,
-          distanceMeters: 4200.0,
-          transportMode: 'In auto / Mezzo',
-          routePoints: [
-            TripPoint(latitude: 45.4500, longitude: 9.1800, timestamp: tripStart),
-            TripPoint(latitude: 45.4550, longitude: 9.1830, timestamp: tripStart.add(const Duration(minutes: 8))),
-            TripPoint(latitude: 45.4600, longitude: 9.1870, timestamp: tripStart.add(const Duration(minutes: 18))),
-            TripPoint(latitude: 45.4642, longitude: 9.1900, timestamp: tripEnd),
-          ],
-        ));
+        await insertTrip(
+          Trip(
+            originPlaceId: p2.id,
+            originPlaceName: p2.name,
+            destinationPlaceId: p1.id,
+            destinationPlaceName: p1.name,
+            startTime: tripStart,
+            endTime: tripEnd,
+            durationSeconds: tripEnd.difference(tripStart).inSeconds,
+            distanceMeters: 4200.0,
+            transportMode: 'In auto / Mezzo',
+            routePoints: [
+              TripPoint(
+                latitude: 45.4500,
+                longitude: 9.1800,
+                timestamp: tripStart,
+              ),
+              TripPoint(
+                latitude: 45.4550,
+                longitude: 9.1830,
+                timestamp: tripStart.add(const Duration(minutes: 8)),
+              ),
+              TripPoint(
+                latitude: 45.4600,
+                longitude: 9.1870,
+                timestamp: tripStart.add(const Duration(minutes: 18)),
+              ),
+              TripPoint(
+                latitude: 45.4642,
+                longitude: 9.1900,
+                timestamp: tripEnd,
+              ),
+            ],
+          ),
+        );
 
         final workStart = day.add(const Duration(hours: 9, minutes: 15));
-        final workEnd = day.add(Duration(hours: 17, minutes: 30 + (i * 10 % 30)));
-        await insertVisit(VisitSession(
-          placeId: p1.id,
-          placeName: p1.name,
-          category: p1.category,
-          startTime: workStart,
-          endTime: workEnd,
-          durationSeconds: workEnd.difference(workStart).inSeconds,
-        ));
+        final workEnd = day.add(
+          Duration(hours: 17, minutes: 30 + (i * 10 % 30)),
+        );
+        await insertVisit(
+          VisitSession(
+            placeId: p1.id,
+            placeName: p1.name,
+            category: p1.category,
+            startTime: workStart,
+            endTime: workEnd,
+            durationSeconds: workEnd.difference(workStart).inSeconds,
+          ),
+        );
 
         // Evening commute trip: Ufficio -> Casa
         final returnTripStart = workEnd.add(const Duration(minutes: 5));
         final returnTripEnd = returnTripStart.add(const Duration(minutes: 32));
-        await insertTrip(Trip(
-          originPlaceId: p1.id,
-          originPlaceName: p1.name,
-          destinationPlaceId: p2.id,
-          destinationPlaceName: p2.name,
-          startTime: returnTripStart,
-          endTime: returnTripEnd,
-          durationSeconds: returnTripEnd.difference(returnTripStart).inSeconds,
-          distanceMeters: 4400.0,
-          transportMode: 'In auto / Mezzo',
-          routePoints: [
-            TripPoint(latitude: 45.4642, longitude: 9.1900, timestamp: returnTripStart),
-            TripPoint(latitude: 45.4590, longitude: 9.1860, timestamp: returnTripStart.add(const Duration(minutes: 10))),
-            TripPoint(latitude: 45.4540, longitude: 9.1820, timestamp: returnTripStart.add(const Duration(minutes: 20))),
-            TripPoint(latitude: 45.4500, longitude: 9.1800, timestamp: returnTripEnd),
-          ],
-        ));
+        await insertTrip(
+          Trip(
+            originPlaceId: p1.id,
+            originPlaceName: p1.name,
+            destinationPlaceId: p2.id,
+            destinationPlaceName: p2.name,
+            startTime: returnTripStart,
+            endTime: returnTripEnd,
+            durationSeconds: returnTripEnd
+                .difference(returnTripStart)
+                .inSeconds,
+            distanceMeters: 4400.0,
+            transportMode: 'In auto / Mezzo',
+            routePoints: [
+              TripPoint(
+                latitude: 45.4642,
+                longitude: 9.1900,
+                timestamp: returnTripStart,
+              ),
+              TripPoint(
+                latitude: 45.4590,
+                longitude: 9.1860,
+                timestamp: returnTripStart.add(const Duration(minutes: 10)),
+              ),
+              TripPoint(
+                latitude: 45.4540,
+                longitude: 9.1820,
+                timestamp: returnTripStart.add(const Duration(minutes: 20)),
+              ),
+              TripPoint(
+                latitude: 45.4500,
+                longitude: 9.1800,
+                timestamp: returnTripEnd,
+              ),
+            ],
+          ),
+        );
       }
 
       // Second home or weekend
       if (day.weekday == 6 || day.weekday == 7) {
         final secStart = day.add(const Duration(hours: 11, minutes: 0));
         final secEnd = day.add(const Duration(hours: 18, minutes: 30));
-        await insertVisit(VisitSession(
-          placeId: p3.id,
-          placeName: p3.name,
-          category: p3.category,
-          startTime: secStart,
-          endTime: secEnd,
-          durationSeconds: secEnd.difference(secStart).inSeconds,
-        ));
+        await insertVisit(
+          VisitSession(
+            placeId: p3.id,
+            placeName: p3.name,
+            category: p3.category,
+            startTime: secStart,
+            endTime: secEnd,
+            durationSeconds: secEnd.difference(secStart).inSeconds,
+          ),
+        );
       }
 
       // Home session evening
       final homeStart = day.add(const Duration(hours: 20, minutes: 0));
       final homeEnd = day.add(const Duration(hours: 23, minutes: 30));
-      await insertVisit(VisitSession(
-        placeId: p2.id,
-        placeName: p2.name,
-        category: p2.category,
-        startTime: homeStart,
-        endTime: homeEnd,
-        durationSeconds: homeEnd.difference(homeStart).inSeconds,
-      ));
+      await insertVisit(
+        VisitSession(
+          placeId: p2.id,
+          placeName: p2.name,
+          category: p2.category,
+          startTime: homeStart,
+          endTime: homeEnd,
+          durationSeconds: homeEnd.difference(homeStart).inSeconds,
+        ),
+      );
     }
   }
 
@@ -819,7 +876,10 @@ class DatabaseService {
     );
   }
 
-  Future<List<AppNotification>> getNotifications({int limit = 100, int offset = 0}) async {
+  Future<List<AppNotification>> getNotifications({
+    int limit = 100,
+    int offset = 0,
+  }) async {
     final db = await database;
     await _createNotificationsTable(db);
     final maps = await db.query(
@@ -857,11 +917,9 @@ class DatabaseService {
   Future<int> markAllNotificationsAsRead() async {
     final db = await database;
     await _createNotificationsTable(db);
-    return await db.update(
-      'app_notifications',
-      {'isRead': 1},
-      where: 'isRead = 0',
-    );
+    return await db.update('app_notifications', {
+      'isRead': 1,
+    }, where: 'isRead = 0');
   }
 
   Future<int> deleteNotification(String id) async {
