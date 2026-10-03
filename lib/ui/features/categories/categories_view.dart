@@ -183,6 +183,14 @@ class _CategoriesViewState extends State<CategoriesView> {
                           placeRepository: placeRepo,
                         );
                         if (!mounted) return;
+                        await context.read<PlacesViewModel>().loadPlaces();
+                        if (!mounted) return;
+                        await context.read<TrackingEngine>().reloadActiveStateFromDb();
+                        if (!mounted) return;
+                        await context.read<AnalyticsViewModel>().loadAnalytics();
+                        if (!mounted) return;
+                        await context.read<DashboardViewModel>().loadData();
+                        if (!mounted) return;
                         _loadPlaceCounts();
 
                         messenger.showSnackBar(
