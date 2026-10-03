@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.tempo.app.tempo"
-    compileSdk = 37
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -26,6 +26,10 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("debug")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }

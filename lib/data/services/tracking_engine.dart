@@ -27,6 +27,7 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
   Timer? _periodicCheckTimer;
   bool _isDisposed = false;
   int _streamGeneration = 0;
+  int _monitorGeneration = 0;
 
   int _activeDistanceFilter = 15;
   int get activeDistanceFilter => _activeDistanceFilter;
@@ -181,6 +182,7 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _startTicker() {
+    if (_isDisposed) return;
     _tickerTimer?.cancel();
     _tickerTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_activeVisit != null || _activeTrip != null) {
@@ -307,15 +309,25 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> startMonitoring() async {
     if (_isDisposed || !_isTrackingEnabled) return;
+    final monitorGeneration = ++_monitorGeneration;
     final hasPerm = await _locationService.hasPermission();
-    if (!hasPerm || _isDisposed || !_isTrackingEnabled) {
+    if (!hasPerm ||
+        _isDisposed ||
+        !_isTrackingEnabled ||
+        monitorGeneration != _monitorGeneration) {
       debugPrint(
         '[TrackingEngine] Cannot start monitoring: location permission not granted',
       );
       return;
     }
 
-    await _positionSubscription?.cancel();
+    final previous = _positionSubscription;
+    _positionSubscription = null;
+    await previous?.cancel();
+    if (_isDisposed ||
+        !_isTrackingEnabled ||
+        monitorGeneration != _monitorGeneration)
+      return;
     _periodicCheckTimer?.cancel();
 
     // Check location right away asynchronously so startup and UI are never blocked
@@ -425,6 +437,7 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> stopMonitoring() async {
+    ++_monitorGeneration;
     ++_streamGeneration;
     await _positionSubscription?.cancel();
     _positionSubscription = null;
@@ -1229,6 +1242,7 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
       WidgetsBinding.instance.removeObserver(this);
     } catch (_) {}
     _isDisposed = true;
+    ++_monitorGeneration;
     ++_streamGeneration;
     _tickerTimer?.cancel();
     _periodicCheckTimer?.cancel();

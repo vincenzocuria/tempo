@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -34,9 +33,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   PlatformDispatcher.instance.onError = (error, stack) {
-    debugPrint(
-      '[UnhandledAppError] $error\n$stack',
-    );
+    debugPrint('[UnhandledAppError] $error\n$stack');
     return true;
   };
 
@@ -108,24 +105,6 @@ Future<void> main() async {
       hasCompletedOnboarding: hasCompletedOnboarding,
     ),
   );
-
-  // Initialize native OS geofencing asynchronously if background permission is already present
-  unawaited(() async {
-    try {
-      final status = await Permission.locationAlways.status;
-      if (status.isGranted) {
-        await NativeGeofenceService.instance.initialize();
-        final allPlaces = await placeRepo.getAllPlaces();
-        await NativeGeofenceService.instance.syncAllPlaces(allPlaces);
-      } else {
-        debugPrint(
-          '[NativeGeofence] Startup sync skipped: locationAlways not granted yet.',
-        );
-      }
-    } catch (e) {
-      debugPrint('[NativeGeofence] Deferred initialization error: $e');
-    }
-  }());
 }
 
 class TempoApp extends StatefulWidget {
