@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../core/app_colors.dart';
 
 class TodaySummaryRow extends StatelessWidget {
@@ -25,8 +26,12 @@ class TodaySummaryRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
-    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
+    final textMuted = isDark
+        ? AppColors.textDarkMuted
+        : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
 
     return Column(
@@ -37,7 +42,9 @@ class TodaySummaryRow extends StatelessWidget {
               child: _StatCard(
                 title: 'TEMPO IN SOSTA',
                 value: formattedTotal,
-                subtitle: visitCount == 1 ? '1 sosta registrata' : '$visitCount soste registrate',
+                subtitle: visitCount == 1
+                    ? '1 sosta registrata'
+                    : '$visitCount soste registrate',
                 icon: Icons.timer_outlined,
                 iconColor: AppColors.primary,
                 isDark: isDark,
@@ -48,7 +55,9 @@ class TodaySummaryRow extends StatelessWidget {
               child: _StatCard(
                 title: 'LUOGO TOP',
                 value: topPlace ?? 'In attesa',
-                subtitle: topPlace != null ? 'Posto più frequentato' : 'Nessuna sosta ancora',
+                subtitle: topPlace != null
+                    ? 'Posto più frequentato'
+                    : 'Nessuna sosta ancora',
                 icon: Icons.auto_awesome_rounded,
                 iconColor: const Color(0xFFF59E0B),
                 isDark: isDark,
@@ -64,16 +73,23 @@ class TodaySummaryRow extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
               onTap: onTapTrips,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 decoration: BoxDecoration(
                   color: cardBg,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: isDark ? AppColors.darkBorder : const Color(0xFFBAE6FD),
+                    color: isDark
+                        ? AppColors.darkBorder
+                        : const Color(0xFFBAE6FD),
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: isDark ? 0.16 : 0.03),
+                      color: Colors.black.withValues(
+                        alpha: isDark ? 0.16 : 0.03,
+                      ),
                       blurRadius: 10,
                       offset: const Offset(0, 3),
                     ),
@@ -139,9 +155,13 @@ class TodaySummaryRow extends StatelessWidget {
                     if (onTapTrips != null) ...[
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF0EA5E9).withValues(alpha: 0.12),
+                          color: const Color(0xFF0EA5E9)
+                              .withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: const Row(
@@ -195,8 +215,12 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
-    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
+    final textMuted = isDark
+        ? AppColors.textDarkMuted
+        : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
@@ -220,13 +244,15 @@ class _StatCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.0,
-                  color: textMuted,
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.0,
+                    color: textMuted,
+                  ),
                 ),
               ),
               Container(

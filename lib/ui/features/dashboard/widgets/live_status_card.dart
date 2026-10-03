@@ -4,6 +4,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+
 import '../../../../data/models/place.dart';
 import '../../../../data/models/trip.dart';
 import '../../../../data/services/tracking_engine.dart';
@@ -67,8 +68,12 @@ class _LiveStatusCardState extends State<LiveStatusCard>
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
-    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
+    final textMuted = isDark
+        ? AppColors.textDarkMuted
+        : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
@@ -114,7 +119,9 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                           height: 8,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: placeColor.withValues(alpha: _pulseAnimation.value),
+                            color: placeColor.withValues(
+                              alpha: _pulseAnimation.value,
+                            ),
                             boxShadow: [
                               BoxShadow(
                                 color: placeColor.withValues(alpha: 0.6),
@@ -137,7 +144,10 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: placeColor.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(8),
@@ -175,11 +185,7 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                     color: placeColor.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Icon(
-                    currentPlace.icon,
-                    color: placeColor,
-                    size: 26,
-                  ),
+                  child: Icon(currentPlace.icon, color: placeColor, size: 26),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -199,11 +205,10 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        activeVisit.isManual ? 'Check-in manuale' : 'Rilevamento automatico GPS',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: textMuted,
-                        ),
+                        activeVisit.isManual
+                            ? 'Check-in manuale'
+                            : 'Rilevamento automatico GPS',
+                        style: TextStyle(fontSize: 12, color: textMuted),
                       ),
                     ],
                   ),
@@ -216,7 +221,9 @@ class _LiveStatusCardState extends State<LiveStatusCard>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                color: isDark
+                    ? const Color(0xFF1E293B)
+                    : const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
@@ -254,7 +261,10 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                     style: TextButton.styleFrom(
                       backgroundColor: AppColors.danger.withValues(alpha: 0.12),
                       foregroundColor: AppColors.danger,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -266,7 +276,10 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                     icon: const Icon(Icons.stop_circle_outlined, size: 16),
                     label: const Text(
                       'Termina',
-                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                 ],
@@ -318,7 +331,9 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                           height: 10,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: tripColor.withValues(alpha: _pulseAnimation.value),
+                            color: tripColor.withValues(
+                              alpha: _pulseAnimation.value,
+                            ),
                             boxShadow: [
                               BoxShadow(
                                 color: tripColor.withValues(alpha: 0.6),
@@ -332,9 +347,13 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
-                        color: TransportMode.getColor(activeTrip.transportMode).withValues(alpha: 0.15),
+                        color: TransportMode.getColor(activeTrip.transportMode)
+                            .withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
@@ -342,7 +361,9 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                           Icon(
                             TransportMode.getIcon(activeTrip.transportMode),
                             size: 14,
-                            color: TransportMode.getColor(activeTrip.transportMode),
+                            color: TransportMode.getColor(
+                              activeTrip.transportMode,
+                            ),
                           ),
                           const SizedBox(width: 4),
                           Text(
@@ -351,7 +372,9 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                               fontSize: 11,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 0.8,
-                              color: TransportMode.getColor(activeTrip.transportMode),
+                              color: TransportMode.getColor(
+                                activeTrip.transportMode,
+                              ),
                             ),
                           ),
                         ],
@@ -367,14 +390,20 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                       context,
                       currentMode: activeTrip.transportMode,
                     );
-                    if (newMode != null && newMode != activeTrip.transportMode) {
+                    if (newMode != null &&
+                        newMode != activeTrip.transportMode) {
                       engine.updateActiveTripMode(newMode);
                     }
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
-                      color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                      color: isDark
+                          ? AppColors.darkSurfaceElevated
+                          : AppColors.lightSurfaceElevated,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: borderColor),
                     ),
@@ -386,14 +415,18 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
-                            color: TransportMode.getColor(activeTrip.transportMode),
+                            color: TransportMode.getColor(
+                              activeTrip.transportMode,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 4),
                         Icon(
                           Icons.edit_rounded,
                           size: 11,
-                          color: TransportMode.getColor(activeTrip.transportMode),
+                          color: TransportMode.getColor(
+                            activeTrip.transportMode,
+                          ),
                         ),
                       ],
                     ),
@@ -439,10 +472,14 @@ class _LiveStatusCardState extends State<LiveStatusCard>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF0F9FF),
+                color: isDark
+                    ? const Color(0xFF1E293B)
+                    : const Color(0xFFF0F9FF),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: isDark ? AppColors.darkBorder : const Color(0xFFBAE6FD),
+                  color: isDark
+                      ? AppColors.darkBorder
+                      : const Color(0xFFBAE6FD),
                 ),
               ),
               child: Row(
@@ -479,7 +516,10 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                         style: TextButton.styleFrom(
                           backgroundColor: tripColor.withValues(alpha: 0.12),
                           foregroundColor: tripColor,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -488,16 +528,25 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                           HapticFeedback.mediumImpact();
                           engine.manualFinishTrip();
                         },
-                        icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
+                        icon: const Icon(
+                          Icons.check_circle_outline_rounded,
+                          size: 16,
+                        ),
                         label: const Text(
                           'Termina',
-                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
                       FilledButton.tonal(
                         style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -514,7 +563,10 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                             SizedBox(width: 2),
                             Text(
                               'Arrivo',
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ],
                         ),
@@ -558,7 +610,8 @@ class _LiveStatusCardState extends State<LiveStatusCard>
       if (minDistance < 1000) {
         distanceText = '${minDistance.round()} m da ${nearestPlace.name}';
       } else {
-        distanceText = '${(minDistance / 1000).toStringAsFixed(1)} km da ${nearestPlace.name}';
+        distanceText =
+            '${(minDistance / 1000).toStringAsFixed(1)} km da ${nearestPlace.name}';
       }
     }
 
@@ -585,10 +638,13 @@ class _LiveStatusCardState extends State<LiveStatusCard>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Top Status Bar: Radar Breathing Dot + Badge + GPS Live Telemetry
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            spacing: 8,
+            runSpacing: 8,
             children: [
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   AnimatedBuilder(
                     animation: _pulseAnimation,
@@ -598,7 +654,9 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                         height: 9,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: outsideColor.withValues(alpha: _pulseAnimation.value),
+                          color: outsideColor.withValues(
+                            alpha: _pulseAnimation.value,
+                          ),
                           boxShadow: [
                             BoxShadow(
                               color: outsideColor.withValues(alpha: 0.6),
@@ -612,7 +670,10 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                   ),
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: outsideColor.withValues(alpha: 0.14),
                       borderRadius: BorderRadius.circular(8),
@@ -638,7 +699,10 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                       },
                 borderRadius: BorderRadius.circular(8),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 4,
+                  ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -661,7 +725,9 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                         Icon(Icons.refresh_rounded, size: 14, color: textMuted),
                         const SizedBox(width: 4),
                         Text(
-                          pos != null ? '±${pos.accuracy.round()}m' : 'Rileva GPS',
+                          pos != null
+                              ? '±${pos.accuracy.round()}m'
+                              : 'Rileva GPS',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
@@ -711,7 +777,11 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                     if (distanceText != null)
                       Row(
                         children: [
-                          Icon(Icons.near_me_rounded, size: 13, color: textMuted),
+                          Icon(
+                            Icons.near_me_rounded,
+                            size: 13,
+                            color: textMuted,
+                          ),
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
@@ -729,11 +799,9 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                       )
                     else
                       Text(
-                        engine.statusMessage ?? 'In attesa di raggiungere un luogo registrato',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: textMuted,
-                        ),
+                        engine.statusMessage ??
+                            'In attesa di raggiungere un luogo registrato',
+                        style: TextStyle(fontSize: 12, color: textMuted),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -749,7 +817,9 @@ class _LiveStatusCardState extends State<LiveStatusCard>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                color: isDark
+                    ? const Color(0xFF1E293B)
+                    : const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: borderColor),
               ),
@@ -770,7 +840,10 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                   ),
                   if (pos.speed > 0.8)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF0EA5E9).withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(6),
@@ -778,7 +851,11 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.speed_rounded, size: 12, color: Color(0xFF0EA5E9)),
+                          const Icon(
+                            Icons.speed_rounded,
+                            size: 12,
+                            color: Color(0xFF0EA5E9),
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             '${(pos.speed * 3.6).round()} km/h',
@@ -806,7 +883,10 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                 style: FilledButton.styleFrom(
                   backgroundColor: outsideColor,
                   foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -814,7 +894,9 @@ class _LiveStatusCardState extends State<LiveStatusCard>
                 ),
                 onPressed: () {
                   HapticFeedback.mediumImpact();
-                  final latLng = pos != null ? LatLng(pos.latitude, pos.longitude) : null;
+                  final latLng = pos != null
+                      ? LatLng(pos.latitude, pos.longitude)
+                      : null;
                   PlaceFormDialog.show(context, initialLocation: latLng);
                 },
                 icon: const Icon(Icons.add_location_alt_rounded, size: 16),
@@ -825,7 +907,10 @@ class _LiveStatusCardState extends State<LiveStatusCard>
               ),
               FilledButton.tonalIcon(
                 style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -846,7 +931,10 @@ class _LiveStatusCardState extends State<LiveStatusCard>
               ),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -867,6 +955,5 @@ class _LiveStatusCardState extends State<LiveStatusCard>
         ],
       ),
     );
-
   }
 }
