@@ -18,6 +18,18 @@ import 'package:tempo/data/repositories/visit_repository.dart';
 import 'package:tempo/data/services/tracking_engine.dart';
 import 'package:tempo/main.dart';
 
+Future<void> waitForTimeline(WidgetTester tester) async {
+  final controls = find.byTooltip('Giorno precedente');
+  for (var attempt = 0; attempt < 50; attempt++) {
+    await tester.runAsync(
+      () async => Future<void>.delayed(const Duration(milliseconds: 20)),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    if (controls.evaluate().isNotEmpty) return;
+  }
+  expect(controls, findsOneWidget, reason: 'Timeline must finish loading');
+}
+
 void main() {
   setUpAll(() async {
     sqfliteFfiInit();
@@ -163,9 +175,7 @@ void main() {
           find.byTooltip('La mia giornata (Timeline Google Maps)'),
         );
         await tester.pump();
-        await tester.runAsync(
-          () async => Future<void>.delayed(const Duration(milliseconds: 100)),
-        );
+        await waitForTimeline(tester);
         await tester.pump(const Duration(milliseconds: 400));
         expect(
           tester.takeException(),
@@ -174,9 +184,7 @@ void main() {
         );
         for (final tooltip in ['Giorno precedente', 'Giorno successivo']) {
           await tester.tap(find.byTooltip(tooltip));
-          await tester.runAsync(
-            () async => Future<void>.delayed(const Duration(milliseconds: 100)),
-          );
+          await waitForTimeline(tester);
           await tester.pump(const Duration(milliseconds: 400));
           expect(tester.takeException(), isNull);
         }
