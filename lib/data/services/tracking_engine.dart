@@ -326,8 +326,9 @@ class TrackingEngine extends ChangeNotifier with WidgetsBindingObserver {
     await previous?.cancel();
     if (_isDisposed ||
         !_isTrackingEnabled ||
-        monitorGeneration != _monitorGeneration)
+        monitorGeneration != _monitorGeneration) {
       return;
+    }
     _periodicCheckTimer?.cancel();
 
     // Check location right away asynchronously so startup and UI are never blocked
