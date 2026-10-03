@@ -59,6 +59,16 @@ check_launch resume
 for page in Mappa Luoghi Statistiche Opzioni; do
   python3 .github/scripts/tap-ui.py "$page"
   check_launch "page-$page"
+  if [ "$page" = Mappa ]; then
+    python3 .github/scripts/tap-ui.py 'La mia giornata'
+    check_launch day-timeline
+    grep -q 'La mia giornata' "$evidence/day-timeline-ui.xml"
+    python3 .github/scripts/tap-ui.py 'Giorno precedente'
+    check_launch day-timeline-previous
+    python3 .github/scripts/tap-ui.py 'Giorno successivo'
+    check_launch day-timeline-today
+    adb shell input keyevent KEYCODE_BACK
+  fi
 done
 grep -q 'Impostazioni' "$evidence/page-Opzioni-ui.xml"
 python3 .github/scripts/tap-ui.py 'Gestione Categorie' --scroll

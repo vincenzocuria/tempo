@@ -121,6 +121,31 @@ void main() {
         isNull,
         reason: 'Page $index must fit on a 360dp screen',
       );
+      if (index == 1) {
+        await tester.tap(
+          find.byTooltip('La mia giornata (Timeline Google Maps)'),
+        );
+        await tester.runAsync(
+          () async => Future<void>.delayed(const Duration(milliseconds: 100)),
+        );
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: 'Timeline must fit on a 360dp screen',
+        );
+        for (final tooltip in ['Giorno precedente', 'Giorno successivo']) {
+          await tester.tap(find.byTooltip(tooltip));
+          await tester.runAsync(
+            () async => Future<void>.delayed(const Duration(milliseconds: 100)),
+          );
+          await tester.pump(const Duration(milliseconds: 400));
+          expect(tester.takeException(), isNull);
+        }
+        await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(tester.takeException(), isNull);
+      }
     }
   });
 }

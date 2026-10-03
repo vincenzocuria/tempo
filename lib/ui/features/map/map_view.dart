@@ -1,3 +1,5 @@
+import '../../../data/services/session_time.dart';
+
 import 'dart:async';
 import 'dart:math';
 
@@ -160,6 +162,8 @@ class _MapViewState extends State<MapView>
   // Google Maps Follow & Live Tracking States
   MapFollowMode _followMode = MapFollowMode.follow;
   StreamSubscription<Position>? _positionStreamSub;
+  int _foregroundGeneration = 0;
+  int _tripLoadGeneration = 0;
   AnimationController? _moveAnimController;
   double _currentHeading = 0.0;
   double _currentSpeedKmh = 0.0;
@@ -283,19 +287,29 @@ class _MapViewState extends State<MapView>
   }
 
   void _stopForegroundLocationStream() {
+    ++_foregroundGeneration;
     _positionStreamSub?.cancel();
     _positionStreamSub = null;
   }
 
   void _startForegroundLocationStream() async {
+    final generation = ++_foregroundGeneration;
     final hasPerm = await LocationService.instance.hasPermission();
-    if (!hasPerm) {
+    if (!hasPerm ||
+        !mounted ||
+        !widget.isActive ||
+        generation != _foregroundGeneration) {
       debugPrint(
         '[MapView] Location permission not granted, skipping foreground stream',
       );
       return;
     }
-    _positionStreamSub?.cancel();
+    final previous = _positionStreamSub;
+    _positionStreamSub = null;
+    await previous?.cancel();
+    if (!mounted || !widget.isActive || generation != _foregroundGeneration) {
+      return;
+    }
     try {
       _positionStreamSub = LocationService.instance
           .getPositionStream(
@@ -303,7 +317,13 @@ class _MapViewState extends State<MapView>
             accuracy: LocationAccuracy.high,
           )
           .listen(
-            _onForegroundPosition,
+            (position) {
+              if (generation == _foregroundGeneration &&
+                  mounted &&
+                  widget.isActive) {
+                _onForegroundPosition(position);
+              }
+            },
             onError: (err) {
               debugPrint('Foreground location stream error: $err');
             },
@@ -418,6 +438,7 @@ class _MapViewState extends State<MapView>
   }
 
   Future<void> _loadTrips() async {
+    final generation = ++_tripLoadGeneration;
     try {
       final tripRepo = Provider.of<TripRepository>(context, listen: false);
       final trackingEngine = Provider.of<TrackingEngine>(
@@ -425,6 +446,7 @@ class _MapViewState extends State<MapView>
         listen: false,
       );
       final allTrips = await tripRepo.getTrips();
+      if (!mounted || generation != _tripLoadGeneration) return;
 
       final activeTrip = trackingEngine.activeTrip;
       if (activeTrip != null) {
@@ -439,130 +461,88 @@ class _MapViewState extends State<MapView>
 
       final now = DateTime.now();
       final todayStart = DateTime(now.year, now.month, now.day);
-      final todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
-
-      final yesterdayDate = todayStart.subtract(const Duration(days: 1));
-      final yesterdayStart = DateTime(
-        yesterdayDate.year,
-        yesterdayDate.month,
-        yesterdayDate.day,
-      );
-      final yesterdayEnd = DateTime(
-        yesterdayDate.year,
-        yesterdayDate.month,
-        yesterdayDate.day,
-        23,
-        59,
-        59,
-        999,
-      );
-
-      final weekStart = now.subtract(const Duration(days: 7));
+      final todayEnd = DateTime(now.year, now.month, now.day + 1);
+      final yesterdayStart = DateTime(now.year, now.month, now.day - 1);
+      final weekStart = DateTime(now.year, now.month, now.day - 6);
       final monthStart = DateTime(now.year, now.month, 1);
-
-      int todayCount = 0;
-      int yesterdayCount = 0;
-      int weekCount = 0;
-      int monthCount = 0;
-
-      for (final t in allTrips) {
-        if (!t.startTime.isBefore(todayStart) &&
-            !t.startTime.isAfter(todayEnd)) {
-          todayCount++;
-        }
-        if (!t.startTime.isBefore(yesterdayStart) &&
-            !t.startTime.isAfter(yesterdayEnd)) {
-          yesterdayCount++;
-        }
-        if (!t.startTime.isBefore(weekStart)) {
-          weekCount++;
-        }
-        if (!t.startTime.isBefore(monthStart)) {
-          monthCount++;
-        }
-      }
-
+      bool overlaps(Trip t, DateTime? from, DateTime? to) =>
+          SessionTime.seconds(
+            t.startTime,
+            t.endTime,
+            from: from,
+            to: to,
+            now: now,
+          ) >
+          0;
       final counts = <TripPeriodFilter, int>{
-        TripPeriodFilter.today: todayCount,
-        TripPeriodFilter.yesterday: yesterdayCount,
-        TripPeriodFilter.thisWeek: weekCount,
-        TripPeriodFilter.thisMonth: monthCount,
-        TripPeriodFilter.all: allTrips.length,
+        TripPeriodFilter.today: allTrips
+            .where((t) => overlaps(t, todayStart, todayEnd))
+            .length,
+        TripPeriodFilter.yesterday: allTrips
+            .where((t) => overlaps(t, yesterdayStart, todayStart))
+            .length,
+        TripPeriodFilter.thisWeek: allTrips
+            .where((t) => overlaps(t, weekStart, todayEnd))
+            .length,
+        TripPeriodFilter.thisMonth: allTrips
+            .where((t) => overlaps(t, monthStart, todayEnd))
+            .length,
+        TripPeriodFilter.all: allTrips
+            .where((t) => overlaps(t, null, null))
+            .length,
       };
-
-      List<Trip> currentFiltered;
+      DateTime? from;
+      DateTime? to;
       switch (_tripFilter) {
         case TripPeriodFilter.today:
-          currentFiltered = allTrips
-              .where(
-                (t) =>
-                    !t.startTime.isBefore(todayStart) &&
-                    !t.startTime.isAfter(todayEnd),
-              )
-              .toList();
+          from = todayStart;
+          to = todayEnd;
           break;
         case TripPeriodFilter.yesterday:
-          currentFiltered = allTrips
-              .where(
-                (t) =>
-                    !t.startTime.isBefore(yesterdayStart) &&
-                    !t.startTime.isAfter(yesterdayEnd),
-              )
-              .toList();
+          from = yesterdayStart;
+          to = todayStart;
           break;
         case TripPeriodFilter.thisWeek:
-          currentFiltered = allTrips
-              .where((t) => !t.startTime.isBefore(weekStart))
-              .toList();
+          from = weekStart;
+          to = todayEnd;
           break;
         case TripPeriodFilter.thisMonth:
-          currentFiltered = allTrips
-              .where((t) => !t.startTime.isBefore(monthStart))
-              .toList();
+          from = monthStart;
+          to = todayEnd;
           break;
         case TripPeriodFilter.all:
-          currentFiltered = List<Trip>.from(allTrips);
           break;
         case TripPeriodFilter.custom:
-          if (_customSelectedDate != null) {
-            final cStart = DateTime(
-              _customSelectedDate!.year,
-              _customSelectedDate!.month,
-              _customSelectedDate!.day,
-            );
-            final cEnd = DateTime(
-              _customSelectedDate!.year,
-              _customSelectedDate!.month,
-              _customSelectedDate!.day,
-              23,
-              59,
-              59,
-              999,
-            );
-            currentFiltered = allTrips
-                .where(
-                  (t) =>
-                      !t.startTime.isBefore(cStart) &&
-                      !t.startTime.isAfter(cEnd),
-                )
-                .toList();
-          } else {
-            currentFiltered = [];
-          }
+          final date = _customSelectedDate;
+          if (date == null) return;
+          from = DateTime(date.year, date.month, date.day);
+          to = DateTime(date.year, date.month, date.day + 1);
           break;
       }
-
-      // Sort descending by start time
-      currentFiltered.sort((a, b) => b.startTime.compareTo(a.startTime));
-
-      double dist = 0.0;
+      final currentFiltered =
+          allTrips.where((t) => overlaps(t, from, to)).toList()
+            ..sort((a, b) => b.startTime.compareTo(a.startTime));
+      double dist = 0;
       int dur = 0;
       for (final t in currentFiltered) {
-        dist += t.distanceMeters;
-        dur += t.durationSeconds;
+        dist += SessionTime.distance(
+          t.distanceMeters,
+          t.startTime,
+          t.endTime,
+          from: from,
+          to: to,
+          now: now,
+        );
+        dur += SessionTime.seconds(
+          t.startTime,
+          t.endTime,
+          from: from,
+          to: to,
+          now: now,
+        );
       }
 
-      if (mounted) {
+      if (mounted && generation == _tripLoadGeneration) {
         setState(() {
           _periodCounts = counts;
           _filteredTrips = currentFiltered;

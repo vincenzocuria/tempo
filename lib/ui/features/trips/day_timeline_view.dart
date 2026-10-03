@@ -1,10 +1,14 @@
+import '../../../data/services/session_time.dart';
+
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart' hide Path;
 import 'package:provider/provider.dart';
+
 import '../../../data/models/place.dart';
 import '../../../data/models/trip.dart';
 import '../../../data/models/visit_session.dart';
@@ -24,11 +28,7 @@ class DayTimelineVisit extends DayTimelineEvent {
   final Place? place;
   final int stopNumber;
 
-  DayTimelineVisit({
-    required this.visit,
-    this.place,
-    required this.stopNumber,
-  });
+  DayTimelineVisit({required this.visit, this.place, required this.stopNumber});
 
   @override
   DateTime get time => visit.startTime;
@@ -47,17 +47,14 @@ class DayTimelineView extends StatefulWidget {
   final DateTime? initialDate;
   final String? initialTripId;
 
-  const DayTimelineView({
-    super.key,
-    this.initialDate,
-    this.initialTripId,
-  });
+  const DayTimelineView({super.key, this.initialDate, this.initialTripId});
 
   @override
   State<DayTimelineView> createState() => _DayTimelineViewState();
 }
 
-class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderStateMixin {
+class _DayTimelineViewState extends State<DayTimelineView>
+    with TickerProviderStateMixin {
   late DateTime _selectedDate;
   final MapController _mapController = MapController();
 
@@ -67,6 +64,8 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
   List<DayTimelineEvent> _timelineEvents = [];
 
   bool _isLoading = true;
+  int _loadGeneration = 0;
+  TrackingEngine? _listenedEngine;
   dynamic _selectedItem; // VisitSession or Trip
 
   double _totalDistanceMeters = 0.0;
@@ -82,13 +81,18 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
     super.initState();
     final now = DateTime.now();
     _selectedDate = widget.initialDate != null
-        ? DateTime(widget.initialDate!.year, widget.initialDate!.month, widget.initialDate!.day)
+        ? DateTime(
+            widget.initialDate!.year,
+            widget.initialDate!.month,
+            widget.initialDate!.day,
+          )
         : DateTime(now.year, now.month, now.day);
     _loadDayData();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         try {
-          Provider.of<TrackingEngine>(context, listen: false).addListener(_onTrackingEngineUpdated);
+          _listenedEngine = Provider.of<TrackingEngine>(context, listen: false);
+          _listenedEngine!.addListener(_onTrackingEngineUpdated);
         } catch (_) {}
       }
     });
@@ -97,7 +101,8 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
   void _onTrackingEngineUpdated() {
     if (!mounted || !_isToday) return;
     final now = DateTime.now();
-    if (_lastLiveRefresh != null && now.difference(_lastLiveRefresh!).inSeconds < 3) {
+    if (_lastLiveRefresh != null &&
+        now.difference(_lastLiveRefresh!).inSeconds < 3) {
       return;
     }
     _lastLiveRefresh = now;
@@ -112,127 +117,208 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
   }
 
   Future<void> _loadDayData({bool silent = false}) async {
-    if (!silent) {
-      setState(() => _isLoading = true);
-    }
-
-    final placeRepo = Provider.of<PlaceRepository>(context, listen: false);
-    final visitRepo = Provider.of<VisitRepository>(context, listen: false);
-    final tripRepo = Provider.of<TripRepository>(context, listen: false);
-    final trackingEngine = Provider.of<TrackingEngine>(context, listen: false);
-
-    final startOfDay = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, 0, 0, 0);
-    final endOfDay = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, 23, 59, 59);
-
-    final allPlaces = await placeRepo.getAllPlaces();
-    final pMap = <String, Place>{};
-    for (final p in allPlaces) {
-      pMap[p.id] = p;
-    }
-
-    final rawVisits = await visitRepo.getVisits(from: startOfDay, to: endOfDay);
-    final rawTrips = await tripRepo.getTrips(from: startOfDay, to: endOfDay);
-
-    final visits = List<VisitSession>.from(rawVisits);
-    final trips = List<Trip>.from(rawTrips);
-
-    // If viewing today, also incorporate active visit or active trip if running
-    if (_isToday) {
-      final activeVisit = trackingEngine.activeVisit;
-      if (activeVisit != null) {
-        visits.removeWhere((v) => v.id == activeVisit.id);
-        visits.add(activeVisit);
-      }
-      final activeTrip = trackingEngine.activeTrip;
-      if (activeTrip != null) {
-        trips.removeWhere((t) => t.id == activeTrip.id);
-        trips.add(activeTrip.copyWith(
-          routePoints: trackingEngine.activeRoutePoints,
-          distanceMeters: trackingEngine.activeTripDistance,
-        ));
-      }
-    }
-
-    // Sort visits and trips chronologically
-    visits.sort((a, b) => a.startTime.compareTo(b.startTime));
-    trips.sort((a, b) => a.startTime.compareTo(b.startTime));
-
-    // Interleave into a unified day timeline
-    final events = <DayTimelineEvent>[];
-    int stopCounter = 1;
-    for (final v in visits) {
-      events.add(DayTimelineVisit(
-        visit: v,
-        place: pMap[v.placeId],
-        stopNumber: stopCounter++,
-      ));
-    }
-    for (final t in trips) {
-      events.add(DayTimelineTrip(t));
-    }
-    events.sort((a, b) => a.time.compareTo(b.time));
-
-    // Compute day totals
-    double distSum = 0.0;
-    int movingSec = 0;
-    for (final t in trips) {
-      distSum += t.distanceMeters;
-      movingSec += t.durationSeconds;
-    }
-
-    int statSec = 0;
-    for (final v in visits) {
-      statSec += v.currentDuration.inSeconds;
-    }
-
-    dynamic initialSelect;
-    if (widget.initialTripId != null) {
-      for (final t in trips) {
-        if (t.id == widget.initialTripId) {
-          initialSelect = t;
-          break;
-        }
-      }
-    }
-
     if (!mounted) return;
-    setState(() {
-      _visits = visits;
-      _trips = trips;
-      _placeMap = pMap;
-      _timelineEvents = events;
-      _totalDistanceMeters = distSum;
-      _totalMovingDurationSeconds = movingSec;
-      _totalStationaryDurationSeconds = statSec;
-      if (!silent || _selectedItem == null) {
-        _selectedItem = initialSelect;
-      } else if (_selectedItem != null) {
-        if (_selectedItem is Trip) {
-          final updated = trips.where((t) => t.id == (_selectedItem as Trip).id).firstOrNull;
-          if (updated != null) _selectedItem = updated;
-        } else if (_selectedItem is VisitSession) {
-          final updated = visits.where((v) => v.id == (_selectedItem as VisitSession).id).firstOrNull;
-          if (updated != null) _selectedItem = updated;
+    final generation = ++_loadGeneration;
+    try {
+      if (!silent) {
+        setState(() => _isLoading = true);
+      }
+
+      final placeRepo = Provider.of<PlaceRepository>(context, listen: false);
+      final visitRepo = Provider.of<VisitRepository>(context, listen: false);
+      final tripRepo = Provider.of<TripRepository>(context, listen: false);
+      final trackingEngine = Provider.of<TrackingEngine>(
+        context,
+        listen: false,
+      );
+
+      final startOfDay = DateTime(
+        _selectedDate.year,
+        _selectedDate.month,
+        _selectedDate.day,
+        0,
+        0,
+        0,
+      );
+      final endOfDay = DateTime(
+        _selectedDate.year,
+        _selectedDate.month,
+        _selectedDate.day + 1,
+      );
+      final now = DateTime.now();
+
+      final allPlaces = await placeRepo.getAllPlaces();
+      final pMap = <String, Place>{};
+      for (final p in allPlaces) {
+        pMap[p.id] = p;
+      }
+
+      final rawVisits = await visitRepo.getVisits(
+        from: startOfDay,
+        to: endOfDay,
+      );
+      final rawTrips = await tripRepo.getTrips(from: startOfDay, to: endOfDay);
+
+      final visits = List<VisitSession>.from(rawVisits);
+      final trips = List<Trip>.from(rawTrips);
+
+      // If viewing today, also incorporate active visit or active trip if running
+      {
+        final activeVisit = trackingEngine.activeVisit;
+        if (activeVisit != null &&
+            SessionTime.seconds(
+                  activeVisit.startTime,
+                  activeVisit.endTime,
+                  from: startOfDay,
+                  to: endOfDay,
+                  now: now,
+                ) >
+                0) {
+          visits.removeWhere((v) => v.id == activeVisit.id);
+          visits.add(activeVisit);
+        }
+        final activeTrip = trackingEngine.activeTrip;
+        if (activeTrip != null &&
+            SessionTime.seconds(
+                  activeTrip.startTime,
+                  activeTrip.endTime,
+                  from: startOfDay,
+                  to: endOfDay,
+                  now: now,
+                ) >
+                0) {
+          trips.removeWhere((t) => t.id == activeTrip.id);
+          trips.add(
+            activeTrip.copyWith(
+              routePoints: trackingEngine.activeRoutePoints,
+              distanceMeters: trackingEngine.activeTripDistance,
+            ),
+          );
         }
       }
-      _isLoading = false;
-    });
 
-    if (!silent) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (initialSelect != null && initialSelect is Trip) {
-          _focusTrip(initialSelect);
-        } else {
-          _fitWholeDay();
+      // Sort visits and trips chronologically
+      visits.sort((a, b) => a.startTime.compareTo(b.startTime));
+      trips.sort((a, b) => a.startTime.compareTo(b.startTime));
+
+      // Interleave into a unified day timeline
+      final events = <DayTimelineEvent>[];
+      int stopCounter = 1;
+      for (final v in visits) {
+        events.add(
+          DayTimelineVisit(
+            visit: v,
+            place: pMap[v.placeId],
+            stopNumber: stopCounter++,
+          ),
+        );
+      }
+      for (final t in trips) {
+        events.add(DayTimelineTrip(t));
+      }
+      events.sort((a, b) => a.time.compareTo(b.time));
+
+      // Compute day totals
+      double distSum = 0.0;
+      int movingSec = 0;
+      for (final t in trips) {
+        distSum += SessionTime.distance(
+          t.distanceMeters,
+          t.startTime,
+          t.endTime,
+          from: startOfDay,
+          to: endOfDay,
+          now: now,
+        );
+        movingSec += SessionTime.seconds(
+          t.startTime,
+          t.endTime,
+          from: startOfDay,
+          to: endOfDay,
+          now: now,
+        );
+      }
+
+      int statSec = 0;
+      for (final v in visits) {
+        statSec += SessionTime.seconds(
+          v.startTime,
+          v.endTime,
+          from: startOfDay,
+          to: endOfDay,
+          now: now,
+        );
+      }
+
+      dynamic initialSelect;
+      if (widget.initialTripId != null) {
+        for (final t in trips) {
+          if (t.id == widget.initialTripId) {
+            initialSelect = t;
+            break;
+          }
         }
+      }
+
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        _visits = visits;
+        _trips = trips;
+        _placeMap = pMap;
+        _timelineEvents = events;
+        _totalDistanceMeters = distSum;
+        _totalMovingDurationSeconds = movingSec;
+        _totalStationaryDurationSeconds = statSec;
+        if (!silent || _selectedItem == null) {
+          _selectedItem = initialSelect;
+        } else if (_selectedItem != null) {
+          if (_selectedItem is Trip) {
+            final updated = trips
+                .where((t) => t.id == (_selectedItem as Trip).id)
+                .firstOrNull;
+            if (updated != null) _selectedItem = updated;
+          } else if (_selectedItem is VisitSession) {
+            final updated = visits
+                .where((v) => v.id == (_selectedItem as VisitSession).id)
+                .firstOrNull;
+            if (updated != null) _selectedItem = updated;
+          }
+        }
+        _isLoading = false;
       });
+
+      if (!silent) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || generation != _loadGeneration) return;
+          if (initialSelect != null && initialSelect is Trip) {
+            _focusTrip(initialSelect);
+          } else {
+            _fitWholeDay();
+          }
+        });
+      }
+    } catch (e) {
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() => _isLoading = false);
+      debugPrint('Error loading timeline: $e');
+      if (!silent) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Impossibile caricare la giornata. Riprova.'),
+          ),
+        );
+      }
     }
   }
 
   void _previousDay() {
     HapticFeedback.selectionClick();
     setState(() {
-      _selectedDate = _selectedDate.subtract(const Duration(days: 1));
+      _selectedDate = DateTime(
+        _selectedDate.year,
+        _selectedDate.month,
+        _selectedDate.day - 1,
+      );
       _selectedItem = null;
     });
     _loadDayData();
@@ -242,7 +328,11 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
     if (_isToday) return;
     HapticFeedback.selectionClick();
     setState(() {
-      _selectedDate = _selectedDate.add(const Duration(days: 1));
+      _selectedDate = DateTime(
+        _selectedDate.year,
+        _selectedDate.month,
+        _selectedDate.day + 1,
+      );
       _selectedItem = null;
     });
     _loadDayData();
@@ -289,11 +379,20 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
       final startLng = _mapController.camera.center.longitude;
       final startZoom = _mapController.camera.zoom;
 
-      final latTween = Tween<double>(begin: startLat, end: destLocation.latitude);
-      final lngTween = Tween<double>(begin: startLng, end: destLocation.longitude);
+      final latTween = Tween<double>(
+        begin: startLat,
+        end: destLocation.latitude,
+      );
+      final lngTween = Tween<double>(
+        begin: startLng,
+        end: destLocation.longitude,
+      );
       final zoomTween = Tween<double>(begin: startZoom, end: destZoom);
 
-      final curve = CurvedAnimation(parent: controller, curve: Curves.easeInOutCubic);
+      final curve = CurvedAnimation(
+        parent: controller,
+        curve: Curves.easeInOutCubic,
+      );
 
       controller.addListener(() {
         _mapController.move(
@@ -303,7 +402,8 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
       });
 
       controller.addStatusListener((status) {
-        if (status == AnimationStatus.completed || status == AnimationStatus.dismissed) {
+        if (status == AnimationStatus.completed ||
+            status == AnimationStatus.dismissed) {
           controller.dispose();
           if (_cameraAnimController == controller) {
             _cameraAnimController = null;
@@ -439,7 +539,10 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
 
   Future<void> _editTripMode(Trip trip) async {
     HapticFeedback.selectionClick();
-    final newMode = await TransportModePicker.show(context, currentMode: trip.transportMode);
+    final newMode = await TransportModePicker.show(
+      context,
+      currentMode: trip.transportMode,
+    );
     if (newMode != null && newMode != trip.transportMode && mounted) {
       final engine = Provider.of<TrackingEngine>(context, listen: false);
       await engine.updateTripTransportMode(trip, newMode);
@@ -450,7 +553,7 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
   @override
   void dispose() {
     try {
-      Provider.of<TrackingEngine>(context, listen: false).removeListener(_onTrackingEngineUpdated);
+      _listenedEngine?.removeListener(_onTrackingEngineUpdated);
     } catch (_) {}
     _cameraAnimController?.dispose();
     super.dispose();
@@ -460,10 +563,16 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final textPrimary = isDark ? AppColors.textDarkPrimary : AppColors.textLightPrimary;
-    final textMuted = isDark ? AppColors.textDarkMuted : AppColors.textLightMuted;
+    final textPrimary = isDark
+        ? AppColors.textDarkPrimary
+        : AppColors.textLightPrimary;
+    final textMuted = isDark
+        ? AppColors.textDarkMuted
+        : AppColors.textLightMuted;
     final cardBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
-    final elevatedBg = isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated;
+    final elevatedBg = isDark
+        ? AppColors.darkSurfaceElevated
+        : AppColors.lightSurfaceElevated;
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
     final dateTitle = _isToday
@@ -474,11 +583,15 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
     final kmStr = (_totalDistanceMeters / 1000).toStringAsFixed(1);
     final moveHours = _totalMovingDurationSeconds ~/ 3600;
     final moveMins = (_totalMovingDurationSeconds % 3600) ~/ 60;
-    final moveTimeStr = moveHours > 0 ? '${moveHours}h ${moveMins}m' : '${moveMins}m';
+    final moveTimeStr = moveHours > 0
+        ? '${moveHours}h ${moveMins}m'
+        : '${moveMins}m';
 
     final stayHours = _totalStationaryDurationSeconds ~/ 3600;
     final stayMins = (_totalStationaryDurationSeconds % 3600) ~/ 60;
-    final stayTimeStr = stayHours > 0 ? '${stayHours}h ${stayMins}m' : '${stayMins}m';
+    final stayTimeStr = stayHours > 0
+        ? '${stayHours}h ${stayMins}m'
+        : '${stayMins}m';
 
     // Build polylines
     final polylines = <Polyline>[];
@@ -491,9 +604,13 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
             points: trip.latLngPoints,
             color: isSelected
                 ? tripColor
-                : (_selectedItem != null ? tripColor.withValues(alpha: 0.3) : tripColor),
+                : (_selectedItem != null
+                      ? tripColor.withValues(alpha: 0.3)
+                      : tripColor),
             strokeWidth: isSelected ? 6.5 : 4.5,
-            borderColor: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.7),
+            borderColor: isSelected
+                ? Colors.white
+                : Colors.white.withValues(alpha: 0.7),
             borderStrokeWidth: isSelected ? 2.5 : 1.5,
           ),
         );
@@ -527,7 +644,10 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
                     decoration: BoxDecoration(
                       color: place.color,
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: isSelected ? 3 : 2),
+                      border: Border.all(
+                        color: Colors.white,
+                        width: isSelected ? 3 : 2,
+                      ),
                       boxShadow: [
                         BoxShadow(
                           color: place.color.withValues(alpha: 0.45),
@@ -607,7 +727,10 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
             child: SafeArea(
               bottom: false,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 child: Row(
                   children: [
                     // Back button
@@ -624,14 +747,19 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
                     // Date Navigator Capsule (Google Maps style)
                     Expanded(
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: cardBg.withValues(alpha: isDark ? 0.95 : 0.98),
                           borderRadius: BorderRadius.circular(24),
                           border: Border.all(color: borderColor),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.1),
+                              color: Colors.black.withValues(
+                                alpha: isDark ? 0.4 : 0.1,
+                              ),
                               blurRadius: 12,
                               offset: const Offset(0, 3),
                             ),
@@ -641,10 +769,16 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.chevron_left_rounded, size: 24),
+                              icon: const Icon(
+                                Icons.chevron_left_rounded,
+                                size: 24,
+                              ),
                               tooltip: 'Giorno precedente',
                               padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                              constraints: const BoxConstraints(
+                                minWidth: 36,
+                                minHeight: 36,
+                              ),
                               onPressed: _previousDay,
                             ),
                             Expanded(
@@ -652,12 +786,19 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
                                 borderRadius: BorderRadius.circular(16),
                                 onTap: _pickCustomDate,
                                 child: Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 4,
+                                    horizontal: 6,
+                                  ),
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Icon(Icons.calendar_today_rounded, size: 14, color: AppColors.primary),
+                                      const Icon(
+                                        Icons.calendar_today_rounded,
+                                        size: 14,
+                                        color: AppColors.primary,
+                                      ),
                                       const SizedBox(width: 6),
                                       Flexible(
                                         child: Text(
@@ -681,11 +822,16 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
                               icon: Icon(
                                 Icons.chevron_right_rounded,
                                 size: 24,
-                                color: _isToday ? textMuted.withValues(alpha: 0.3) : textPrimary,
+                                color: _isToday
+                                    ? textMuted.withValues(alpha: 0.3)
+                                    : textPrimary,
                               ),
                               tooltip: 'Giorno successivo',
                               padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                              constraints: const BoxConstraints(
+                                minWidth: 36,
+                                minHeight: 36,
+                              ),
                               onPressed: _isToday ? null : _nextDay,
                             ),
                           ],
@@ -703,7 +849,13 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
                         elevation: 4,
                         tooltip: 'Torna ad oggi',
                         onPressed: _jumpToToday,
-                        child: const Text('Oggi', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
+                        child: const Text(
+                          'Oggi',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
                       ),
                     ],
                   ],
@@ -742,7 +894,10 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
                   tooltip: 'Ingrandisci',
                   onPressed: () {
                     final zoom = _mapController.camera.zoom;
-                    _mapController.move(_mapController.camera.center, (zoom + 1).clamp(1.0, 20.0));
+                    _mapController.move(
+                      _mapController.camera.center,
+                      (zoom + 1).clamp(1.0, 20.0),
+                    );
                   },
                   child: const Icon(Icons.add_rounded),
                 ),
@@ -756,7 +911,10 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
                   tooltip: 'Rimpicciolisci',
                   onPressed: () {
                     final zoom = _mapController.camera.zoom;
-                    _mapController.move(_mapController.camera.center, (zoom - 1).clamp(1.0, 20.0));
+                    _mapController.move(
+                      _mapController.camera.center,
+                      (zoom - 1).clamp(1.0, 20.0),
+                    );
                   },
                   child: const Icon(Icons.remove_rounded),
                 ),
@@ -775,7 +933,9 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
               return Container(
                 decoration: BoxDecoration(
                   color: cardBg,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(28),
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: isDark ? 0.6 : 0.2),
@@ -795,7 +955,9 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
                         width: 44,
                         height: 4.5,
                         decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+                          color: isDark
+                              ? const Color(0xFF475569)
+                              : const Color(0xFFCBD5E1),
                           borderRadius: BorderRadius.circular(4),
                         ),
                       ),
@@ -810,40 +972,54 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'La mia giornata',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w900,
-                                      color: textPrimary,
-                                      letterSpacing: -0.3,
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'La mia giornata',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w900,
+                                        color: textPrimary,
+                                        letterSpacing: -0.3,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '${_trips.length} spostamenti • ${_visits.length} soste',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: textMuted,
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '${_trips.length} spostamenti • ${_visits.length} soste',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: textMuted,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
+                              const SizedBox(width: 8),
                               ElevatedButton.icon(
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF0EA5E9),
                                   foregroundColor: Colors.white,
                                   elevation: 0,
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
                                 ),
                                 onPressed: _fitWholeDay,
                                 icon: const Icon(Icons.map_rounded, size: 16),
-                                label: const Text('Inquadra tutto', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                label: const Text(
+                                  'Inquadra tutto',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
                             ],
                           ),
@@ -891,16 +1067,24 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
                       )
                     else if (_timelineEvents.isEmpty)
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 36,
+                        ),
                         child: Column(
                           children: [
                             Container(
                               padding: const EdgeInsets.all(18),
                               decoration: BoxDecoration(
-                                color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05),
+                                color: (isDark ? Colors.white : Colors.black)
+                                    .withValues(alpha: 0.05),
                                 shape: BoxShape.circle,
                               ),
-                              child: Icon(Icons.explore_off_rounded, size: 40, color: textMuted),
+                              child: Icon(
+                                Icons.explore_off_rounded,
+                                size: 40,
+                                color: textMuted,
+                              ),
                             ),
                             const SizedBox(height: 14),
                             Text(
@@ -917,13 +1101,19 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
                                   ? 'Non hai ancora effettuato spostamenti oggi. Quando ti muovi, Tempo traccerà automaticamente il percorso sulla mappa!'
                                   : 'Non ci sono dati salvati per questa data nel tuo archivio.',
                               textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 13, color: textMuted, height: 1.4),
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: textMuted,
+                                height: 1.4,
+                              ),
                             ),
                             if (!_isToday) ...[
                               const SizedBox(height: 16),
                               OutlinedButton.icon(
                                 style: OutlinedButton.styleFrom(
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
                                 ),
                                 onPressed: _jumpToToday,
                                 icon: const Icon(Icons.today_rounded, size: 16),
@@ -935,7 +1125,10 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
                       )
                     else
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                         child: Column(
                           children: [
                             for (int i = 0; i < _timelineEvents.length; i++)
@@ -1001,7 +1194,9 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
-                color: isDark ? AppColors.textDarkMuted : AppColors.textLightMuted,
+                color: isDark
+                    ? AppColors.textDarkMuted
+                    : AppColors.textLightMuted,
               ),
             ),
           ],
@@ -1028,7 +1223,9 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
       final placeColor = p?.color ?? v.category.defaultColor;
       final placeIcon = p?.icon ?? v.category.icon;
       final startStr = timeFormat.format(v.startTime);
-      final endStr = v.endTime != null ? timeFormat.format(v.endTime!) : 'In corso';
+      final endStr = v.endTime != null
+          ? timeFormat.format(v.endTime!)
+          : 'In corso';
 
       return IntrinsicHeight(
         child: Row(
@@ -1045,7 +1242,10 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
                     decoration: BoxDecoration(
                       color: placeColor,
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: isSelected ? 2.5 : 2),
+                      border: Border.all(
+                        color: Colors.white,
+                        width: isSelected ? 2.5 : 2,
+                      ),
                       boxShadow: [
                         BoxShadow(
                           color: placeColor.withValues(alpha: 0.4),
@@ -1070,7 +1270,9 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
                       child: Container(
                         width: 2.5,
                         margin: const EdgeInsets.symmetric(vertical: 2),
-                        color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                        color: isDark
+                            ? const Color(0xFF334155)
+                            : const Color(0xFFCBD5E1),
                       ),
                     ),
                 ],
@@ -1110,7 +1312,11 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
                                 color: placeColor.withValues(alpha: 0.16),
                                 borderRadius: BorderRadius.circular(10),
                               ),
-                              child: Icon(placeIcon, size: 16, color: placeColor),
+                              child: Icon(
+                                placeIcon,
+                                size: 16,
+                                color: placeColor,
+                              ),
                             ),
                             const SizedBox(width: 8),
                             Expanded(
@@ -1126,7 +1332,10 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
                               ),
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
                               decoration: BoxDecoration(
                                 color: placeColor.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(10),
@@ -1145,7 +1354,11 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
                         const SizedBox(height: 6),
                         Row(
                           children: [
-                            Icon(Icons.schedule_rounded, size: 13, color: textMuted),
+                            Icon(
+                              Icons.schedule_rounded,
+                              size: 13,
+                              color: textMuted,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               '$startStr - $endStr',
@@ -1158,9 +1371,13 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
                             if (v.isOngoing) ...[
                               const SizedBox(width: 6),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 1.5,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                                  color: const Color(0xFF10B981)
+                                      .withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: const Text(
@@ -1190,7 +1407,9 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
       final tripColor = TransportMode.getColor(t.transportMode);
       final tripIcon = TransportMode.getIcon(t.transportMode);
       final startStr = timeFormat.format(t.startTime);
-      final endStr = t.endTime != null ? timeFormat.format(t.endTime!) : 'In corso';
+      final endStr = t.endTime != null
+          ? timeFormat.format(t.endTime!)
+          : 'In corso';
 
       return IntrinsicHeight(
         child: Row(
@@ -1216,7 +1435,9 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
                       child: Container(
                         width: 2.5,
                         margin: const EdgeInsets.symmetric(vertical: 2),
-                        color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                        color: isDark
+                            ? const Color(0xFF334155)
+                            : const Color(0xFFCBD5E1),
                       ),
                     ),
                 ],
@@ -1266,7 +1487,10 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
                               borderRadius: BorderRadius.circular(10),
                               onTap: () => _editTripMode(t),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
                                 decoration: BoxDecoration(
                                   color: tripColor.withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(8),
@@ -1283,7 +1507,11 @@ class _DayTimelineViewState extends State<DayTimelineView> with TickerProviderSt
                                       ),
                                     ),
                                     const SizedBox(width: 3),
-                                    Icon(Icons.edit_rounded, size: 10, color: tripColor),
+                                    Icon(
+                                      Icons.edit_rounded,
+                                      size: 10,
+                                      color: tripColor,
+                                    ),
                                   ],
                                 ),
                               ),
