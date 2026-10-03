@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:tempo/data/repositories/category_repository.dart';
@@ -18,9 +19,10 @@ import 'package:tempo/data/services/tracking_engine.dart';
 import 'package:tempo/main.dart';
 
 void main() {
-  setUpAll(() {
+  setUpAll(() async {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
+    await initializeDateFormatting('it_IT');
   });
   setUp(() {
     final messenger =
